@@ -1,0 +1,8 @@
+[package]
+name = "parser-test"
+version = "0.1.0"
+authors = ["Vincent Prouillet <balthek@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+logos = "0.12.0"
