@@ -1,13 +1,15 @@
-use logos::Logos;
+use std::fmt;
+
+use logos::{Lexer, Logos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Operator {
+pub enum Operator {
     // math
     Mul,
     Div,
     Mod,
-    Plus,
-    Minus,
+    Add,
+    Sub,
 
     // comparison
     LessThan,
@@ -22,6 +24,7 @@ pub(crate) enum Operator {
     And,
     Or,
     StrConcat,
+    In,
 }
 
 impl Operator {
@@ -30,8 +33,8 @@ impl Operator {
             "*" => Operator::Mul,
             "/" => Operator::Div,
             "%" => Operator::Mod,
-            "+" => Operator::Plus,
-            "-" => Operator::Minus,
+            "+" => Operator::Add,
+            "-" => Operator::Sub,
             "<" => Operator::LessThan,
             ">" => Operator::GreaterThan,
             "<=" => Operator::LessThanOrEqual,
@@ -41,10 +44,40 @@ impl Operator {
             "and" => Operator::And,
             "or" => Operator::Or,
             "not" => Operator::Not,
+            "in" => Operator::In,
             "~" => Operator::StrConcat,
             _ => unreachable!(),
         }
     }
+}
+
+impl fmt::Display for Operator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let val = match self {
+            Operator::Mul => "*",
+            Operator::Div => "/",
+            Operator::Mod => "%",
+            Operator::Add => "+",
+            Operator::Sub => "-",
+            Operator::LessThan => "<",
+            Operator::GreaterThan => ">",
+            Operator::LessThanOrEqual => "<=",
+            Operator::GreaterThanOrEqual => ">=",
+            Operator::Equal => "==",
+            Operator::NotEqual => "!=",
+            Operator::And => "and",
+            Operator::Or => "or",
+            Operator::Not => "not",
+            Operator::In => "in",
+            Operator::StrConcat => "~",
+        };
+        write!(f, "{}", val)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Copy, Clone)]
+pub(crate) struct LexerExtras {
+    line_number: usize,
 }
 
 fn lex_operator(lex: &mut logos::Lexer<Token>) -> Operator {
@@ -52,8 +85,12 @@ fn lex_operator(lex: &mut logos::Lexer<Token>) -> Operator {
 }
 
 #[derive(Logos, Debug, PartialEq, Copy, Clone)]
+#[logos(extras = LexerExtras)]
 pub(crate) enum Token {
-    #[regex(r"[ \t\n\r]+")]
+    #[token("\n", |lex| {
+        lex.extras.line_number += 1;
+    })]
+    #[regex(r"[ \t\r]+")]
     Whitespace,
 
     #[token("true", |_| true)]
@@ -79,6 +116,7 @@ pub(crate) enum Token {
     #[token("or", lex_operator)]
     #[token("and", lex_operator)]
     #[token("not", lex_operator)]
+    #[token("in", lex_operator)]
     #[token("~", lex_operator)]
     Op(Operator),
 
@@ -134,14 +172,12 @@ pub(crate) enum Token {
     #[regex("-?[0-9]+", |lex| lex.slice().parse())]
     Integer(i64),
 
-    #[regex("-?[0-9]*\\.[0-9]+([eE][+-]?[0-9]+)?", |lex| lex.slice().parse())]
+    #[regex("-?[0-9]+\\.[0-9]+", |lex| lex.slice().parse())]
     Float(f64),
 
     // All the keywords
     #[token("for")]
     For,
-    #[token("in")]
-    In,
     #[token("break")]
     Break,
     #[token("continue")]
@@ -197,6 +233,46 @@ pub(crate) enum Token {
     Error,
 }
 
+pub(crate) struct PeekableLexer<'source> {
+    lexer: Lexer<'source, Token>,
+    peeked: Option<Option<Token>>,
+}
+
+impl<'source> PeekableLexer<'source> {
+    pub(crate) fn new(source: &'source str) -> Self {
+        Self {
+            lexer: Token::lexer(source),
+            peeked: None,
+        }
+    }
+
+    pub(crate) fn peek(&mut self) -> Option<Token> {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.lexer.next());
+        }
+        self.peeked.unwrap()
+    }
+
+    pub(crate) fn slice(&self) -> &str {
+        self.lexer.slice()
+    }
+
+    pub(crate) fn extras(&self) -> &LexerExtras {
+        &self.lexer.extras
+    }
+}
+
+impl<'source> Iterator for PeekableLexer<'source> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(peeked) = self.peeked.take() {
+            peeked
+        } else {
+            self.lexer.next()
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -244,6 +320,16 @@ mod tests {
         for (t, val) in tests {
             let mut lex = Token::lexer(t);
             assert_eq!(lex.next().unwrap(), Token::Float(val));
+            assert!(lex.next().is_none());
+        }
+    }
+
+    #[test]
+    fn can_lex_ident() {
+        let tests = vec!["hello", "hello_", "hello_1", "HELLO", "_1"];
+        for t in tests {
+            let mut lex = Token::lexer(t);
+            assert_eq!(lex.next().unwrap(), Token::Ident);
             assert!(lex.next().is_none());
         }
     }
@@ -303,11 +389,24 @@ mod tests {
                 (Token::Ident, "name", 4..8),
                 (Token::Op(Operator::Mul), "*", 8..9),
                 (Token::Integer(10), "10", 9..11),
-                (Token::Op(Operator::Plus), "+", 11..12),
+                (Token::Op(Operator::Add), "+", 11..12),
                 (Token::Float(1.0), "1.0", 12..15),
                 (Token::Whitespace, " ", 15..16),
                 (Token::VariableEnd(false), "}}", 16..18),
             ],
         );
+    }
+
+    #[test]
+    fn can_keep_count_of_line_number() {
+        let mut lex = Token::lexer("hello\nworld\nhi");
+        assert_eq!(lex.extras.line_number, 0);
+        assert_eq!(lex.next().unwrap(), Token::Ident);
+        assert_eq!(lex.next().unwrap(), Token::Whitespace);
+        assert_eq!(lex.extras.line_number, 1);
+        assert_eq!(lex.next().unwrap(), Token::Ident);
+        assert_eq!(lex.next().unwrap(), Token::Whitespace);
+        assert_eq!(lex.extras.line_number, 2);
+        assert_eq!(lex.next().unwrap(), Token::Ident);
     }
 }
