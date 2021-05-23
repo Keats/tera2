@@ -1,6 +1,7 @@
 use std::fmt;
 
 use logos::{Lexer, Logos};
+use std::ops::Range;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operator {
@@ -25,73 +26,193 @@ pub enum Operator {
     Or,
     StrConcat,
     In,
-}
-
-impl Operator {
-    fn from_str(s: &str) -> Operator {
-        match s {
-            "*" => Operator::Mul,
-            "/" => Operator::Div,
-            "%" => Operator::Mod,
-            "+" => Operator::Add,
-            "-" => Operator::Sub,
-            "<" => Operator::LessThan,
-            ">" => Operator::GreaterThan,
-            "<=" => Operator::LessThanOrEqual,
-            ">=" => Operator::GreaterThanOrEqual,
-            "==" => Operator::Equal,
-            "!=" => Operator::NotEqual,
-            "and" => Operator::And,
-            "or" => Operator::Or,
-            "not" => Operator::Not,
-            "in" => Operator::In,
-            "~" => Operator::StrConcat,
-            _ => unreachable!(),
-        }
-    }
+    Is,
+    Pipe,
 }
 
 impl fmt::Display for Operator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Operator::*;
+
         let val = match self {
-            Operator::Mul => "*",
-            Operator::Div => "/",
-            Operator::Mod => "%",
-            Operator::Add => "+",
-            Operator::Sub => "-",
-            Operator::LessThan => "<",
-            Operator::GreaterThan => ">",
-            Operator::LessThanOrEqual => "<=",
-            Operator::GreaterThanOrEqual => ">=",
-            Operator::Equal => "==",
-            Operator::NotEqual => "!=",
-            Operator::And => "and",
-            Operator::Or => "or",
-            Operator::Not => "not",
-            Operator::In => "in",
-            Operator::StrConcat => "~",
+            Mul => "*",
+            Div => "/",
+            Mod => "%",
+            Add => "+",
+            Sub => "-",
+            LessThan => "<",
+            GreaterThan => ">",
+            LessThanOrEqual => "<=",
+            GreaterThanOrEqual => ">=",
+            Equal => "==",
+            NotEqual => "!=",
+            And => "and",
+            Or => "or",
+            Not => "not",
+            In => "in",
+            Is => "is",
+            StrConcat => "~",
+            Pipe => "|",
         };
         write!(f, "{}", val)
     }
 }
 
-#[derive(Debug, Default, PartialEq, Copy, Clone)]
-pub(crate) struct LexerExtras {
-    line_number: usize,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Keyword {
+    For,
+    Break,
+    Continue,
+    EndFor,
+    If,
+    Elif,
+    Else,
+    EndIf,
+    Block,
+    Super,
+    EndBlock,
+    Macro,
+    EndMacro,
+    Raw,
+    EndRaw,
+    Include,
+    Filter,
+    EndFilter,
+    Set,
+    SetGlobal,
+    IgnoreMissing,
+    Extends,
+    Import,
+    As,
 }
 
-fn lex_operator(lex: &mut logos::Lexer<Token>) -> Operator {
-    Operator::from_str(lex.slice())
+impl fmt::Display for Keyword {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Keyword::*;
+        let val = match self {
+            For => "for",
+            Break => "break",
+            Continue => "continue",
+            EndFor => "endfor",
+            If => "if",
+            Elif => "elif",
+            Else => "else",
+            EndIf => "endif",
+            Block => "block",
+            Super => "super()",
+            EndBlock => "endblock",
+            Macro => "macro",
+            EndMacro => "endmacro",
+            Raw => "raw",
+            EndRaw => "endraw",
+            Include => "include",
+            Filter => "filter",
+            EndFilter => "endfilter",
+            Set => "set",
+            SetGlobal => "set_global",
+            IgnoreMissing => "ignore missing",
+            Extends => "extends",
+            Import => "import",
+            As => "as",
+        };
+        write!(f, "{}", val)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Symbol {
+    LeftBracket,
+    RightBracket,
+    Comma,
+    Dot,
+    LeftParen,
+    RightParen,
+    Assign,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Token {
+    VariableStart(bool),
+    VariableEnd(bool),
+    TagStart(bool),
+    TagEnd(bool),
+    Comment,
+
+    Bool(bool),
+    Op(Operator),
+    String,
+    Ident,
+    Integer(i64),
+    Float(f64),
+    Keyword(Keyword),
+    Symbol(Symbol),
+
+    Error,
+}
+
+// TODO: inline those?
+impl Token {
+    fn from_content(tok: Content) -> Self {
+        match tok {
+            Content::VariableStart(b) => Self::VariableStart(b),
+            Content::TagStart(b) => Self::TagStart(b),
+            Content::Comment => Self::Comment,
+            Content::Error => Self::Error,
+        }
+    }
+
+    fn from_in_tag(tok: InTag) -> Self {
+        match tok {
+            InTag::Symbol(s) => Self::Symbol(s),
+            InTag::Keyword(k) => Self::Keyword(k),
+            InTag::Op(op) => Self::Op(op),
+            InTag::Integer(i) => Self::Integer(i),
+            InTag::Float(f) => Self::Float(f),
+            InTag::Bool(b) => Self::Bool(b),
+            InTag::Ident => Self::Ident,
+            InTag::String => Self::String,
+            InTag::Error => Self::Error,
+            InTag::VariableEnd(b) => Self::VariableEnd(b),
+            InTag::TagEnd(b) => Self::TagEnd(b),
+        }
+    }
 }
 
 #[derive(Logos, Debug, PartialEq, Copy, Clone)]
-#[logos(extras = LexerExtras)]
-pub(crate) enum Token {
-    #[token("\n", |lex| {
-        lex.extras.line_number += 1;
+pub(crate) enum Content {
+    #[token("{{", |_| false)]
+    #[token("{{-", |_| true)]
+    VariableStart(bool),
+    #[token("{%", |_| false)]
+    #[token("{%-", |_| true)]
+    TagStart(bool),
+
+    #[token("{#", |lex| {
+        let len = lex.remainder().find("#}")?;
+        lex.bump(len + 2); // include len of `#}`
+
+        Some(())
     })]
-    #[regex(r"[ \t\r]+")]
-    Whitespace,
+    Comment,
+
+    #[error]
+    Error,
+}
+
+impl Content {
+    fn is_tag_start(&self) -> bool {
+        matches!(self, Self::TagStart(_) | Self::VariableStart(_))
+    }
+}
+
+#[derive(Logos, Debug, PartialEq, Copy, Clone)]
+pub(crate) enum InTag {
+    #[token("}}", |_| false)]
+    #[token("-}}", |_| true)]
+    VariableEnd(bool),
+    #[token("%}", |_| false)]
+    #[token("-%}", |_| true)]
+    TagEnd(bool),
 
     #[token("true", |_| true)]
     #[token("True", |_| true)]
@@ -100,165 +221,142 @@ pub(crate) enum Token {
     Bool(bool),
 
     // maths
-    #[token("+", lex_operator)]
-    #[token("-", lex_operator)]
-    #[token("/", lex_operator)]
-    #[token("*", lex_operator)]
-    #[token("%", lex_operator)]
+    #[token("+", |_| Operator::Add)]
+    #[token("-", |_| Operator::Sub)]
+    #[token("/", |_| Operator::Div)]
+    #[token("*", |_| Operator::Mul)]
+    #[token("%", |_| Operator::Mod)]
     // comparison
-    #[token("==", lex_operator)]
-    #[token("!=", lex_operator)]
-    #[token(">=", lex_operator)]
-    #[token("<=", lex_operator)]
-    #[token(">", lex_operator)]
-    #[token("<", lex_operator)]
+    #[token("==", |_| Operator::Equal)]
+    #[token("!=", |_| Operator::NotEqual)]
+    #[token(">=", |_| Operator::GreaterThanOrEqual)]
+    #[token("<=", |_| Operator::LessThanOrEqual)]
+    #[token(">", |_| Operator::GreaterThan)]
+    #[token("<", |_| Operator::LessThan)]
     // and the rest
-    #[token("or", lex_operator)]
-    #[token("and", lex_operator)]
-    #[token("not", lex_operator)]
-    #[token("in", lex_operator)]
-    #[token("~", lex_operator)]
+    #[token("or", |_| Operator::Or)]
+    #[token("and", |_| Operator::And)]
+    #[token("not", |_| Operator::Not)]
+    #[token("in", |_| Operator::In)]
+    #[token("is", |_| Operator::In)]
+    #[token("~", |_| Operator::StrConcat)]
+    #[token("|", |_| Operator::Pipe)]
     Op(Operator),
 
-    #[token("=")]
-    Assign,
-    #[token("|")]
-    Pipe,
-
-    #[token("{{", |_| false)]
-    #[token("{{-", |_| true)]
-    VariableStart(bool),
-    #[token("}}", |_| false)]
-    #[token("-}}", |_| true)]
-    VariableEnd(bool),
-
-    #[token("{%", |_| false)]
-    #[token("{%-", |_| true)]
-    TagStart(bool),
-    #[token("%}", |_| false)]
-    #[token("-%}", |_| true)]
-    TagEnd(bool),
-
-    #[token("{#", |_| false)]
-    #[token("{#-", |_| true)]
-    CommentStart(bool),
-    #[token("#}", |_| false)]
-    #[token("-#}", |_| true)]
-    CommentEnd(bool),
-
-    #[token("[")]
-    LeftBracket,
-    #[token("]")]
-    RightBracket,
-    #[token(",")]
-    Comma,
-    #[token(".")]
-    Dot,
-    #[token("(")]
-    LeftParen,
-    #[token(")")]
-    RightParen,
+    #[token("=", |_| Symbol::Assign)]
+    #[token("[", |_| Symbol::LeftBracket)]
+    #[token("]", |_| Symbol::RightBracket)]
+    #[token(",", |_| Symbol::Comma)]
+    #[token(".", |_| Symbol::Dot)]
+    #[token("(", |_| Symbol::LeftParen)]
+    #[token(")", |_| Symbol::RightParen)]
+    Symbol(Symbol),
 
     #[regex("\"(?s:[^\"\\\\]|\\\\.)*\"")]
-    StringDoubleQuoted,
     #[regex("'(?s:[^'\\\\]|\\\\.)*'")]
-    StringSingleQuoted,
     #[regex("`(?s:[^`\\\\]|\\\\.)*`")]
-    StringBacktickQuoted,
-
+    String,
     #[regex(r"[_a-zA-Z][_a-zA-Z0-9]*")]
     Ident,
-
     #[regex("-?[0-9]+", |lex| lex.slice().parse())]
     Integer(i64),
-
     #[regex("-?[0-9]+\\.[0-9]+", |lex| lex.slice().parse())]
     Float(f64),
 
-    // All the keywords
-    #[token("for")]
-    For,
-    #[token("break")]
-    Break,
-    #[token("continue")]
-    Continue,
-    #[token("endfor")]
-    EndFor,
-    #[token("if")]
-    If,
-    #[token("elif")]
-    Elif,
-    #[token("else")]
-    Else,
-    #[token("endif")]
-    EndIf,
-    #[token("block")]
-    Block,
-    #[token("super()")]
-    Super,
-    #[token("endblock")]
-    EndBlock,
-    #[token("macro")]
-    Macro,
-    #[token("endmacro")]
-    EndMacro,
-    #[token("raw")]
-    Raw,
-    #[token("endraw")]
-    EndRaw,
-    #[token("include")]
-    Include,
-    #[token("filter")]
-    Filter,
-    #[token("endfilter")]
-    EndFilter,
-    #[token("set")]
-    Set,
-    #[token("set_global")]
-    SetGlobal,
-    #[token("is")]
-    Is,
-    #[token("ignore")]
-    Ignore,
-    #[token("missing")]
-    Missing,
-    #[token("extends")]
-    Extends,
-    #[token("import")]
-    Import,
-    #[token("As")]
-    As,
+    #[token("for", |_| Keyword::For)]
+    #[token("break", |_| Keyword::Break)]
+    #[token("continue", |_| Keyword::Continue)]
+    #[token("endfor", |_| Keyword::EndFor)]
+    #[token("if", |_| Keyword::If)]
+    #[token("elif", |_| Keyword::Elif)]
+    #[token("else", |_| Keyword::Else)]
+    #[token("endif", |_| Keyword::EndIf)]
+    #[token("block", |_| Keyword::Block)]
+    #[token("super()", |_| Keyword::Super)]
+    #[token("endblock", |_| Keyword::EndBlock)]
+    #[token("macro", |_| Keyword::Macro)]
+    #[token("endmacro", |_| Keyword::EndMacro)]
+    #[token("raw", |_| Keyword::Raw)]
+    #[token("endraw", |_| Keyword::EndRaw)]
+    #[token("include", |_| Keyword::Include)]
+    #[token("filter", |_| Keyword::Filter)]
+    #[token("endfilter", |_| Keyword::EndFilter)]
+    #[token("set", |_| Keyword::Set)]
+    #[token("set_global", |_| Keyword::SetGlobal)]
+    #[token("ignore missing", |_| Keyword::IgnoreMissing)]
+    #[token("extends", |_| Keyword::Extends)]
+    #[token("import", |_| Keyword::Import)]
+    #[token("as", |_| Keyword::As)]
+    Keyword(Keyword),
 
+    #[regex(r"[ \t\r\n\f]+", logos::skip)]
     #[error]
     Error,
 }
 
+impl InTag {
+    fn is_tag_end(&self) -> bool {
+        matches!(self, Self::TagEnd(_) | Self::VariableEnd(_))
+    }
+}
+
+pub(crate) enum LexerKind<'source> {
+    Content(logos::Lexer<'source, Content>),
+    InTag(logos::Lexer<'source, InTag>),
+    Done,
+}
+
+impl<'source> Default for LexerKind<'source> {
+    fn default() -> Self {
+        Self::Done
+    }
+}
+
 pub(crate) struct PeekableLexer<'source> {
-    lexer: Lexer<'source, Token>,
+    lexer: LexerKind<'source>,
+    last: usize,
     peeked: Option<Option<Token>>,
 }
 
 impl<'source> PeekableLexer<'source> {
     pub(crate) fn new(source: &'source str) -> Self {
         Self {
-            lexer: Token::lexer(source),
+            lexer: LexerKind::Content(Lexer::new(source)),
+            last: 0,
+            peeked: None,
+        }
+    }
+
+    /// Only used in tests
+    pub(crate) fn new_in_tag(source: &'source str) -> Self {
+        Self {
+            lexer: LexerKind::InTag(Lexer::new(source)),
+            last: 0,
             peeked: None,
         }
     }
 
     pub(crate) fn peek(&mut self) -> Option<Token> {
         if self.peeked.is_none() {
-            self.peeked = Some(self.lexer.next());
+            self.peeked = Some(self.next());
         }
         self.peeked.unwrap()
     }
 
-    pub(crate) fn slice(&self) -> &str {
-        self.lexer.slice()
+    pub(crate) fn span(&self) -> Range<usize> {
+        match &self.lexer {
+            LexerKind::Content(l) => l.span(),
+            LexerKind::InTag(l) => l.span(),
+            LexerKind::Done => unreachable!(),
+        }
     }
 
-    pub(crate) fn extras(&self) -> &LexerExtras {
-        &self.lexer.extras
+    pub(crate) fn slice(&self) -> &str {
+        match &self.lexer {
+            LexerKind::Content(l) => l.slice(),
+            LexerKind::InTag(l) => l.slice(),
+            LexerKind::Done => unreachable!(),
+        }
     }
 }
 
@@ -269,7 +367,27 @@ impl<'source> Iterator for PeekableLexer<'source> {
         if let Some(peeked) = self.peeked.take() {
             peeked
         } else {
-            self.lexer.next()
+            match std::mem::take(&mut self.lexer) {
+                LexerKind::Content(mut lexer) => {
+                    let tok = lexer.next()?;
+                    if tok.is_tag_start() {
+                        self.lexer = LexerKind::InTag(lexer.morph());
+                    } else {
+                        self.lexer = LexerKind::Content(lexer);
+                    }
+                    Some(Token::from_content(tok))
+                }
+                LexerKind::InTag(mut lexer) => {
+                    let tok = lexer.next()?;
+                    if tok.is_tag_end() {
+                        self.lexer = LexerKind::Content(lexer.morph());
+                    } else {
+                        self.lexer = LexerKind::InTag(lexer);
+                    }
+                    Some(Token::from_in_tag(tok))
+                }
+                LexerKind::Done => None,
+            }
         }
     }
 }
@@ -279,8 +397,12 @@ mod tests {
     use super::*;
     use std::ops::Range;
 
-    fn assert_lex(source: &str, tokens: &[(Token, &str, Range<usize>)]) {
-        let mut lex = Token::lexer(source);
+    fn assert_lex(source: &str, tokens: &[(Token, &str, Range<usize>)], in_tag: bool) {
+        let mut lex = if in_tag {
+            PeekableLexer::new_in_tag(source)
+        } else {
+            PeekableLexer::new(source)
+        };
 
         for tuple in tokens {
             assert_eq!(
@@ -302,7 +424,7 @@ mod tests {
             ("-100", -100),
         ];
         for (t, val) in tests {
-            let mut lex = Token::lexer(t);
+            let mut lex = PeekableLexer::new_in_tag(t);
             assert_eq!(lex.next().unwrap(), Token::Integer(val));
             assert!(lex.next().is_none());
         }
@@ -318,7 +440,7 @@ mod tests {
             ("-100.200", -100.2),
         ];
         for (t, val) in tests {
-            let mut lex = Token::lexer(t);
+            let mut lex = PeekableLexer::new_in_tag(t);
             assert_eq!(lex.next().unwrap(), Token::Float(val));
             assert!(lex.next().is_none());
         }
@@ -328,53 +450,51 @@ mod tests {
     fn can_lex_ident() {
         let tests = vec!["hello", "hello_", "hello_1", "HELLO", "_1"];
         for t in tests {
-            let mut lex = Token::lexer(t);
+            let mut lex = PeekableLexer::new_in_tag(t);
             assert_eq!(lex.next().unwrap(), Token::Ident);
             assert!(lex.next().is_none());
         }
     }
 
     #[test]
-    fn can_lex_double_quoted_strings() {
+    fn can_lex_all_types_of_strings() {
         let tests = vec![
             r#""a string12345""#,
             r#""a 'string""#,
             r#""a `string""#,
             r#""a \"string""#,
-        ];
-        for t in tests {
-            let mut lex = Token::lexer(t);
-            assert_eq!(lex.next().unwrap(), Token::StringDoubleQuoted);
-            assert!(lex.next().is_none());
-        }
-    }
-
-    #[test]
-    fn can_lex_single_quoted_strings() {
-        let tests = vec![
+            r#"`a string12345`"#,
+            r#"`a 'string`"#,
+            r#"`a \`string`"#,
+            r#"`a "string`"#,
             r#"'a string12345'"#,
             r#"'a \'string'"#,
             r#"'a `string'"#,
             r#"'a "string'"#,
         ];
         for t in tests {
-            let mut lex = Token::lexer(t);
-            assert_eq!(lex.next().unwrap(), Token::StringSingleQuoted);
+            let mut lex = PeekableLexer::new_in_tag(t);
+            assert_eq!(lex.next().unwrap(), Token::String);
             assert!(lex.next().is_none());
         }
     }
 
     #[test]
-    fn can_lex_backtick_quoted_strings() {
+    fn can_lex_comments() {
         let tests = vec![
-            r#"`a string12345`"#,
-            r#"`a 'string`"#,
-            r#"`a \`string`"#,
-            r#"`a "string`"#,
+            "{# basic #}",
+            "{# line1 \n line2 #}",
+            "{# #}",
+            "{# 'hey' 1 true +=*/% hello() #}",
+            "{##}",
+            "{###}",
+            "{# some ### comments #}",
+            "{# {# #}",
         ];
         for t in tests {
-            let mut lex = Token::lexer(t);
-            assert_eq!(lex.next().unwrap(), Token::StringBacktickQuoted);
+            let mut lex = PeekableLexer::new(t);
+            println!("{:?}", t);
+            assert_eq!(lex.next().unwrap(), Token::Comment);
             assert!(lex.next().is_none());
         }
     }
@@ -382,31 +502,21 @@ mod tests {
     #[test]
     fn can_lex_an_expression() {
         assert_lex(
-            "{{- name*10+1.0 }}",
+            "name*10+1.0 }}",
             &[
-                (Token::VariableStart(true), "{{-", 0..3),
-                (Token::Whitespace, " ", 3..4),
-                (Token::Ident, "name", 4..8),
-                (Token::Op(Operator::Mul), "*", 8..9),
-                (Token::Integer(10), "10", 9..11),
-                (Token::Op(Operator::Add), "+", 11..12),
-                (Token::Float(1.0), "1.0", 12..15),
-                (Token::Whitespace, " ", 15..16),
-                (Token::VariableEnd(false), "}}", 16..18),
+                (Token::Ident, "name", 0..4),
+                (Token::Op(Operator::Mul), "*", 4..5),
+                (Token::Integer(10), "10", 5..7),
+                (Token::Op(Operator::Add), "+", 7..8),
+                (Token::Float(1.0), "1.0", 8..11),
+                (Token::VariableEnd(false), "}}", 12..14),
             ],
+            true,
         );
     }
 
     #[test]
-    fn can_keep_count_of_line_number() {
-        let mut lex = Token::lexer("hello\nworld\nhi");
-        assert_eq!(lex.extras.line_number, 0);
-        assert_eq!(lex.next().unwrap(), Token::Ident);
-        assert_eq!(lex.next().unwrap(), Token::Whitespace);
-        assert_eq!(lex.extras.line_number, 1);
-        assert_eq!(lex.next().unwrap(), Token::Ident);
-        assert_eq!(lex.next().unwrap(), Token::Whitespace);
-        assert_eq!(lex.extras.line_number, 2);
-        assert_eq!(lex.next().unwrap(), Token::Ident);
+    fn can_lex_something_like_a_template() {
+        let mut lex = PeekableLexer::new("hello {b} {{1+1}}");
     }
 }

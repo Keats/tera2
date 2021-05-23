@@ -22,79 +22,62 @@ impl Default for Ws {
     }
 }
 
-/// All math operators
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum MathOperator {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Modulo,
-}
-
-impl fmt::Display for MathOperator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                MathOperator::Add => "+",
-                MathOperator::Sub => "-",
-                MathOperator::Mul => "*",
-                MathOperator::Div => "/",
-                MathOperator::Modulo => "%",
-            }
-        )
-    }
-}
-/// All logic operators
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum LogicOperator {
-    LessThan,
-    GreaterThan,
-    LessThanOrEqual,
-    GreaterThanOrEqual,
-    Equal,
-    NotEqual,
-    And,
-    Or,
-}
-
-impl fmt::Display for LogicOperator {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match *self {
-                LogicOperator::GreaterThan => ">",
-                LogicOperator::GreaterThanOrEqual => ">=",
-                LogicOperator::LessThan => "<",
-                LogicOperator::LessThanOrEqual => "<=",
-                LogicOperator::Equal => "==",
-                LogicOperator::NotEqual => "!=",
-                LogicOperator::And => "and",
-                LogicOperator::Or => "or",
-            }
-        )
-    }
-}
-
-// /// An expression that results in a number
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct MathExpr {
-//     pub lhs: Box<Expr>,
-//     pub rhs: Box<Expr>,
-//     pub operator: MathOperator,
+// /// All math operators
+// #[derive(Copy, Clone, Debug, PartialEq)]
+// pub enum MathOperator {
+//     Add,
+//     Sub,
+//     Mul,
+//     Div,
+//     Modulo,
 // }
 //
-// /// An expression that results in a bool
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct LogicExpr {
-//     pub lhs: Box<Expr>,
-//     pub rhs: Box<Expr>,
-//     pub operator: LogicOperator,
-//     /// Is it using `not` as in `b not in data` or `not is_admin`?
-//     pub negated: bool,
+// impl fmt::Display for MathOperator {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "{}",
+//             match *self {
+//                 MathOperator::Add => "+",
+//                 MathOperator::Sub => "-",
+//                 MathOperator::Mul => "*",
+//                 MathOperator::Div => "/",
+//                 MathOperator::Modulo => "%",
+//             }
+//         )
+//     }
+// }
+
+// /// All logic operators
+// #[derive(Copy, Clone, Debug, PartialEq)]
+// pub enum LogicOperator {
+//     LessThan,
+//     GreaterThan,
+//     LessThanOrEqual,
+//     GreaterThanOrEqual,
+//     Equal,
+//     NotEqual,
+//     And,
+//     Or,
+// }
+//
+// impl fmt::Display for LogicOperator {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(
+//             f,
+//             "{}",
+//             match *self {
+//                 LogicOperator::GreaterThan => ">",
+//                 LogicOperator::GreaterThanOrEqual => ">=",
+//                 LogicOperator::LessThan => "<",
+//                 LogicOperator::LessThanOrEqual => "<=",
+//                 LogicOperator::Equal => "==",
+//                 LogicOperator::NotEqual => "!=",
+//                 LogicOperator::And => "and",
+//                 LogicOperator::Or => "or",
+//             }
+//         )
+//     }
 // }
 
 /// An expression is the node found in variable block, kwargs and conditions.
@@ -107,9 +90,8 @@ pub enum Expression {
     Bool(bool),
     Ident(String),
     Array(Vec<Expression>),
+    Test(String, Vec<Expression>),
     Expr(Operator, Vec<Expression>),
-    // Math(MathExpr),
-    // Logic(LogicExpr),
 }
 
 impl fmt::Display for Expression {
@@ -133,6 +115,18 @@ impl fmt::Display for Expression {
                 }
                 write!(f, "]")
             }
+            Test(name, rest) => {
+                write!(f, "is {}", name)?;
+
+                if !rest.is_empty() {
+                    write!(f, "(",)?;
+                    for s in rest {
+                        write!(f, " {}", s)?
+                    }
+                    write!(f, ")",)?;
+                }
+                Ok(())
+            }
             Expr(op, rest) => {
                 write!(f, "({}", op)?;
                 for s in rest {
@@ -143,10 +137,3 @@ impl fmt::Display for Expression {
         }
     }
 }
-
-// /// An expression is a value that can be negated and followed by optional filters
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct Expression {
-//     pub val: ExpressionVal,
-//     // pub filters: Vec<FunctionCall>,
-// }
