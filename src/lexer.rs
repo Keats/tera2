@@ -195,6 +195,8 @@ pub(crate) enum Content {
     })]
     Comment,
 
+    #[regex(r"[^{]+", logos::skip)]
+    #[token("{", logos::skip)]
     #[error]
     Error,
 }
@@ -313,6 +315,7 @@ impl<'source> Default for LexerKind<'source> {
 }
 
 pub(crate) struct PeekableLexer<'source> {
+    source: &'source str,
     lexer: LexerKind<'source>,
     last: usize,
     peeked: Option<Option<Token>>,
@@ -321,6 +324,7 @@ pub(crate) struct PeekableLexer<'source> {
 impl<'source> PeekableLexer<'source> {
     pub(crate) fn new(source: &'source str) -> Self {
         Self {
+            source,
             lexer: LexerKind::Content(Lexer::new(source)),
             last: 0,
             peeked: None,
@@ -330,6 +334,7 @@ impl<'source> PeekableLexer<'source> {
     /// Only used in tests
     pub(crate) fn new_in_tag(source: &'source str) -> Self {
         Self {
+            source,
             lexer: LexerKind::InTag(Lexer::new(source)),
             last: 0,
             peeked: None,
@@ -358,6 +363,11 @@ impl<'source> PeekableLexer<'source> {
             LexerKind::Done => unreachable!(),
         }
     }
+
+    pub(crate) fn slice_before(&self) -> &str {
+        let start = self.span().start;
+        &self.source[self.last..start]
+    }
 }
 
 impl<'source> Iterator for PeekableLexer<'source> {
@@ -369,6 +379,7 @@ impl<'source> Iterator for PeekableLexer<'source> {
         } else {
             match std::mem::take(&mut self.lexer) {
                 LexerKind::Content(mut lexer) => {
+                    self.last = lexer.span().end;
                     let tok = lexer.next()?;
                     if tok.is_tag_start() {
                         self.lexer = LexerKind::InTag(lexer.morph());
@@ -378,6 +389,7 @@ impl<'source> Iterator for PeekableLexer<'source> {
                     Some(Token::from_content(tok))
                 }
                 LexerKind::InTag(mut lexer) => {
+                    self.last = lexer.span().end;
                     let tok = lexer.next()?;
                     if tok.is_tag_end() {
                         self.lexer = LexerKind::Content(lexer.morph());
@@ -493,7 +505,6 @@ mod tests {
         ];
         for t in tests {
             let mut lex = PeekableLexer::new(t);
-            println!("{:?}", t);
             assert_eq!(lex.next().unwrap(), Token::Comment);
             assert!(lex.next().is_none());
         }
@@ -517,6 +528,26 @@ mod tests {
 
     #[test]
     fn can_lex_something_like_a_template() {
-        let mut lex = PeekableLexer::new("hello {b} {{1+1}}");
+        let mut lex =
+            PeekableLexer::new("hello {b} {{-1+1}} {# hey -#} {% if true %} hey{} {%- endif%}");
+        assert_eq!(lex.next().unwrap(), Token::VariableStart(true));
+        assert_eq!(lex.slice_before(), "hello {b} ");
+        assert_eq!(lex.next().unwrap(), Token::Integer(1));
+        assert_eq!(lex.next().unwrap(), Token::Op(Operator::Add));
+        assert_eq!(lex.next().unwrap(), Token::Integer(1));
+        assert_eq!(lex.next().unwrap(), Token::VariableEnd(false));
+        assert_eq!(lex.next().unwrap(), Token::Comment);
+        assert!(lex.slice().starts_with("{#"));
+        assert!(lex.slice().ends_with("-#}"));
+        assert_eq!(lex.next().unwrap(), Token::TagStart(false));
+        assert_eq!(lex.next().unwrap(), Token::Keyword(Keyword::If));
+        assert_eq!(lex.next().unwrap(), Token::Bool(true));
+        assert_eq!(lex.next().unwrap(), Token::TagEnd(false));
+        assert_eq!(lex.next().unwrap(), Token::TagStart(true));
+        assert_eq!(lex.slice_before(), " hey{} ");
+        assert_eq!(lex.next().unwrap(), Token::Keyword(Keyword::EndIf));
+        assert_eq!(lex.next().unwrap(), Token::TagEnd(false));
+
+        assert!(lex.next().is_none());
     }
 }
