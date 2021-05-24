@@ -19,7 +19,7 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
     match op {
         And | Or => (1, 2),
         Equal | NotEqual | LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual => (5, 6),
-        Add | Sub | In => (7, 8),
+        Add | Sub | In | Is => (7, 8),
         Mul | Div | Mod | StrConcat => (11, 12),
         _ => panic!("bad op: {:?}", op),
     }
@@ -116,6 +116,42 @@ impl<'a> Parser<'a> {
         Expression::Array(vals)
     }
 
+    pub(crate) fn parse_test(&mut self) -> Expression {
+        self.expect(Token::Ident);
+        let name = self.lexer.slice().to_owned();
+        let mut args = vec![];
+
+        // Do we have arguments?
+        if let Some(Token::Symbol(Symbol::LeftParen)) = self.lexer.peek() {
+            self.lexer.next();
+
+            loop {
+                let expr = self.parse_expression(0);
+                args.push(expr);
+
+                match self.lexer.peek() {
+                    Some(Token::Symbol(Symbol::Comma)) => {
+                        self.lexer.next();
+                        if let Some(Token::Symbol(Symbol::RightParen)) = self.lexer.peek() {
+                            // it was a trailing comma
+                            break;
+                        }
+                    }
+                    Some(Token::Symbol(Symbol::RightParen)) => {
+                        self.lexer.next();
+                        break;
+                    }
+                    _ => panic!(
+                        "unexpected token while parsing test args: {:?}",
+                        self.lexer.peek()
+                    ),
+                }
+            }
+        }
+
+        Expression::Test(name, args)
+    }
+
     pub(crate) fn parse_expression(&mut self, min_bp: u8) -> Expression {
         let mut lhs = match self.lexer.next() {
             Some(Token::Integer(i)) => Expression::Int(i),
@@ -130,7 +166,6 @@ impl<'a> Parser<'a> {
                 lhs
             }
             Some(Token::Op(op)) => {
-                // TODO: special-case is since it can only be followed by a test and `not`
                 let (_, r_bp) = prefix_binding_power(op);
                 let rhs = self.parse_expression(r_bp);
                 Expression::Expr(op, vec![rhs])
@@ -154,7 +189,6 @@ impl<'a> Parser<'a> {
                     Some(Token::Op(Operator::In)) => (),
                     _ => panic!("Unexpected not token"),
                 }
-                println!("{:?}", lhs);
                 negated = true;
                 continue;
             }
@@ -166,7 +200,21 @@ impl<'a> Parser<'a> {
 
             // Advance past the op
             self.lexer.next();
-            let rhs = self.parse_expression(r_bp);
+
+            let rhs = if op == Operator::Is {
+                // Special-case `is not`
+                match self.lexer.peek() {
+                    Some(Token::Op(Operator::Not)) => {
+                        negated = true;
+                        self.lexer.next();
+                    }
+                    _ => (),
+                }
+                self.parse_test()
+            } else {
+                self.parse_expression(r_bp)
+            };
+
             lhs = Expression::Expr(op, vec![lhs, rhs]);
             if negated {
                 lhs = Expression::Expr(Operator::Not, vec![lhs]);
@@ -267,10 +315,6 @@ mod tests {
             ("a > b", "(> a b)"),
             ("1 + a > b", "(> (+ 1 a) b)"),
             ("1 + a > b * 8", "(> (+ 1 a) (* b 8))"),
-            // Parentheses
-            ("((1))", "1"),
-            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
-            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
             // and/or
             ("a and b", "(and a b)"),
             ("a or b", "(or a b)"),
@@ -281,6 +325,16 @@ mod tests {
             // in
             ("a in b", "(in a b)"),
             ("a in b and b in c", "(and (in a b) (in b c))"),
+            // test
+            ("a is defined", "(is a defined)"),
+            ("a is not defined", "(not (is a defined))"),
+            ("a + 1 is odd", "(is (+ a 1) odd)"),
+            ("a + 1 is not odd", "(not (is (+ a 1) odd))"),
+            ("a is ending_with('s')", "(is a ending_with{'s'})"),
+            // Parentheses
+            ("((1))", "1"),
+            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
+            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
             // not
             ("not a", "(not a)"),
             ("not b * 1", "(not (* b 1))"),
@@ -290,6 +344,14 @@ mod tests {
                 "(and (and (not id) (not true)) (not (+ 1 c)))",
             ),
             ("a not in b", "(not (in a b))"),
+            (
+                "a is defined and b is not defined(1, 2)",
+                "(and (is a defined) (not (is b defined{1, 2})))",
+            ),
+            (
+                "a is defined and not b is defined(1, 2)",
+                "(and (is a defined) (not (is b defined{1, 2})))",
+            ),
         ];
 
         for (input, expected) in tests {

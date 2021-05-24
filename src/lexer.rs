@@ -240,7 +240,7 @@ pub(crate) enum InTag {
     #[token("and", |_| Operator::And)]
     #[token("not", |_| Operator::Not)]
     #[token("in", |_| Operator::In)]
-    #[token("is", |_| Operator::In)]
+    #[token("is", |_| Operator::Is)]
     #[token("~", |_| Operator::StrConcat)]
     #[token("|", |_| Operator::Pipe)]
     Op(Operator),

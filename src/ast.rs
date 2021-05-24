@@ -22,64 +22,6 @@ impl Default for Ws {
     }
 }
 
-// /// All math operators
-// #[derive(Copy, Clone, Debug, PartialEq)]
-// pub enum MathOperator {
-//     Add,
-//     Sub,
-//     Mul,
-//     Div,
-//     Modulo,
-// }
-//
-// impl fmt::Display for MathOperator {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "{}",
-//             match *self {
-//                 MathOperator::Add => "+",
-//                 MathOperator::Sub => "-",
-//                 MathOperator::Mul => "*",
-//                 MathOperator::Div => "/",
-//                 MathOperator::Modulo => "%",
-//             }
-//         )
-//     }
-// }
-
-// /// All logic operators
-// #[derive(Copy, Clone, Debug, PartialEq)]
-// pub enum LogicOperator {
-//     LessThan,
-//     GreaterThan,
-//     LessThanOrEqual,
-//     GreaterThanOrEqual,
-//     Equal,
-//     NotEqual,
-//     And,
-//     Or,
-// }
-//
-// impl fmt::Display for LogicOperator {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(
-//             f,
-//             "{}",
-//             match *self {
-//                 LogicOperator::GreaterThan => ">",
-//                 LogicOperator::GreaterThanOrEqual => ">=",
-//                 LogicOperator::LessThan => "<",
-//                 LogicOperator::LessThanOrEqual => "<=",
-//                 LogicOperator::Equal => "==",
-//                 LogicOperator::NotEqual => "!=",
-//                 LogicOperator::And => "and",
-//                 LogicOperator::Or => "or",
-//             }
-//         )
-//     }
-// }
-
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
@@ -116,14 +58,18 @@ impl fmt::Display for Expression {
                 write!(f, "]")
             }
             Test(name, rest) => {
-                write!(f, "is {}", name)?;
+                write!(f, "{}", name)?;
 
                 if !rest.is_empty() {
-                    write!(f, "(",)?;
-                    for s in rest {
-                        write!(f, " {}", s)?
+                    write!(f, "{{",)?;
+                    for (i, s) in rest.iter().enumerate() {
+                        if i == rest.len() - 1 {
+                            write!(f, "{}", s)?
+                        } else {
+                            write!(f, "{}, ", s)?
+                        }
                     }
-                    write!(f, ")",)?;
+                    write!(f, "}}",)?;
                 }
                 Ok(())
             }
