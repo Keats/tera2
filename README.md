@@ -21,7 +21,7 @@ Old Tera parser https://github.com/Keats/tera/blob/2e7fb71fc4834c8dd557a70f1a512
 
 Question:
 
-- do we care about filters on bool values?
+- do we care about filters on bool values? See what Jinja2 does
 
 Order of operators:
 

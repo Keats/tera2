@@ -1,5 +1,6 @@
 use crate::ast::Expression;
 use crate::lexer::{Operator, PeekableLexer, Symbol, Token};
+use std::collections::HashMap;
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
@@ -57,6 +58,40 @@ impl<'a> Parser<'a> {
     fn parse_template(&mut self) {}
 
     fn parse_content(&mut self) {}
+
+    fn parse_kwargs(&mut self) -> HashMap<String, Expression> {
+        let mut kwargs = HashMap::new();
+
+        self.expect(Token::Symbol(Symbol::LeftParen));
+
+        loop {
+            let name = if let Some(Token::Ident) = self.lexer.peek() {
+                self.lexer.next();
+                self.lexer.slice().to_owned()
+            } else {
+                break;
+            };
+            self.expect(Token::Symbol(Symbol::Assign));
+            let value = self.parse_expression(0);
+            kwargs.insert(name, value);
+
+            match self.lexer.peek() {
+                Some(Token::Symbol(Symbol::Comma)) => {
+                    self.lexer.next();
+                    continue;
+                }
+                Some(Token::Symbol(Symbol::RightParen)) => break,
+                _ => {
+                    // TODO: error
+                    break;
+                }
+            }
+        }
+
+        self.expect(Token::Symbol(Symbol::RightParen));
+
+        kwargs
+    }
 
     fn parse_ident(&mut self) -> Expression {
         let mut base_ident = self.lexer.slice().to_owned();
@@ -157,7 +192,19 @@ impl<'a> Parser<'a> {
             Some(Token::Integer(i)) => Expression::Int(i),
             Some(Token::Float(i)) => Expression::Float(i),
             Some(Token::Bool(i)) => Expression::Bool(i),
-            Some(Token::Ident) => self.parse_ident(),
+            Some(Token::Ident) => {
+                let ident = self.parse_ident();
+                if let Some(Token::Symbol(Symbol::LeftParen)) = self.lexer.peek() {
+                    let kwargs = self.parse_kwargs();
+                    println!("kwargs {:?}", kwargs);
+                    match ident {
+                        Expression::Ident(s) => Expression::Function(s.clone(), kwargs),
+                        _ => unreachable!("got an ident that is not an ident"),
+                    }
+                } else {
+                    ident
+                }
+            }
             Some(Token::String) => Expression::String(self.lexer.slice().to_owned()),
             Some(Token::Symbol(Symbol::LeftBracket)) => self.parse_array(),
             Some(Token::Symbol(Symbol::LeftParen)) => {
@@ -238,8 +285,6 @@ impl<'a> Parser<'a> {
             None => panic!("Reached EOF"),
         }
     }
-
-    fn expect_one_of(&mut self, possibilities: Vec<Token>) {}
 }
 
 #[cfg(test)]
@@ -331,6 +376,12 @@ mod tests {
             ("a + 1 is odd", "(is (+ a 1) odd)"),
             ("a + 1 is not odd", "(not (is (+ a 1) odd))"),
             ("a is ending_with('s')", "(is a ending_with{'s'})"),
+            // function calls
+            (
+                "get_url(path=page.path, in_content=true)",
+                "get_url{in_content=true, path=page.path}",
+            ),
+            ("get_url()", "get_url{}"),
             // Parentheses
             ("((1))", "1"),
             ("(2 * 3) / 10", "(/ (* 2 3) 10)"),

@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::lexer::Operator;
+use std::collections::HashMap;
 
 // TODO: have a Span trait/struct for location for error reporting?
 
@@ -33,6 +34,9 @@ pub enum Expression {
     Ident(String),
     Array(Vec<Expression>),
     Test(String, Vec<Expression>),
+    // TODO: can we merge them in a single variant? How to differentiate them? third field?
+    Function(String, HashMap<String, Expression>),
+    // Filter(String, HashMap<String, Expression>),
     Expr(Operator, Vec<Expression>),
 }
 
@@ -71,6 +75,21 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "}}",)?;
                 }
+                Ok(())
+            }
+            Function(name, kwargs) => {
+                write!(f, "{}", name)?;
+                write!(f, "{{",)?;
+                let mut keys = kwargs.keys().collect::<Vec<_>>();
+                keys.sort();
+                for (i, k) in keys.iter().enumerate() {
+                    if i == kwargs.len() - 1 {
+                        write!(f, "{}={}", k, kwargs[*k])?
+                    } else {
+                        write!(f, "{}={}, ", k, kwargs[*k])?
+                    }
+                }
+                write!(f, "}}",)?;
                 Ok(())
             }
             Expr(op, rest) => {
