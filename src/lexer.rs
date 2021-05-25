@@ -128,6 +128,7 @@ pub enum Symbol {
     LeftParen,
     RightParen,
     Assign,
+    DoubleColumn,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -252,6 +253,7 @@ pub(crate) enum InTag {
     #[token(".", |_| Symbol::Dot)]
     #[token("(", |_| Symbol::LeftParen)]
     #[token(")", |_| Symbol::RightParen)]
+    #[token("::", |_| Symbol::DoubleColumn)]
     Symbol(Symbol),
 
     #[regex("\"(?s:[^\"\\\\]|\\\\.)*\"")]

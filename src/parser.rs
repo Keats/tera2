@@ -14,14 +14,17 @@ fn prefix_binding_power(op: Operator) -> ((), u8) {
     }
 }
 
+// Some of those could be postfix but if it works like that...
 fn infix_binding_power(op: Operator) -> (u8, u8) {
     use Operator::*;
 
     match op {
         And | Or => (1, 2),
-        Equal | NotEqual | LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual => (5, 6),
-        Add | Sub | In | Is => (7, 8),
-        Mul | Div | Mod | StrConcat => (11, 12),
+        In | Is => (3, 4),
+        Pipe => (5, 6),
+        Equal | NotEqual | LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual => (7, 8),
+        Add | Sub => (11, 12),
+        Mul | Div | Mod | StrConcat => (13, 14),
         _ => panic!("bad op: {:?}", op),
     }
 }
@@ -194,15 +197,30 @@ impl<'a> Parser<'a> {
             Some(Token::Bool(i)) => Expression::Bool(i),
             Some(Token::Ident) => {
                 let ident = self.parse_ident();
-                if let Some(Token::Symbol(Symbol::LeftParen)) = self.lexer.peek() {
-                    let kwargs = self.parse_kwargs();
-                    println!("kwargs {:?}", kwargs);
-                    match ident {
-                        Expression::Ident(s) => Expression::Function(s.clone(), kwargs),
-                        _ => unreachable!("got an ident that is not an ident"),
+                match self.lexer.peek() {
+                    // a filter
+                    Some(Token::Symbol(Symbol::LeftParen)) => {
+                        let kwargs = self.parse_kwargs();
+                        match ident {
+                            Expression::Ident(s) => Expression::Function(s, kwargs),
+                            _ => unreachable!("got an ident that is not an ident"),
+                        }
                     }
-                } else {
-                    ident
+                    // a macro call
+                    Some(Token::Symbol(Symbol::DoubleColumn)) => {
+                        self.lexer.next();
+                        // Should be followed by macro name
+                        self.expect(Token::Ident);
+                        let macro_name = self.lexer.slice().to_owned();
+                        // and left paren
+                        self.peek_and_expect(Token::Symbol(Symbol::LeftParen));
+                        let kwargs = self.parse_kwargs();
+                        match ident {
+                            Expression::Ident(s) => Expression::MacroCall(s, macro_name, kwargs),
+                            _ => unreachable!("got an ident that is not an ident"),
+                        }
+                    }
+                    _ => ident,
                 }
             }
             Some(Token::String) => Expression::String(self.lexer.slice().to_owned()),
@@ -231,16 +249,13 @@ impl<'a> Parser<'a> {
             // Special case for `not in` which is 2 operators in a row
             if op == Operator::Not {
                 self.lexer.next();
-                // TODO: create `peek_and_expect` if needed more than once
-                match self.lexer.peek() {
-                    Some(Token::Op(Operator::In)) => (),
-                    _ => panic!("Unexpected not token"),
-                }
+                self.peek_and_expect(Token::Op(Operator::In));
                 negated = true;
                 continue;
             }
 
             let (l_bp, r_bp) = infix_binding_power(op);
+            // println!("op {}: l-{} r-{} (min bp {})", op, l_bp, r_bp, min_bp);
             if l_bp < min_bp {
                 break;
             }
@@ -248,7 +263,7 @@ impl<'a> Parser<'a> {
             // Advance past the op
             self.lexer.next();
 
-            let rhs = if op == Operator::Is {
+            let mut rhs = if op == Operator::Is {
                 // Special-case `is not`
                 match self.lexer.peek() {
                     Some(Token::Op(Operator::Not)) => {
@@ -262,6 +277,15 @@ impl<'a> Parser<'a> {
                 self.parse_expression(r_bp)
             };
 
+            // We can have filters that look like ident, without parentheses so we need to convert
+            // them to a function
+            if op == Operator::Pipe {
+                rhs = match rhs {
+                    Expression::Ident(s) => Expression::Function(s, HashMap::new()),
+                    _ => rhs,
+                };
+            }
+
             lhs = Expression::Expr(op, vec![lhs, rhs]);
             if negated {
                 lhs = Expression::Expr(Operator::Not, vec![lhs]);
@@ -273,6 +297,17 @@ impl<'a> Parser<'a> {
         // TODO: validate/fold the expression before returning it
 
         lhs
+    }
+
+    fn peek_and_expect(&mut self, token: Token) {
+        match self.lexer.peek() {
+            Some(t) => {
+                if t != token {
+                    panic!("Unexpected token found: {:?}, expected {:?}", t, token);
+                }
+            }
+            None => panic!("Reached EOF"),
+        }
     }
 
     fn expect(&mut self, token: Token) {
@@ -370,6 +405,11 @@ mod tests {
             // in
             ("a in b", "(in a b)"),
             ("a in b and b in c", "(and (in a b) (in b c))"),
+            // https://github.com/mozilla/nunjucks/pull/336
+            (
+                "msg.status in ['pending', 'confirmed'] and msg.body",
+                "(and (in msg.status ['pending', 'confirmed']) msg.body)",
+            ),
             // test
             ("a is defined", "(is a defined)"),
             ("a is not defined", "(not (is a defined))"),
@@ -382,6 +422,51 @@ mod tests {
                 "get_url{in_content=true, path=page.path}",
             ),
             ("get_url()", "get_url{}"),
+            // filters
+            ("a | round", "(| a round{})"),
+            ("a | round()", "(| a round{})"),
+            ("1 + 2.1 | round", "(| (+ 1 2.1) round{})"),
+            ("[1] + [3, 2] | sort", "(| (+ [1] [3, 2]) sort{})"),
+            ("(1 + 2.1) | round", "(| (+ 1 2.1) round{})"),
+            (
+                "value | json_encode | safe",
+                "(| (| value json_encode{}) safe{})",
+            ),
+            (
+                "value | truncate(length=10)",
+                "(| value truncate{length=10})",
+            ),
+            (
+                "get_content() | upper | safe",
+                "(| (| get_content{} upper{}) safe{})",
+            ),
+            (
+                "admin | default or user == current_user",
+                "(or (| admin default{}) (== user current_user))",
+            ),
+            (
+                "user == current_user or admin | default",
+                "(or (== user current_user) (| admin default{}))",
+            ),
+            (
+                "members in interfaces | groupby(attribute='vlan')",
+                "(in members (| interfaces groupby{attribute='vlan'}))",
+            ),
+            ("a ~ b | upper", "(| (~ a b) upper{})"),
+            (
+                "status == 'needs_restart' | ternary(truthy='restart', falsy='continue')",
+                "(| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})",
+            ),
+            (
+                "(status == 'needs_restart') | ternary(truthy='restart', falsy='continue')",
+                "(| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})",
+            ),
+            // Macro calls
+            (
+                "macros::input(label='Name', type='text')",
+                "macros::input{label='Name', type='text'}",
+            ),
+            ("macros::input() | safe", "(| macros::input{} safe{})"),
             // Parentheses
             ("((1))", "1"),
             ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
@@ -403,9 +488,14 @@ mod tests {
                 "a is defined and not b is defined(1, 2)",
                 "(and (is a defined) (not (is b defined{1, 2})))",
             ),
+            (
+                "not admin | default(val=true)",
+                "(not (| admin default{val=true}))",
+            ),
         ];
 
         for (input, expected) in tests {
+            println!("{:?}", input);
             let mut parser = Parser::new_in_tag(input);
             assert_eq!(parser.parse_expression(0).to_string(), expected);
         }

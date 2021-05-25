@@ -4,24 +4,24 @@ use crate::lexer::Operator;
 use std::collections::HashMap;
 
 // TODO: have a Span trait/struct for location for error reporting?
-
-/// Whether to remove the whitespace of a `{% %}` tag
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Ws {
-    /// `true` if the tag is `{%-`, `{{-`, `{#-`
-    pub left: bool,
-    /// `true` if the tag is `-%}`, `-}}`, `-#}`
-    pub right: bool,
-}
-
-impl Default for Ws {
-    fn default() -> Self {
-        Ws {
-            left: false,
-            right: false,
-        }
-    }
-}
+//
+// /// Whether to remove the whitespace of a `{% %}` tag
+// #[derive(Clone, Copy, Debug, PartialEq)]
+// pub struct Ws {
+//     /// `true` if the tag is `{%-`, `{{-`, `{#-`
+//     pub left: bool,
+//     /// `true` if the tag is `-%}`, `-}}`, `-#}`
+//     pub right: bool,
+// }
+//
+// impl Default for Ws {
+//     fn default() -> Self {
+//         Ws {
+//             left: false,
+//             right: false,
+//         }
+//     }
+// }
 
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
@@ -33,10 +33,12 @@ pub enum Expression {
     Bool(bool),
     Ident(String),
     Array(Vec<Expression>),
+    // name, args
     Test(String, Vec<Expression>),
-    // TODO: can we merge them in a single variant? How to differentiate them? third field?
+    // namespace, name, kwargs
+    MacroCall(String, String, HashMap<String, Expression>),
+    // name, kwargs
     Function(String, HashMap<String, Expression>),
-    // Filter(String, HashMap<String, Expression>),
     Expr(Operator, Vec<Expression>),
 }
 
@@ -75,6 +77,21 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "}}",)?;
                 }
+                Ok(())
+            }
+            MacroCall(namespace, name, kwargs) => {
+                write!(f, "{}::{}", namespace, name)?;
+                write!(f, "{{",)?;
+                let mut keys = kwargs.keys().collect::<Vec<_>>();
+                keys.sort();
+                for (i, k) in keys.iter().enumerate() {
+                    if i == kwargs.len() - 1 {
+                        write!(f, "{}={}", k, kwargs[*k])?
+                    } else {
+                        write!(f, "{}={}, ", k, kwargs[*k])?
+                    }
+                }
+                write!(f, "}}",)?;
                 Ok(())
             }
             Function(name, kwargs) => {
