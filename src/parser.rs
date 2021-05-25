@@ -1,6 +1,8 @@
-use crate::ast::Expression;
-use crate::lexer::{Operator, PeekableLexer, Symbol, Token};
 use std::collections::HashMap;
+
+use crate::ast::Expression;
+use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
+use crate::lexer::{Operator, PeekableLexer, Symbol, Token};
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
@@ -29,14 +31,14 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
     }
 }
 
-pub(crate) struct Parser<'a> {
+pub struct Parser<'a> {
     source: &'a str,
     lexer: PeekableLexer<'a>,
     nodes: Vec<usize>,
 }
 
 impl<'a> Parser<'a> {
-    pub(crate) fn new(source: &'a str) -> Self {
+    pub fn new(source: &'a str) -> Self {
         let lexer = PeekableLexer::new(source);
 
         Self {
@@ -46,7 +48,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn new_in_tag(source: &'a str) -> Self {
+    pub fn new_in_tag(source: &'a str) -> Self {
         let lexer = PeekableLexer::new_in_tag(source);
 
         Self {
@@ -62,10 +64,10 @@ impl<'a> Parser<'a> {
 
     fn parse_content(&mut self) {}
 
-    fn parse_kwargs(&mut self) -> HashMap<String, Expression> {
+    fn parse_kwargs(&mut self) -> ParsingResult<HashMap<String, Expression>> {
         let mut kwargs = HashMap::new();
 
-        self.expect(Token::Symbol(Symbol::LeftParen));
+        self.expect(Token::Symbol(Symbol::LeftParen))?;
 
         loop {
             let name = if let Some(Token::Ident) = self.lexer.peek() {
@@ -74,8 +76,8 @@ impl<'a> Parser<'a> {
             } else {
                 break;
             };
-            self.expect(Token::Symbol(Symbol::Assign));
-            let value = self.parse_expression(0);
+            self.expect(Token::Symbol(Symbol::Assign))?;
+            let value = self.parse_expression(0)?;
             kwargs.insert(name, value);
 
             match self.lexer.peek() {
@@ -91,9 +93,9 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.expect(Token::Symbol(Symbol::RightParen));
+        self.expect(Token::Symbol(Symbol::RightParen))?;
 
-        kwargs
+        Ok(kwargs)
     }
 
     fn parse_ident(&mut self) -> Expression {
@@ -135,7 +137,7 @@ impl<'a> Parser<'a> {
         Expression::Ident(base_ident)
     }
 
-    fn parse_array(&mut self) -> Expression {
+    fn parse_array(&mut self) -> ParsingResult<Expression> {
         let mut vals = Vec::new();
 
         loop {
@@ -147,15 +149,15 @@ impl<'a> Parser<'a> {
                     self.lexer.next();
                     break;
                 }
-                _ => vals.push(self.parse_expression(0)),
+                _ => vals.push(self.parse_expression(0)?),
             };
         }
 
-        Expression::Array(vals)
+        Ok(Expression::Array(vals))
     }
 
-    pub(crate) fn parse_test(&mut self) -> Expression {
-        self.expect(Token::Ident);
+    pub(crate) fn parse_test(&mut self) -> ParsingResult<Expression> {
+        self.expect(Token::Ident)?;
         let name = self.lexer.slice().to_owned();
         let mut args = vec![];
 
@@ -164,7 +166,7 @@ impl<'a> Parser<'a> {
             self.lexer.next();
 
             loop {
-                let expr = self.parse_expression(0);
+                let expr = self.parse_expression(0)?;
                 args.push(expr);
 
                 match self.lexer.peek() {
@@ -187,10 +189,10 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Expression::Test(name, args)
+        Ok(Expression::Test(name, args))
     }
 
-    pub(crate) fn parse_expression(&mut self, min_bp: u8) -> Expression {
+    pub fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
         let mut lhs = match self.lexer.next() {
             Some(Token::Integer(i)) => Expression::Int(i),
             Some(Token::Float(i)) => Expression::Float(i),
@@ -200,7 +202,7 @@ impl<'a> Parser<'a> {
                 match self.lexer.peek() {
                     // a filter
                     Some(Token::Symbol(Symbol::LeftParen)) => {
-                        let kwargs = self.parse_kwargs();
+                        let kwargs = self.parse_kwargs()?;
                         match ident {
                             Expression::Ident(s) => Expression::Function(s, kwargs),
                             _ => unreachable!("got an ident that is not an ident"),
@@ -210,11 +212,11 @@ impl<'a> Parser<'a> {
                     Some(Token::Symbol(Symbol::DoubleColumn)) => {
                         self.lexer.next();
                         // Should be followed by macro name
-                        self.expect(Token::Ident);
+                        self.expect(Token::Ident)?;
                         let macro_name = self.lexer.slice().to_owned();
                         // and left paren
-                        self.peek_and_expect(Token::Symbol(Symbol::LeftParen));
-                        let kwargs = self.parse_kwargs();
+                        self.peek_and_expect(Token::Symbol(Symbol::LeftParen))?;
+                        let kwargs = self.parse_kwargs()?;
                         match ident {
                             Expression::Ident(s) => Expression::MacroCall(s, macro_name, kwargs),
                             _ => unreachable!("got an ident that is not an ident"),
@@ -224,15 +226,15 @@ impl<'a> Parser<'a> {
                 }
             }
             Some(Token::String) => Expression::String(self.lexer.slice().to_owned()),
-            Some(Token::Symbol(Symbol::LeftBracket)) => self.parse_array(),
+            Some(Token::Symbol(Symbol::LeftBracket)) => self.parse_array()?,
             Some(Token::Symbol(Symbol::LeftParen)) => {
-                let lhs = self.parse_expression(0);
-                self.expect(Token::Symbol(Symbol::RightParen));
+                let lhs = self.parse_expression(0)?;
+                self.expect(Token::Symbol(Symbol::RightParen))?;
                 lhs
             }
             Some(Token::Op(op)) => {
                 let (_, r_bp) = prefix_binding_power(op);
-                let rhs = self.parse_expression(r_bp);
+                let rhs = self.parse_expression(r_bp)?;
                 Expression::Expr(op, vec![rhs])
             }
             Some(t) => panic!("wrong token found: {:?}", t),
@@ -249,7 +251,7 @@ impl<'a> Parser<'a> {
             // Special case for `not in` which is 2 operators in a row
             if op == Operator::Not {
                 self.lexer.next();
-                self.peek_and_expect(Token::Op(Operator::In));
+                self.peek_and_expect(Token::Op(Operator::In))?;
                 negated = true;
                 continue;
             }
@@ -272,9 +274,9 @@ impl<'a> Parser<'a> {
                     }
                     _ => (),
                 }
-                self.parse_test()
+                self.parse_test()?
             } else {
-                self.parse_expression(r_bp)
+                self.parse_expression(r_bp)?
             };
 
             // We can have filters that look like ident, without parentheses so we need to convert
@@ -296,29 +298,39 @@ impl<'a> Parser<'a> {
 
         // TODO: validate/fold the expression before returning it
 
-        lhs
+        Ok(lhs)
     }
 
-    fn peek_and_expect(&mut self, token: Token) {
+    fn peek_and_expect(&mut self, token: Token) -> ParsingResult<()> {
         match self.lexer.peek() {
             Some(t) => {
                 if t != token {
-                    panic!("Unexpected token found: {:?}, expected {:?}", t, token);
+                    return Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(token, t),
+                        self.lexer.span(),
+                    ));
                 }
             }
             None => panic!("Reached EOF"),
         }
+
+        Ok(())
     }
 
-    fn expect(&mut self, token: Token) {
+    fn expect(&mut self, token: Token) -> ParsingResult<()> {
         match self.lexer.next() {
             Some(t) => {
                 if t != token {
-                    panic!("Unexpected token found: {:?}, expected {:?}", t, token);
+                    return Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(token, t),
+                        self.lexer.span(),
+                    ));
                 }
             }
             None => panic!("Reached EOF"),
         }
+
+        Ok(())
     }
 }
 
@@ -497,9 +509,12 @@ mod tests {
         for (input, expected) in tests {
             println!("{:?}", input);
             let mut parser = Parser::new_in_tag(input);
-            assert_eq!(parser.parse_expression(0).to_string(), expected);
+            assert_eq!(parser.parse_expression(0).unwrap().to_string(), expected);
         }
     }
+
+    #[test]
+    fn can_find_errors() {}
 
     // TODO
     // #[test]

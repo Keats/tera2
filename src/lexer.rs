@@ -131,6 +131,23 @@ pub enum Symbol {
     DoubleColumn,
 }
 
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Symbol::*;
+        let val = match self {
+            LeftBracket => "[",
+            RightBracket => "]",
+            Comma => ",",
+            Dot => ".",
+            LeftParen => "(",
+            RightParen => ")",
+            Assign => "=",
+            DoubleColumn => "::",
+        };
+        write!(f, "{}", val)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Token {
     VariableStart(bool),
@@ -140,15 +157,61 @@ pub enum Token {
     Comment,
 
     Bool(bool),
-    Op(Operator),
     String,
     Ident,
     Integer(i64),
     Float(f64),
     Keyword(Keyword),
     Symbol(Symbol),
+    Op(Operator),
 
     Error,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Token::*;
+        match self {
+            VariableStart(b) => {
+                if *b {
+                    write!(f, "{{{{-")
+                } else {
+                    write!(f, "{{{{")
+                }
+            }
+            VariableEnd(b) => {
+                if *b {
+                    write!(f, "-}}")
+                } else {
+                    write!(f, "}}")
+                }
+            }
+            TagStart(b) => {
+                if *b {
+                    write!(f, "{{%-")
+                } else {
+                    write!(f, "{{%")
+                }
+            }
+            TagEnd(b) => {
+                if *b {
+                    write!(f, "-%}}")
+                } else {
+                    write!(f, "%}}")
+                }
+            }
+            Comment => write!(f, "a comment {{# ... #}}"),
+            Bool(b) => b.fmt(f),
+            Op(op) => op.fmt(f),
+            Symbol(s) => s.fmt(f),
+            Keyword(s) => s.fmt(f),
+            Integer(s) => s.fmt(f),
+            Float(s) => s.fmt(f),
+            String => write!(f, "a string"),
+            Ident => write!(f, "an ident"),
+            Error => write!(f, "an error"),
+        }
+    }
 }
 
 // TODO: inline those?
