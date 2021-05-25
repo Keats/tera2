@@ -11,7 +11,7 @@ TODO:
 
 5. Validation + Constant folding in parser for expression (https://github.com/Keats/tera/blob/master/src/parser/tests/parser.rs#L1074), 
    can also constant fold at expression level (1==1)
-6. Finish parser
+6. Finish parser with whitespace handling done while parsing
 7. Fuzz
 8. Profit
 

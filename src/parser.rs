@@ -6,13 +6,16 @@ use crate::lexer::{Operator, PeekableLexer, Symbol, Token};
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
-fn prefix_binding_power(op: Operator) -> ((), u8) {
+fn prefix_binding_power(op: Operator) -> ParsingResult<((), u8)> {
     use Operator::*;
 
     match op {
-        Not => ((), 3),
-        Add | Sub => ((), 7),
-        _ => panic!("bad op: {:?}", op),
+        Not => Ok(((), 3)),
+        Add | Sub => Ok(((), 7)),
+        _ => Err(SpannedParsingError::new(
+            ParsingError::UnexpectedOperator(op, vec![Not, Add, Sub]),
+            0..0,
+        )),
     }
 }
 
@@ -27,8 +30,12 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
         Equal | NotEqual | LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual => (7, 8),
         Add | Sub => (11, 12),
         Mul | Div | Mod | StrConcat => (13, 14),
-        _ => panic!("bad op: {:?}", op),
+        _ => unreachable!("bad op: {:?}", op),
     }
+}
+
+fn eof_error(last_idx: usize) -> SpannedParsingError {
+    SpannedParsingError::new(ParsingError::UnexpectedEof, last_idx..last_idx)
 }
 
 pub struct Parser<'a> {
@@ -181,10 +188,17 @@ impl<'a> Parser<'a> {
                         self.lexer.next();
                         break;
                     }
-                    _ => panic!(
-                        "unexpected token while parsing test args: {:?}",
-                        self.lexer.peek()
-                    ),
+                    Some(t) => {
+                        self.lexer.next();
+                        return Err(SpannedParsingError::new(
+                            ParsingError::UnexpectedToken(t, None),
+                            self.lexer.span(),
+                        ));
+                    }
+                    None => {
+                        self.lexer.next();
+                        return Err(eof_error(self.lexer.last_idx()));
+                    }
                 }
             }
         }
@@ -198,6 +212,8 @@ impl<'a> Parser<'a> {
             Some(Token::Float(i)) => Expression::Float(i),
             Some(Token::Bool(i)) => Expression::Bool(i),
             Some(Token::Ident) => {
+                // Need to parse it first in case it's actually an ident since we will move
+                // past it otherwise
                 let ident = self.parse_ident();
                 match self.lexer.peek() {
                     // a filter
@@ -233,12 +249,21 @@ impl<'a> Parser<'a> {
                 lhs
             }
             Some(Token::Op(op)) => {
-                let (_, r_bp) = prefix_binding_power(op);
+                let (_, r_bp) = prefix_binding_power(op).map_err(|mut e| {
+                    e.range = self.lexer.span();
+                    e
+                })?;
+
                 let rhs = self.parse_expression(r_bp)?;
                 Expression::Expr(op, vec![rhs])
             }
-            Some(t) => panic!("wrong token found: {:?}", t),
-            None => panic!("no token found"),
+            Some(t) => {
+                return Err(SpannedParsingError::new(
+                    ParsingError::UnexpectedToken(t, None),
+                    self.lexer.span(),
+                ))
+            }
+            None => return Err(eof_error(self.lexer.last_idx())),
         };
 
         let mut negated = false;
@@ -305,37 +330,39 @@ impl<'a> Parser<'a> {
         match self.lexer.peek() {
             Some(t) => {
                 if t != token {
-                    return Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(token, t),
+                    Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(t, Some(token)),
                         self.lexer.span(),
-                    ));
+                    ))
+                } else {
+                    Ok(())
                 }
             }
-            None => panic!("Reached EOF"),
+            None => Err(eof_error(self.lexer.last_idx())),
         }
-
-        Ok(())
     }
 
     fn expect(&mut self, token: Token) -> ParsingResult<()> {
         match self.lexer.next() {
             Some(t) => {
                 if t != token {
-                    return Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(token, t),
+                    Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(t, Some(token)),
                         self.lexer.span(),
-                    ));
+                    ))
+                } else {
+                    Ok(())
                 }
             }
-            None => panic!("Reached EOF"),
+            None => Err(eof_error(self.lexer.last_idx())),
         }
-
-        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use codespan_reporting::diagnostic::Severity;
+
     use super::*;
 
     #[test]
@@ -514,7 +541,65 @@ mod tests {
     }
 
     #[test]
-    fn can_find_errors() {}
+    fn can_get_eof_error() {
+        let mut parser = Parser::new_in_tag("1 +");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 3..3);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected end of template"));
+    }
+
+    #[test]
+    fn can_get_unexpected_token_error() {
+        let mut parser = Parser::new_in_tag("hello(]");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 6..7);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "expected `)`, found `]`");
+    }
+
+    #[test]
+    fn can_get_unexpected_prefix_operator() {
+        let mut parser = Parser::new_in_tag("and");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 0..3);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected operator found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(
+            diag.labels[0].message,
+            "found `and` but only `not`, `+`, `-` can be used here"
+        );
+    }
+
+    #[test]
+    fn can_get_unexpected_token_generic_error() {
+        let mut parser = Parser::new_in_tag("=");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 0..1);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `=`");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_test_args_error() {
+        let mut parser = Parser::new_in_tag("1 is odd(1=)");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 10..11);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `=`");
+    }
 
     // TODO
     // #[test]

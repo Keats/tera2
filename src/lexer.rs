@@ -413,6 +413,10 @@ impl<'source> PeekableLexer<'source> {
         self.peeked.unwrap()
     }
 
+    pub(crate) fn last_idx(&self) -> usize {
+        self.last
+    }
+
     pub(crate) fn span(&self) -> Range<usize> {
         match &self.lexer {
             LexerKind::Content(l) => l.span(),

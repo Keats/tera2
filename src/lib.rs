@@ -10,11 +10,11 @@ pub mod parser;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spanned<T> {
     pub node: T,
-    pub span: Range<usize>,
+    pub range: Range<usize>,
 }
 
 impl<T> Spanned<T> {
-    pub fn new(node: T, span: Range<usize>) -> Self {
-        Self { node, span }
+    pub fn new(node: T, range: Range<usize>) -> Self {
+        Self { node, range }
     }
 }
