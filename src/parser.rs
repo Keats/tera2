@@ -89,14 +89,10 @@ impl<'a> Parser<'a> {
         self.expect(Token::Symbol(Symbol::LeftParen))?;
 
         loop {
-            let name = match self.lexer.peek() {
-                Some(Token::Ident) => {
-                    self.lexer.next();
-                    self.lexer.slice().to_owned()
-                }
-                Some(Token::Symbol(Symbol::RightParen)) => break,
-                Some(t) => {
-                    self.lexer.next();
+            let name = match self.next_or_error()? {
+                Token::Ident => self.lexer.slice().to_owned(),
+                Token::Symbol(Symbol::RightParen) => break,
+                t => {
                     return Err(SpannedParsingError::new(
                         ParsingError::UnexpectedToken(
                             t,
@@ -105,31 +101,19 @@ impl<'a> Parser<'a> {
                         self.lexer.span(),
                     ));
                 }
-                None => {
-                    self.lexer.next();
-                    return Err(eof_error(self.lexer.last_idx()));
-                }
             };
 
             self.expect(Token::Symbol(Symbol::Assign))?;
             let value = self.parse_expression(0)?;
             kwargs.insert(name, value);
 
-            match self.lexer.peek() {
-                Some(Token::Symbol(Symbol::Comma)) => {
-                    self.lexer.next();
-                    continue;
-                }
-                Some(Token::Symbol(Symbol::RightParen)) => break,
-                _ => {
-                    panic!("Unknown char");
-                }
+            match self.next_or_error()? {
+                Token::Symbol(Symbol::RightParen) => break,
+                _ => continue,
             }
         }
 
-        self.expect(Token::Symbol(Symbol::RightParen))?;
         self.contexts.pop();
-
         Ok(kwargs)
     }
 
@@ -245,11 +229,11 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
-        let mut lhs = match self.lexer.next() {
-            Some(Token::Integer(i)) => Expression::Int(i),
-            Some(Token::Float(i)) => Expression::Float(i),
-            Some(Token::Bool(i)) => Expression::Bool(i),
-            Some(Token::Ident) => {
+        let mut lhs = match self.next_or_error()? {
+            Token::Integer(i) => Expression::Int(i),
+            Token::Float(i) => Expression::Float(i),
+            Token::Bool(i) => Expression::Bool(i),
+            Token::Ident => {
                 // Need to parse it first in case it's actually an ident since we will move
                 // past it otherwise
                 let ident = self.parse_ident();
@@ -279,16 +263,16 @@ impl<'a> Parser<'a> {
                     _ => ident,
                 }
             }
-            Some(Token::String) => Expression::String(self.lexer.slice().to_owned()),
-            Some(Token::Symbol(Symbol::LeftBracket)) => self.parse_array()?,
-            Some(Token::Symbol(Symbol::LeftParen)) => {
+            Token::String => Expression::String(self.lexer.slice().to_owned()),
+            Token::Symbol(Symbol::LeftBracket) => self.parse_array()?,
+            Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
                 let lhs = self.parse_expression(0)?;
                 self.expect(Token::Symbol(Symbol::RightParen))?;
                 self.contexts.pop();
                 lhs
             }
-            Some(Token::Op(op)) => {
+            Token::Op(op) => {
                 let (_, r_bp) = prefix_binding_power(op).map_err(|mut e| {
                     e.range = self.lexer.span();
                     e
@@ -297,13 +281,12 @@ impl<'a> Parser<'a> {
                 let rhs = self.parse_expression(r_bp)?;
                 Expression::Expr(op, vec![rhs])
             }
-            Some(t) => {
+            t => {
                 return Err(SpannedParsingError::new(
                     ParsingError::UnexpectedToken(t, vec![]),
                     self.lexer.span(),
                 ))
             }
-            None => return Err(eof_error(self.lexer.last_idx())),
         };
 
         let mut negated = false;
@@ -436,6 +419,13 @@ impl<'a> Parser<'a> {
         // TODO: validate/fold the expression before returning it
 
         Ok(lhs)
+    }
+
+    fn next_or_error(&mut self) -> ParsingResult<Token> {
+        match self.lexer.next() {
+            Some(t) => Ok(t),
+            None => Err(eof_error(self.lexer.last_idx())),
+        }
     }
 
     fn peek_and_expect(&mut self, token: Token) -> ParsingResult<()> {
