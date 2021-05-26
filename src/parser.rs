@@ -77,12 +77,28 @@ impl<'a> Parser<'a> {
         self.expect(Token::Symbol(Symbol::LeftParen))?;
 
         loop {
-            let name = if let Some(Token::Ident) = self.lexer.peek() {
-                self.lexer.next();
-                self.lexer.slice().to_owned()
-            } else {
-                break;
+            let name = match self.lexer.peek() {
+                Some(Token::Ident) => {
+                    self.lexer.next();
+                    self.lexer.slice().to_owned()
+                }
+                Some(Token::Symbol(Symbol::RightParen)) => break,
+                Some(t) => {
+                    self.lexer.next();
+                    return Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(
+                            t,
+                            vec![Token::Ident, Token::Symbol(Symbol::RightParen)],
+                        ),
+                        self.lexer.span(),
+                    ));
+                }
+                None => {
+                    self.lexer.next();
+                    return Err(eof_error(self.lexer.last_idx()));
+                }
             };
+
             self.expect(Token::Symbol(Symbol::Assign))?;
             let value = self.parse_expression(0)?;
             kwargs.insert(name, value);
@@ -94,8 +110,7 @@ impl<'a> Parser<'a> {
                 }
                 Some(Token::Symbol(Symbol::RightParen)) => break,
                 _ => {
-                    // TODO: error
-                    break;
+                    panic!("Unknown char");
                 }
             }
         }
@@ -191,7 +206,13 @@ impl<'a> Parser<'a> {
                     Some(t) => {
                         self.lexer.next();
                         return Err(SpannedParsingError::new(
-                            ParsingError::UnexpectedToken(t, None),
+                            ParsingError::UnexpectedToken(
+                                t,
+                                vec![
+                                    Token::Symbol(Symbol::Comma),
+                                    Token::Symbol(Symbol::RightParen),
+                                ],
+                            ),
                             self.lexer.span(),
                         ));
                     }
@@ -259,7 +280,7 @@ impl<'a> Parser<'a> {
             }
             Some(t) => {
                 return Err(SpannedParsingError::new(
-                    ParsingError::UnexpectedToken(t, None),
+                    ParsingError::UnexpectedToken(t, vec![]),
                     self.lexer.span(),
                 ))
             }
@@ -282,7 +303,6 @@ impl<'a> Parser<'a> {
             }
 
             let (l_bp, r_bp) = infix_binding_power(op);
-            // println!("op {}: l-{} r-{} (min bp {})", op, l_bp, r_bp, min_bp);
             if l_bp < min_bp {
                 break;
             }
@@ -331,7 +351,7 @@ impl<'a> Parser<'a> {
             Some(t) => {
                 if t != token {
                     Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(t, Some(token)),
+                        ParsingError::UnexpectedToken(t, vec![token]),
                         self.lexer.span(),
                     ))
                 } else {
@@ -347,7 +367,7 @@ impl<'a> Parser<'a> {
             Some(t) => {
                 if t != token {
                     Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(t, Some(token)),
+                        ParsingError::UnexpectedToken(t, vec![token]),
                         self.lexer.span(),
                     ))
                 } else {
@@ -559,7 +579,10 @@ mod tests {
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("Unexpected token found"));
         assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "expected `)`, found `]`");
+        assert_eq!(
+            diag.labels[0].message,
+            "expected one of: an ident, `)` but found `]`"
+        );
     }
 
     #[test]
@@ -598,7 +621,25 @@ mod tests {
         assert_eq!(diag.severity, Severity::Error);
         assert!(diag.message.contains("Unexpected token found"));
         assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `=`");
+        assert_eq!(
+            diag.labels[0].message,
+            "expected one of: `,`, `)` but found `=`"
+        );
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_kwargs_error() {
+        let mut parser = Parser::new_in_tag("1 | odd(1)");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 8..9);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(
+            diag.labels[0].message,
+            "expected one of: an ident, `)` but found `1`"
+        );
     }
 
     // TODO
