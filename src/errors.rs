@@ -22,28 +22,35 @@ pub type ParsingResult<T> = Result<T, SpannedParsingError>;
 
 impl SpannedParsingError {
     pub fn report(&self) -> Diagnostic<()> {
+        let get_token_formatted = |t: &Token| -> String {
+            match t {
+                Token::Error => "unexpected characters".to_owned(),
+                Token::Ident => format!("{}, ", t),
+                Token::String => format!("{}, ", t),
+                t => format!("`{}`, ", t),
+            }
+        };
+
         match self.node {
             ParsingError::UnexpectedToken(actual, ref expected) => {
+                let actual_fmt = get_token_formatted(&actual)
+                    .trim()
+                    .trim_end_matches(',')
+                    .to_owned();
                 let msg = if expected.is_empty() {
-                    format!("found `{}`", actual)
+                    format!("found {}", actual_fmt)
+                } else if expected.len() == 1 {
+                    format!("expected `{}` but found {}", expected[0], actual_fmt)
                 } else {
-                    if expected.len() == 1 {
-                        format!("expected `{}` but found `{}`", expected[0], actual)
-                    } else {
-                        let mut options = String::new();
-                        for t in expected {
-                            let text = match t {
-                                Token::Ident => format!("an ident, "),
-                                t @ _ => format!("`{}`, ", t),
-                            };
-                            options.push_str(&text);
-                        }
-                        format!(
-                            "expected one of: {} but found `{}`",
-                            options.trim().trim_end_matches(','),
-                            actual
-                        )
+                    let mut options = String::new();
+                    for t in expected {
+                        options.push_str(&get_token_formatted(t));
                     }
+                    format!(
+                        "expected one of: {} but found {}",
+                        options.trim().trim_end_matches(','),
+                        actual_fmt,
+                    )
                 };
 
                 Diagnostic::error()

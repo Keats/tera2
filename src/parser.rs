@@ -34,6 +34,14 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum ParsingContext {
+    Paren,
+    Array,
+    TestArgs,
+    Kwargs,
+}
+
 fn eof_error(last_idx: usize) -> SpannedParsingError {
     SpannedParsingError::new(ParsingError::UnexpectedEof, last_idx..last_idx)
 }
@@ -42,6 +50,7 @@ pub struct Parser<'a> {
     source: &'a str,
     lexer: PeekableLexer<'a>,
     nodes: Vec<usize>,
+    contexts: Vec<ParsingContext>,
 }
 
 impl<'a> Parser<'a> {
@@ -52,6 +61,7 @@ impl<'a> Parser<'a> {
             source,
             lexer,
             nodes: Vec::new(),
+            contexts: Vec::new(),
         }
     }
 
@@ -62,6 +72,7 @@ impl<'a> Parser<'a> {
             source,
             lexer,
             nodes: Vec::new(),
+            contexts: Vec::new(),
         }
     }
 
@@ -73,6 +84,7 @@ impl<'a> Parser<'a> {
 
     fn parse_kwargs(&mut self) -> ParsingResult<HashMap<String, Expression>> {
         let mut kwargs = HashMap::new();
+        self.contexts.push(ParsingContext::Kwargs);
 
         self.expect(Token::Symbol(Symbol::LeftParen))?;
 
@@ -116,6 +128,7 @@ impl<'a> Parser<'a> {
         }
 
         self.expect(Token::Symbol(Symbol::RightParen))?;
+        self.contexts.pop();
 
         Ok(kwargs)
     }
@@ -161,6 +174,7 @@ impl<'a> Parser<'a> {
 
     fn parse_array(&mut self) -> ParsingResult<Expression> {
         let mut vals = Vec::new();
+        self.contexts.push(ParsingContext::Array);
 
         loop {
             match self.lexer.peek() {
@@ -175,6 +189,7 @@ impl<'a> Parser<'a> {
             };
         }
 
+        self.contexts.pop();
         Ok(Expression::Array(vals))
     }
 
@@ -182,6 +197,7 @@ impl<'a> Parser<'a> {
         self.expect(Token::Ident)?;
         let name = self.lexer.slice().to_owned();
         let mut args = vec![];
+        self.contexts.push(ParsingContext::TestArgs);
 
         // Do we have arguments?
         if let Some(Token::Symbol(Symbol::LeftParen)) = self.lexer.peek() {
@@ -224,6 +240,7 @@ impl<'a> Parser<'a> {
             }
         }
 
+        self.contexts.pop();
         Ok(Expression::Test(name, args))
     }
 
@@ -265,8 +282,10 @@ impl<'a> Parser<'a> {
             Some(Token::String) => Expression::String(self.lexer.slice().to_owned()),
             Some(Token::Symbol(Symbol::LeftBracket)) => self.parse_array()?,
             Some(Token::Symbol(Symbol::LeftParen)) => {
+                self.contexts.push(ParsingContext::Paren);
                 let lhs = self.parse_expression(0)?;
                 self.expect(Token::Symbol(Symbol::RightParen))?;
+                self.contexts.pop();
                 lhs
             }
             Some(Token::Op(op)) => {
@@ -291,7 +310,68 @@ impl<'a> Parser<'a> {
         loop {
             let op = match self.lexer.peek() {
                 Some(Token::Op(op)) => op,
-                _ => break,
+                Some(t @ Token::Symbol(_)) => {
+                    if let Some(c) = self.contexts.last() {
+                        match c {
+                            ParsingContext::Array => {
+                                let tokens = vec![
+                                    Token::Symbol(Symbol::Comma),
+                                    Token::Symbol(Symbol::RightBracket),
+                                ];
+                                if !tokens.contains(&t) {
+                                    self.lexer.next();
+                                    return Err(SpannedParsingError::new(
+                                        ParsingError::UnexpectedToken(t, tokens),
+                                        self.lexer.span(),
+                                    ));
+                                }
+                                break;
+                            }
+                            ParsingContext::TestArgs => {
+                                let tokens = vec![
+                                    Token::Symbol(Symbol::Comma),
+                                    Token::Symbol(Symbol::RightParen),
+                                ];
+                                if !tokens.contains(&t) {
+                                    self.lexer.next();
+                                    return Err(SpannedParsingError::new(
+                                        ParsingError::UnexpectedToken(t, tokens),
+                                        self.lexer.span(),
+                                    ));
+                                }
+                                break;
+                            }
+                            ParsingContext::Kwargs => {
+                                let tokens = vec![
+                                    Token::Symbol(Symbol::Comma),
+                                    Token::Symbol(Symbol::RightParen),
+                                ];
+                                if !tokens.contains(&t) {
+                                    self.lexer.next();
+                                    return Err(SpannedParsingError::new(
+                                        ParsingError::UnexpectedToken(t, tokens),
+                                        self.lexer.span(),
+                                    ));
+                                }
+                                break;
+                            }
+                            ParsingContext::Paren => break,
+                        }
+                    } else {
+                        self.lexer.next();
+                        return Err(SpannedParsingError::new(
+                            ParsingError::UnexpectedToken(t, vec![]),
+                            self.lexer.span(),
+                        ));
+                    }
+                }
+                Some(_) => break,
+                None => {
+                    break;
+                    // TODO?
+                    // self.lexer.next();
+                    // return Err(eof_error(self.lexer.last_idx()));
+                }
             };
 
             // Special case for `not in` which is 2 operators in a row
@@ -306,22 +386,34 @@ impl<'a> Parser<'a> {
             if l_bp < min_bp {
                 break;
             }
-
             // Advance past the op
             self.lexer.next();
 
             let mut rhs = if op == Operator::Is {
                 // Special-case `is not`
-                match self.lexer.peek() {
-                    Some(Token::Op(Operator::Not)) => {
-                        negated = true;
-                        self.lexer.next();
-                    }
-                    _ => (),
+                if let Some(Token::Op(Operator::Not)) = self.lexer.peek() {
+                    negated = true;
+                    self.lexer.next();
                 }
                 self.parse_test()?
             } else {
-                self.parse_expression(r_bp)?
+                match self.lexer.peek() {
+                    Some(t @ Token::Op(_)) => {
+                        // Only `is`, `and` and `or` can have an operator after and it should always be `not`
+                        if t == Token::Op(Operator::Not)
+                            && (op == Operator::And || op == Operator::Or)
+                        {
+                            self.parse_expression(r_bp)?
+                        } else {
+                            self.lexer.next();
+                            return Err(SpannedParsingError::new(
+                                ParsingError::UnexpectedToken(t, vec![]),
+                                self.lexer.span(),
+                            ));
+                        }
+                    }
+                    _ => self.parse_expression(r_bp)?,
+                }
             };
 
             // We can have filters that look like ident, without parentheses so we need to convert
@@ -381,9 +473,19 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use codespan_reporting::diagnostic::Severity;
+    use codespan_reporting::diagnostic::{Diagnostic, Severity};
+    use codespan_reporting::files;
+    use codespan_reporting::term;
+    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
     use super::*;
+
+    fn output_diagnostic(tpl: &str, diag: &Diagnostic<()>) {
+        let file = files::SimpleFile::new("test.tera", tpl);
+        let writer = StandardStream::stdout(ColorChoice::Auto);
+        let config = codespan_reporting::term::Config::default();
+        term::emit(&mut writer.lock(), &config, &file, &diag).unwrap();
+    }
 
     #[test]
     fn can_parse_ident() {
@@ -561,6 +663,35 @@ mod tests {
     }
 
     #[test]
+    fn can_error_on_invalid_expressions() {
+        let tests = vec![
+            "=",
+            "+",
+            "1=2",
+            "1+2)",
+            "(1 | hey",
+            "1 is hey(=)",
+            "1 | hey(=)",
+            "hey(=)",
+            "hey(arg'ho')",
+            "hey(arg|'ho')",
+            "hey(arg='ho',|)",
+            "[1, 2, )",
+            "(1 + ])",
+            "1 || hello",
+            "1 and | hello",
+        ];
+
+        for input in tests {
+            println!("{:?}", input);
+            let mut parser = Parser::new_in_tag(input);
+            let res = parser.parse_expression(0);
+            println!("Res: {:?}", res);
+            assert!(res.is_err());
+        }
+    }
+
+    #[test]
     fn can_get_eof_error() {
         let mut parser = Parser::new_in_tag("1 +");
         let err = parser.parse_expression(0).unwrap_err();
@@ -613,6 +744,57 @@ mod tests {
     }
 
     #[test]
+    fn can_get_unexpected_token_double_infix_operators() {
+        let mut parser = Parser::new_in_tag("1 ++ 2");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 3..4);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `+`");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_double_infix_operators_with_not() {
+        let mut parser = Parser::new_in_tag("1 +not 2");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 3..6);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `not`");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_double_infix_operators_with_and() {
+        let mut parser = Parser::new_in_tag("1 and + 2");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 6..7);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `+`");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_array_error() {
+        let mut parser = Parser::new_in_tag("[1, 2)");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 5..6);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(
+            diag.labels[0].message,
+            "expected one of: `,`, `]` but found `)`"
+        );
+    }
+
+    #[test]
     fn can_get_unexpected_token_in_test_args_error() {
         let mut parser = Parser::new_in_tag("1 is odd(1=)");
         let err = parser.parse_expression(0).unwrap_err();
@@ -640,6 +822,56 @@ mod tests {
             diag.labels[0].message,
             "expected one of: an ident, `)` but found `1`"
         );
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_kwargs_error2() {
+        let mut parser = Parser::new_in_tag("1 | odd(a'ho')");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 9..13);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "expected `=` but found a string");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_kwargs_error3() {
+        let mut parser = Parser::new_in_tag("1 | odd(a='ho',hey=&)");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 19..20);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found unexpected characters");
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_kwargs_error4() {
+        let tpl = "hey(arg|'ho')";
+        let mut parser = Parser::new_in_tag(tpl);
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 7..8);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "expected `=` but found `|`");
+        output_diagnostic(tpl, &diag);
+    }
+
+    #[test]
+    fn can_get_unexpected_token_in_parentheses() {
+        let mut parser = Parser::new_in_tag("(2 * ])");
+        let err = parser.parse_expression(0).unwrap_err();
+        assert_eq!(err.range, 5..6);
+        let diag = err.report();
+        assert_eq!(diag.severity, Severity::Error);
+        assert!(diag.message.contains("Unexpected token found"));
+        assert_eq!(diag.labels[0].range, err.range);
+        assert_eq!(diag.labels[0].message, "found `]`");
     }
 
     // TODO
