@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::Expression;
+use crate::ast::{Expression, Node};
 use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::lexer::{Operator, PeekableLexer, Symbol, Token};
 
@@ -49,7 +49,7 @@ fn eof_error(last_idx: usize) -> SpannedParsingError {
 pub struct Parser<'a> {
     source: &'a str,
     lexer: PeekableLexer<'a>,
-    nodes: Vec<usize>,
+    pub nodes: Vec<Node>,
     contexts: Vec<ParsingContext>,
 }
 
@@ -76,7 +76,18 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse(&mut self) {}
+    pub(crate) fn parse(&mut self) -> ParsingResult<()> {
+        match self.lexer.next() {
+            Some(Token::VariableStart(_)) => {
+                let expr = self.parse_expression(0)?;
+                self.nodes.push(Node::Expression(expr));
+            }
+            None => (),
+            _ => todo!("Not implemented yet"),
+        }
+
+        Ok(())
+    }
 
     fn parse_template(&mut self) {}
 
@@ -117,43 +128,135 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
-    fn parse_ident(&mut self) -> Expression {
+    fn parse_ident(&mut self) -> ParsingResult<Expression> {
+        // We are already at the ident token when we start
         let mut base_ident = self.lexer.slice().to_owned();
+        let mut after_dot = false;
+        let mut in_brackets = Vec::new();
 
         loop {
-            match self.lexer.peek() {
-                Some(Token::Symbol(Symbol::Dot)) => {
+            let token = self.peek_or_error()?;
+            println!("token : {:?} {:?}", token, self.lexer.slice());
+
+            // After a dot, only an ident or an integer is allowed
+            if after_dot {
+                after_dot = false;
+                self.lexer.next();
+
+                match token {
+                    Token::Ident => {
+                        base_ident.push_str(&self.lexer.slice());
+                    }
+                    Token::Integer(i) => {
+                        base_ident.push_str(&i.to_string());
+                    }
+                    t => {
+                        return Err(SpannedParsingError::new(
+                            ParsingError::UnexpectedToken(t, vec![Token::Ident, Token::Integer(0)]),
+                            self.lexer.span(),
+                        ));
+                    }
+                }
+                continue;
+            }
+
+            // After a left brackets: ident, integer, string
+            if !in_brackets.is_empty() {
+                self.lexer.next();
+
+                match token {
+                    Token::Ident => {
+                        base_ident.push_str(&self.lexer.slice());
+                    }
+                    Token::Integer(i) => {
+                        base_ident.push_str(&i.to_string());
+                    }
+                    Token::String => {
+                        base_ident.push_str(self.lexer.slice());
+                    }
+                    Token::Symbol(Symbol::LeftBracket) => {
+                        in_brackets.push(true);
+                        base_ident.push_str(self.lexer.slice());
+                    }
+                    _ => {
+                        // Need to disallow a[], base_ident is never an empty string
+                        if token == Token::Symbol(Symbol::RightBracket)
+                            && base_ident.chars().last().unwrap() != '['
+                        {
+                            println!("Poppping bracket");
+                            in_brackets.pop();
+                            base_ident.push_str(self.lexer.slice());
+                            continue;
+                        }
+
+                        return Err(SpannedParsingError::new(
+                            ParsingError::UnexpectedToken(
+                                token,
+                                vec![
+                                    Token::Ident,
+                                    Token::Integer(0),
+                                    Token::String,
+                                    Token::Symbol(Symbol::RightBracket),
+                                ],
+                            ),
+                            self.lexer.span(),
+                        ));
+                    }
+                }
+                continue;
+            }
+
+            // After an ident, only dot, left bracket
+            // In array it can be followed by a `,` and in functions by `=` or `,`
+            let mut allow_comma = false;
+            let mut allow_assign = false;
+            if let Some(c) = self.contexts.last() {
+                allow_comma = *c == ParsingContext::Array
+                    || *c == ParsingContext::TestArgs
+                    || *c == ParsingContext::Kwargs;
+                allow_assign = *c == ParsingContext::Kwargs;
+            }
+
+            match token {
+                Token::Symbol(Symbol::Dot) => {
+                    after_dot = true;
                     self.lexer.next();
                     base_ident.push_str(self.lexer.slice());
                 }
-                Some(Token::Ident) => {
-                    self.lexer.next();
-                    let ident = self.parse_ident();
-                    base_ident.push_str(&ident.to_string());
-                }
-                Some(Token::Integer(i)) => {
-                    // This is the in 0 for example in an ident like hey.0
-                    self.lexer.next();
-                    base_ident.push_str(&i.to_string());
-                }
-                Some(Token::Symbol(Symbol::LeftBracket)) => {
-                    self.lexer.next();
-                    let in_bracket = self.parse_ident();
-                    base_ident.push_str(&in_bracket.to_string());
-                }
-                Some(Token::Symbol(Symbol::RightBracket)) => {
+                Token::Symbol(Symbol::LeftBracket) => {
+                    in_brackets.push(true);
                     self.lexer.next();
                     base_ident.push_str(self.lexer.slice());
                 }
-                Some(Token::String) => {
+                Token::Op(_)
+                | Token::VariableEnd(_)
+                | Token::TagEnd(_)
+                | Token::Symbol(Symbol::LeftParen)
+                | Token::Symbol(Symbol::DoubleColumn) => break,
+                _ => {
+                    if token == Token::Symbol(Symbol::Comma) && allow_comma {
+                        break;
+                    }
+                    if token == Token::Symbol(Symbol::Assign) && allow_assign {
+                        break;
+                    }
+
                     self.lexer.next();
-                    base_ident.push_str(self.lexer.slice());
+                    return Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(
+                            token,
+                            vec![
+                                Token::Symbol(Symbol::Dot),
+                                Token::Symbol(Symbol::LeftBracket),
+                            ],
+                        ),
+                        self.lexer.span(),
+                    ));
                 }
-                _ => break,
             }
         }
 
-        Expression::Ident(base_ident)
+        Ok(Expression::Ident(base_ident))
     }
 
     fn parse_array(&mut self) -> ParsingResult<Expression> {
@@ -191,20 +294,17 @@ impl<'a> Parser<'a> {
                 let expr = self.parse_expression(0)?;
                 args.push(expr);
 
-                match self.lexer.peek() {
-                    Some(Token::Symbol(Symbol::Comma)) => {
-                        self.lexer.next();
+                match self.next_or_error()? {
+                    Token::Symbol(Symbol::Comma) => {
                         if let Some(Token::Symbol(Symbol::RightParen)) = self.lexer.peek() {
                             // it was a trailing comma
                             break;
                         }
                     }
-                    Some(Token::Symbol(Symbol::RightParen)) => {
-                        self.lexer.next();
+                    Token::Symbol(Symbol::RightParen) => {
                         break;
                     }
-                    Some(t) => {
-                        self.lexer.next();
+                    t => {
                         return Err(SpannedParsingError::new(
                             ParsingError::UnexpectedToken(
                                 t,
@@ -215,10 +315,6 @@ impl<'a> Parser<'a> {
                             ),
                             self.lexer.span(),
                         ));
-                    }
-                    None => {
-                        self.lexer.next();
-                        return Err(eof_error(self.lexer.last_idx()));
                     }
                 }
             }
@@ -236,9 +332,9 @@ impl<'a> Parser<'a> {
             Token::Ident => {
                 // Need to parse it first in case it's actually an ident since we will move
                 // past it otherwise
-                let ident = self.parse_ident();
+                let ident = self.parse_ident()?;
                 match self.lexer.peek() {
-                    // a filter
+                    // a function
                     Some(Token::Symbol(Symbol::LeftParen)) => {
                         let kwargs = self.parse_kwargs()?;
                         match ident {
@@ -297,6 +393,7 @@ impl<'a> Parser<'a> {
                     if let Some(c) = self.contexts.last() {
                         match c {
                             ParsingContext::Array => {
+                                println!("Here {:?} ", t);
                                 let tokens = vec![
                                     Token::Symbol(Symbol::Comma),
                                     Token::Symbol(Symbol::RightBracket),
@@ -308,6 +405,7 @@ impl<'a> Parser<'a> {
                                         self.lexer.span(),
                                     ));
                                 }
+                                println!("Continuing");
                                 break;
                             }
                             ParsingContext::TestArgs => {
@@ -421,6 +519,16 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    fn peek_or_error(&mut self) -> ParsingResult<Token> {
+        match self.lexer.peek() {
+            Some(t) => Ok(t),
+            None => {
+                self.lexer.next();
+                Err(eof_error(self.lexer.last_idx()))
+            }
+        }
+    }
+
     fn next_or_error(&mut self) -> ParsingResult<Token> {
         match self.lexer.next() {
             Some(t) => Ok(t),
@@ -459,430 +567,4 @@ impl<'a> Parser<'a> {
             None => Err(eof_error(self.lexer.last_idx())),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use codespan_reporting::diagnostic::{Diagnostic, Severity};
-    use codespan_reporting::files;
-    use codespan_reporting::term;
-    use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
-
-    use super::*;
-
-    fn output_diagnostic(tpl: &str, diag: &Diagnostic<()>) {
-        let file = files::SimpleFile::new("test.tera", tpl);
-        let writer = StandardStream::stdout(ColorChoice::Auto);
-        let config = codespan_reporting::term::Config::default();
-        term::emit(&mut writer.lock(), &config, &file, &diag).unwrap();
-    }
-
-    #[test]
-    fn can_parse_ident() {
-        let tests = vec![
-            "hello",
-            "hello_",
-            "hello_1",
-            "HELLO",
-            "_1",
-            "hey.ho",
-            "h",
-            "ho",
-            "hey.ho.hu",
-            "hey.0",
-            "h.u",
-            "hey.ho.hu",
-            "hey.0",
-            "h.u.x.0",
-            "hey[0]",
-            "hey[a[0]]",
-            "hey['ho'][\"hu\"]",
-            "h['u'].x[0]",
-        ];
-
-        for t in tests {
-            let mut parser = Parser::new_in_tag(t);
-            assert_eq!(parser.parse_ident().to_string(), t);
-        }
-    }
-
-    #[test]
-    fn can_parse_expression() {
-        let tests = vec![
-            // literals + basic types
-            ("-1", "-1"),
-            ("1", "1"),
-            ("'hello'", "'hello'"),
-            ("true", "true"),
-            ("-1.2", "-1.2"),
-            ("1.2", "1.2"),
-            ("a", "a"),
-            ("-a", "(- a)"),
-            ("+a", "(+ a)"),
-            ("- a * 2", "(- (* a 2))"),
-            ("[1, 1.2, a, 'b', true]", "[1, 1.2, a, 'b', true]"),
-            ("[1, 1.2, a, 'b', true,]", "[1, 1.2, a, 'b', true]"), // Allows trailing `,`
-            // Actual expressions
-            ("1 + 2 + 3", "(+ (+ 1 2) 3)"),
-            ("1 + count", "(+ 1 count)"),
-            ("1 + 2 * 3", "(+ 1 (* 2 3))"),
-            ("a + b * c * d + e", "(+ (+ a (* (* b c) d)) e)"),
-            // https://github.com/pallets/jinja/issues/119
-            ("2 * 4 % 8", "(% (* 2 4) 8)"),
-            ("[1 + 1, 2, 3 * 2,]", "[(+ 1 1), 2, (* 3 2)]"),
-            // string concat
-            ("hey ~ ho", "(~ hey ho)"),
-            ("1 ~ ho", "(~ 1 ho)"),
-            ("-1.2 ~ ho", "(~ -1.2 ho)"),
-            ("[] ~ ho", "(~ [] ho)"),
-            ("'hey' ~ ho", "(~ 'hey' ho)"),
-            ("`hello` ~ ident ~ 'ho'", "(~ (~ `hello` ident) 'ho')"),
-            // Comparisons
-            ("a == b", "(== a b)"),
-            ("a != b", "(!= a b)"),
-            ("a <= b", "(<= a b)"),
-            ("a >= b", "(>= a b)"),
-            ("a < b", "(< a b)"),
-            ("a > b", "(> a b)"),
-            ("1 + a > b", "(> (+ 1 a) b)"),
-            ("1 + a > b * 8", "(> (+ 1 a) (* b 8))"),
-            // and/or
-            ("a and b", "(and a b)"),
-            ("a or b", "(or a b)"),
-            (
-                "a + 1 == 2 or b * 3 > 10",
-                "(or (== (+ a 1) 2) (> (* b 3) 10))",
-            ),
-            // in
-            ("a in b", "(in a b)"),
-            ("a in b and b in c", "(and (in a b) (in b c))"),
-            // https://github.com/mozilla/nunjucks/pull/336
-            (
-                "msg.status in ['pending', 'confirmed'] and msg.body",
-                "(and (in msg.status ['pending', 'confirmed']) msg.body)",
-            ),
-            // test
-            ("a is defined", "(is a defined)"),
-            ("a is not defined", "(not (is a defined))"),
-            ("a + 1 is odd", "(is (+ a 1) odd)"),
-            ("a + 1 is not odd", "(not (is (+ a 1) odd))"),
-            ("a is ending_with('s')", "(is a ending_with{'s'})"),
-            // function calls
-            (
-                "get_url(path=page.path, in_content=true)",
-                "get_url{in_content=true, path=page.path}",
-            ),
-            ("get_url()", "get_url{}"),
-            // filters
-            ("a | round", "(| a round{})"),
-            ("a | round()", "(| a round{})"),
-            ("1 + 2.1 | round", "(| (+ 1 2.1) round{})"),
-            ("[1] + [3, 2] | sort", "(| (+ [1] [3, 2]) sort{})"),
-            ("(1 + 2.1) | round", "(| (+ 1 2.1) round{})"),
-            (
-                "value | json_encode | safe",
-                "(| (| value json_encode{}) safe{})",
-            ),
-            (
-                "value | truncate(length=10)",
-                "(| value truncate{length=10})",
-            ),
-            (
-                "get_content() | upper | safe",
-                "(| (| get_content{} upper{}) safe{})",
-            ),
-            (
-                "admin | default or user == current_user",
-                "(or (| admin default{}) (== user current_user))",
-            ),
-            (
-                "user == current_user or admin | default",
-                "(or (== user current_user) (| admin default{}))",
-            ),
-            (
-                "members in interfaces | groupby(attribute='vlan')",
-                "(in members (| interfaces groupby{attribute='vlan'}))",
-            ),
-            ("a ~ b | upper", "(| (~ a b) upper{})"),
-            (
-                "status == 'needs_restart' | ternary(truthy='restart', falsy='continue')",
-                "(| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})",
-            ),
-            (
-                "(status == 'needs_restart') | ternary(truthy='restart', falsy='continue')",
-                "(| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})",
-            ),
-            // Macro calls
-            (
-                "macros::input(label='Name', type='text')",
-                "macros::input{label='Name', type='text'}",
-            ),
-            ("macros::input() | safe", "(| macros::input{} safe{})"),
-            // Parentheses
-            ("((1))", "1"),
-            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
-            ("(2 * 3) / 10", "(/ (* 2 3) 10)"),
-            // not
-            ("not a", "(not a)"),
-            ("not b * 1", "(not (* b 1))"),
-            ("not a and 1 + b > 3", "(and (not a) (> (+ 1 b) 3))"),
-            (
-                "not id and not true and not 1 + c",
-                "(and (and (not id) (not true)) (not (+ 1 c)))",
-            ),
-            ("a not in b", "(not (in a b))"),
-            (
-                "a is defined and b is not defined(1, 2)",
-                "(and (is a defined) (not (is b defined{1, 2})))",
-            ),
-            (
-                "a is defined and not b is defined(1, 2)",
-                "(and (is a defined) (not (is b defined{1, 2})))",
-            ),
-            (
-                "not admin | default(val=true)",
-                "(not (| admin default{val=true}))",
-            ),
-        ];
-
-        for (input, expected) in tests {
-            println!("{:?}", input);
-            let mut parser = Parser::new_in_tag(input);
-            assert_eq!(parser.parse_expression(0).unwrap().to_string(), expected);
-        }
-    }
-
-    #[test]
-    fn can_error_on_invalid_expressions() {
-        let tests = vec![
-            "=",
-            "+",
-            "1=2",
-            "1+2)",
-            "(1 | hey",
-            "1 is hey(=)",
-            "1 | hey(=)",
-            "hey(=)",
-            "hey(arg'ho')",
-            "hey(arg|'ho')",
-            "hey(arg='ho',|)",
-            "[1, 2, )",
-            "(1 + ])",
-            "1 || hello",
-            "1 and | hello",
-        ];
-
-        for input in tests {
-            println!("{:?}", input);
-            let mut parser = Parser::new_in_tag(input);
-            let res = parser.parse_expression(0);
-            println!("Res: {:?}", res);
-            assert!(res.is_err());
-        }
-    }
-
-    #[test]
-    fn can_get_eof_error() {
-        let mut parser = Parser::new_in_tag("1 +");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 3..3);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected end of template"));
-    }
-
-    #[test]
-    fn can_get_unexpected_token_error() {
-        let mut parser = Parser::new_in_tag("hello(]");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 6..7);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(
-            diag.labels[0].message,
-            "expected one of: an ident, `)` but found `]`"
-        );
-    }
-
-    #[test]
-    fn can_get_unexpected_prefix_operator() {
-        let mut parser = Parser::new_in_tag("and");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 0..3);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected operator found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(
-            diag.labels[0].message,
-            "found `and` but only `not`, `+`, `-` can be used here"
-        );
-    }
-
-    #[test]
-    fn can_get_unexpected_token_generic_error() {
-        let mut parser = Parser::new_in_tag("=");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 0..1);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `=`");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_double_infix_operators() {
-        let mut parser = Parser::new_in_tag("1 ++ 2");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 3..4);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `+`");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_double_infix_operators_with_not() {
-        let mut parser = Parser::new_in_tag("1 +not 2");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 3..6);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `not`");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_double_infix_operators_with_and() {
-        let mut parser = Parser::new_in_tag("1 and + 2");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 6..7);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `+`");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_array_error() {
-        let mut parser = Parser::new_in_tag("[1, 2)");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 5..6);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(
-            diag.labels[0].message,
-            "expected one of: `,`, `]` but found `)`"
-        );
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_test_args_error() {
-        let mut parser = Parser::new_in_tag("1 is odd(1=)");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 10..11);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(
-            diag.labels[0].message,
-            "expected one of: `,`, `)` but found `=`"
-        );
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_kwargs_error() {
-        let mut parser = Parser::new_in_tag("1 | odd(1)");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 8..9);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(
-            diag.labels[0].message,
-            "expected one of: an ident, `)` but found `1`"
-        );
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_kwargs_error2() {
-        let mut parser = Parser::new_in_tag("1 | odd(a'ho')");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 9..13);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "expected `=` but found a string");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_kwargs_error3() {
-        let mut parser = Parser::new_in_tag("1 | odd(a='ho',hey=&)");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 19..20);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found unexpected characters");
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_kwargs_error4() {
-        let tpl = "hey(arg|'ho')";
-        let mut parser = Parser::new_in_tag(tpl);
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 7..8);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "expected `=` but found `|`");
-        output_diagnostic(tpl, &diag);
-    }
-
-    #[test]
-    fn can_get_unexpected_token_in_parentheses() {
-        let mut parser = Parser::new_in_tag("(2 * ])");
-        let err = parser.parse_expression(0).unwrap_err();
-        assert_eq!(err.range, 5..6);
-        let diag = err.report();
-        assert_eq!(diag.severity, Severity::Error);
-        assert!(diag.message.contains("Unexpected token found"));
-        assert_eq!(diag.labels[0].range, err.range);
-        assert_eq!(diag.labels[0].message, "found `]`");
-    }
-
-    // TODO
-    // #[test]
-    // fn can_parse_expression_constant_folding() {
-    //     // TODO
-    //
-    //     let tests = vec![
-    //         // TODO
-    //         // https://github.com/Keats/tera/blob/master/src/parser/tests/parser.rs#L1074
-    //         // ("`hello` ~ 'hey'", "'hellohey'"),
-    //         // ("1 ~ 'ho'", "'1ho'"),
-    //         // comparisons
-    //         // ("1 == 1", "true"),
-    //         // ("1 == '1'", "false"),
-    //         // ("1 == 0", "false"),
-    //     ];
-    //
-    //     for (input, expected) in tests {
-    //         let mut parser = Parser::new(input);
-    //         assert_eq!(parser.parse_expression(0).to_string(), expected);
-    //     }
-    // }
 }

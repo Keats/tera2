@@ -17,6 +17,18 @@ pub enum ParsingError {
     // InvalidExpression,
 }
 
+impl ParsingError {
+    pub(crate) fn message(&self) -> &str {
+        use ParsingError::*;
+
+        match self {
+            UnexpectedToken(_, _) => "Unexpected token found",
+            UnexpectedOperator(_, _) => "Unexpected operator found",
+            UnexpectedEof => "Unexpected end of template",
+        }
+    }
+}
+
 pub type SpannedParsingError = Spanned<ParsingError>;
 pub type ParsingResult<T> = Result<T, SpannedParsingError>;
 
@@ -25,6 +37,9 @@ impl SpannedParsingError {
         let get_token_formatted = |t: &Token| -> String {
             match t {
                 Token::Error => "unexpected characters".to_owned(),
+                Token::Integer(_) => "an integer".to_owned(),
+                Token::Float(_) => "a float".to_owned(),
+                Token::Bool(_) => "a boolean".to_owned(),
                 Token::Ident => format!("{}, ", t),
                 Token::String => format!("{}, ", t),
                 t => format!("`{}`, ", t),
@@ -54,7 +69,7 @@ impl SpannedParsingError {
                 };
 
                 Diagnostic::error()
-                    .with_message("Unexpected token found")
+                    .with_message(self.node.message())
                     .with_labels(vec![
                         Label::primary((), self.range.start..self.range.end).with_message(msg)
                     ])
@@ -70,13 +85,13 @@ impl SpannedParsingError {
                     ops.trim().trim_end_matches(',')
                 );
                 Diagnostic::error()
-                    .with_message("Unexpected operator found")
+                    .with_message(self.node.message())
                     .with_labels(vec![
                         Label::primary((), self.range.start..self.range.end).with_message(msg)
                     ])
             }
             ParsingError::UnexpectedEof => Diagnostic::error()
-                .with_message("Unexpected end of template")
+                .with_message(self.node.message())
                 .with_labels(vec![Label::primary((), self.range.start..self.range.end)]),
         }
     }

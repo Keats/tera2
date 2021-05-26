@@ -7,6 +7,9 @@ mod errors;
 mod lexer;
 pub mod parser;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spanned<T> {
     pub node: T,

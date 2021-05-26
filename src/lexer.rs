@@ -156,9 +156,9 @@ pub enum Token {
     TagEnd(bool),
     Comment,
 
-    Bool(bool),
     String,
     Ident,
+    Bool(bool),
     Integer(i64),
     Float(f64),
     Keyword(Keyword),

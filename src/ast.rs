@@ -4,26 +4,6 @@ use std::string::String as StdString;
 
 use crate::lexer::Operator;
 
-// TODO: have a Span trait/struct for location for error reporting?
-//
-// /// Whether to remove the whitespace of a `{% %}` tag
-// #[derive(Clone, Copy, Debug, PartialEq)]
-// pub struct Ws {
-//     /// `true` if the tag is `{%-`, `{{-`, `{#-`
-//     pub left: bool,
-//     /// `true` if the tag is `-%}`, `-}}`, `-#}`
-//     pub right: bool,
-// }
-//
-// impl Default for Ws {
-//     fn default() -> Self {
-//         Ws {
-//             left: false,
-//             right: false,
-//         }
-//     }
-// }
-
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
@@ -158,4 +138,11 @@ impl fmt::Display for Expression {
             }
         }
     }
+}
+
+/// All Tera nodes that can be encountered
+#[derive(Clone, Debug, PartialEq)]
+pub enum Node {
+    Text(String),
+    Expression(Expression),
 }
