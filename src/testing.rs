@@ -4,10 +4,10 @@ use codespan_reporting::files;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
-const TEMPLATE: &str = r#"hello(]"#;
+const TEMPLATE: &str = r#"{{ hello(] }}"#;
 
 fn main() {
-    let mut parser = Parser::new_in_tag(TEMPLATE);
+    let mut parser = Parser::new(TEMPLATE);
     let res = parser.parse_expression(0);
     let file = files::SimpleFile::new("test.tpl", TEMPLATE);
 

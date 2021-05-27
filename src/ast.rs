@@ -100,9 +100,22 @@ impl fmt::Display for Expression {
     }
 }
 
+/// Set a variable in the context `{% set val = "hey" %}`
+#[derive(Clone, Debug, PartialEq)]
+pub struct Set {
+    /// The name for that value in the context
+    pub key: String,
+    /// The value to assign
+    pub value: Expression,
+    /// Whether we want to set the variable globally or locally
+    /// global_set is only useful in loops
+    pub global: bool,
+}
+
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Text(String),
     Expression(Expression),
+    Set(Set),
 }

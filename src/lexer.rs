@@ -80,9 +80,10 @@ pub enum Keyword {
     EndFilter,
     Set,
     SetGlobal,
-    IgnoreMissing,
     Extends,
     Import,
+
+    IgnoreMissing,
     As,
 }
 

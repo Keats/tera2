@@ -189,6 +189,33 @@ fn can_parse_expression() {
     }
 }
 
+#[test]
+fn can_parse_set() {
+    let tests = vec![
+        ("{% set a = 1 %}", "1"),
+        ("{% set a = (b + 1) | round %}", "(| (+ b 1) round{})"),
+        ("{% set a = 'hi' %}", "'hi'"),
+        ("{% set a = macros::something() %}", "macros::something{}"),
+        ("{% set a = utcnow() %}", "utcnow{}"),
+        ("{% set a = [1, true, 'hello'] %}", "[1, true, 'hello']"),
+        ("{% set_global a = 1 %}", "1"),
+    ];
+
+    for (t, expr) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        match &parser.nodes[0] {
+            Node::Set(s) => {
+                assert_eq!(s.key, "a");
+                assert_eq!(s.global, t.starts_with("{% set_global"));
+                assert_eq!(s.value.to_string(), expr);
+            }
+            _ => unreachable!("Got something that wasn't an expression"),
+        }
+    }
+}
+
 // TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {
