@@ -136,7 +136,6 @@ impl<'a> Parser<'a> {
 
         loop {
             let token = self.peek_or_error()?;
-            println!("token : {:?} {:?}", token, self.lexer.slice());
 
             // After a dot, only an ident or an integer is allowed
             if after_dot {
@@ -181,9 +180,8 @@ impl<'a> Parser<'a> {
                     _ => {
                         // Need to disallow a[], base_ident is never an empty string
                         if token == Token::Symbol(Symbol::RightBracket)
-                            && base_ident.chars().last().unwrap() != '['
+                            && !base_ident.ends_with('[')
                         {
-                            println!("Poppping bracket");
                             in_brackets.pop();
                             base_ident.push_str(self.lexer.slice());
                             continue;
@@ -359,7 +357,17 @@ impl<'a> Parser<'a> {
                     _ => ident,
                 }
             }
-            Token::String => Expression::String(self.lexer.slice().to_owned()),
+            Token::String => Expression::String(
+                self.lexer
+                    .slice()
+                    .trim_start_matches('`')
+                    .trim_start_matches('"')
+                    .trim_start_matches('\'')
+                    .trim_end_matches('`')
+                    .trim_end_matches('"')
+                    .trim_end_matches('\'')
+                    .to_owned(),
+            ),
             Token::Symbol(Symbol::LeftBracket) => self.parse_array()?,
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
@@ -393,7 +401,6 @@ impl<'a> Parser<'a> {
                     if let Some(c) = self.contexts.last() {
                         match c {
                             ParsingContext::Array => {
-                                println!("Here {:?} ", t);
                                 let tokens = vec![
                                     Token::Symbol(Symbol::Comma),
                                     Token::Symbol(Symbol::RightBracket),
@@ -405,7 +412,6 @@ impl<'a> Parser<'a> {
                                         self.lexer.span(),
                                     ));
                                 }
-                                println!("Continuing");
                                 break;
                             }
                             ParsingContext::TestArgs => {
@@ -513,9 +519,6 @@ impl<'a> Parser<'a> {
             }
             continue;
         }
-
-        // TODO: validate/fold the expression before returning it
-
         Ok(lhs)
     }
 

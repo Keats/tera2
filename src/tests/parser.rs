@@ -67,7 +67,7 @@ fn can_parse_expression() {
         ("{{ -1.2 ~ ho }}", "(~ -1.2 ho)"),
         ("{{ [] ~ ho }}", "(~ [] ho)"),
         ("{{ 'hey' ~ ho }}", "(~ 'hey' ho)"),
-        ("{{ `hello` ~ ident ~ 'ho' }}", "(~ (~ `hello` ident) 'ho')"),
+        ("{{ `hello` ~ ident ~ 'ho' }}", "(~ (~ 'hello' ident) 'ho')"),
         // Comparisons
         ("{{ a == b }}", "(== a b)"),
         ("{{ a != b }}", "(!= a b)"),
@@ -189,24 +189,28 @@ fn can_parse_expression() {
     }
 }
 
-// TODO
+// TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {
-//     // TODO
-//
 //     let tests = vec![
-//         // TODO
 //         // https://github.com/Keats/tera/blob/master/src/parser/tests/parser.rs#L1074
-//         // ("`hello` ~ 'hey'", "'hellohey'"),
-//         // ("1 ~ 'ho'", "'1ho'"),
+//         ("{{`hello` ~ 'hey'}}", "'hellohey'"),
+//         ("{{1 ~ 'ho'}}", "'1ho'"),
+//         ("{{1 ~ 'ho' ~ 2}}", "'1ho2'"),
 //         // comparisons
-//         // ("1 == 1", "true"),
-//         // ("1 == '1'", "false"),
-//         // ("1 == 0", "false"),
+//         ("{{1 == 1}}", "true"),
+//         ("{{1 == '1'}}", "false"),
+//         ("{{1 == 0}}", "false"),
 //     ];
 //
 //     for (input, expected) in tests {
 //         let mut parser = Parser::new(input);
-//         assert_eq!(parser.parse_expression(0).to_string(), expected);
+//         parser.parse().unwrap();
+//         match &parser.nodes[0] {
+//             Node::Expression(e) => {
+//                 assert_eq!(e.to_string(), expected)
+//             }
+//             _ => unreachable!("Got something that wasn't an expression"),
+//         }
 //     }
 // }

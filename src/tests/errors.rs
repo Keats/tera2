@@ -14,7 +14,6 @@ fn output_diagnostic(tpl: &str, diag: &Diagnostic<()>) {
     term::emit(&mut writer.lock(), &config, &file, &diag).unwrap();
 }
 
-
 #[test]
 fn can_provide_good_error_messages() {
     let tests = vec![

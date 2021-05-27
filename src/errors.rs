@@ -13,8 +13,7 @@ pub enum ParsingError {
     // operator found, list of usable operators
     UnexpectedOperator(Operator, Vec<Operator>),
     UnexpectedEof,
-    // TODO
-    // InvalidExpression,
+    InvalidExpression(String),
 }
 
 impl ParsingError {
@@ -25,6 +24,7 @@ impl ParsingError {
             UnexpectedToken(_, _) => "Unexpected token found",
             UnexpectedOperator(_, _) => "Unexpected operator found",
             UnexpectedEof => "Unexpected end of template",
+            InvalidExpression(_) => "Invalid expression",
         }
     }
 }
@@ -46,13 +46,13 @@ impl SpannedParsingError {
             }
         };
 
-        match self.node {
+        let msg = match &self.node {
             ParsingError::UnexpectedToken(actual, ref expected) => {
                 let actual_fmt = get_token_formatted(&actual)
                     .trim()
                     .trim_end_matches(',')
                     .to_owned();
-                let msg = if expected.is_empty() {
+                if expected.is_empty() {
                     format!("found {}", actual_fmt)
                 } else if expected.len() == 1 {
                     format!("expected `{}` but found {}", expected[0], actual_fmt)
@@ -66,34 +66,30 @@ impl SpannedParsingError {
                         options.trim().trim_end_matches(','),
                         actual_fmt,
                     )
-                };
-
-                Diagnostic::error()
-                    .with_message(self.node.message())
-                    .with_labels(vec![
-                        Label::primary((), self.range.start..self.range.end).with_message(msg)
-                    ])
+                }
             }
             ParsingError::UnexpectedOperator(found, ref available) => {
                 let mut ops = String::new();
                 for op in available {
                     ops.push_str(&format!("`{}`, ", op));
                 }
-                let msg = format!(
+                format!(
                     "found `{}` but only {} can be used here",
                     found,
                     ops.trim().trim_end_matches(',')
-                );
-                Diagnostic::error()
-                    .with_message(self.node.message())
-                    .with_labels(vec![
-                        Label::primary((), self.range.start..self.range.end).with_message(msg)
-                    ])
+                )
             }
-            ParsingError::UnexpectedEof => Diagnostic::error()
-                .with_message(self.node.message())
-                .with_labels(vec![Label::primary((), self.range.start..self.range.end)]),
+            ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
+            ParsingError::UnexpectedEof => String::new(),
+        };
+
+        let mut label = Label::primary((), self.range.start..self.range.end);
+        if !msg.is_empty() {
+            label = label.with_message(msg);
         }
+        Diagnostic::error()
+            .with_message(self.node.message())
+            .with_labels(vec![label])
     }
 }
 

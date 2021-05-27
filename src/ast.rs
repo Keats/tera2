@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::string::String as StdString;
 
 use crate::lexer::Operator;
 
@@ -23,51 +22,12 @@ pub enum Expression {
     Expr(Operator, Vec<Expression>),
 }
 
-impl Expression {
-    pub fn constant_fold_and_validate(self) -> Self {
-        use Expression::*;
-
-        let fold_expr_array = |exprs: Vec<Expression>| -> Vec<Expression> {
-            let mut folded_vals = Vec::with_capacity(exprs.len());
-            for e in exprs {
-                folded_vals.push(e.constant_fold_and_validate());
-            }
-            folded_vals
-        };
-
-        let fold_expr_map =
-            |exprs: HashMap<StdString, Expression>| -> HashMap<StdString, Expression> {
-                let mut folded_vals = HashMap::with_capacity(exprs.len());
-                for (name, e) in exprs {
-                    folded_vals.insert(name, e.constant_fold_and_validate());
-                }
-                folded_vals
-            };
-
-        match self {
-            String(_) | Int(_) | Float(_) | Bool(_) | Ident(_) => self,
-            Array(exprs) => Array(fold_expr_array(exprs)),
-            Test(name, exprs) => Test(name, fold_expr_array(exprs)),
-            MacroCall(namespace, name, kwargs) => MacroCall(namespace, name, fold_expr_map(kwargs)),
-            Function(name, kwargs) => Function(name, fold_expr_map(kwargs)),
-            Expr(op, exprs) => {
-                // match op {
-                //     Operator::StrConcat => {
-                //
-                //     }
-                // }
-                Expr(op, exprs)
-            }
-        }
-    }
-}
-
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
 
         match self {
-            String(i) => write!(f, "{}", i),
+            String(i) => write!(f, "'{}'", i),
             Int(i) => write!(f, "{}", i),
             Float(i) => write!(f, "{}", i),
             Ident(i) => write!(f, "{}", i),
