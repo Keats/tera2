@@ -22,6 +22,15 @@ pub enum Expression {
     Expr(Operator, Vec<Expression>),
 }
 
+impl Expression {
+    pub(crate) fn as_array(self) -> Vec<Expression> {
+        match self {
+            Expression::Array(vals) => vals,
+            _ => panic!("Called as_array on a non array value"),
+        }
+    }
+}
+
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
@@ -118,4 +127,9 @@ pub enum Node {
     Text(String),
     Expression(Expression),
     Set(Set),
+    Extends(String),
+    Include {
+        files: Vec<String>,
+        ignore_missing: bool,
+    },
 }

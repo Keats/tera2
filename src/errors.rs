@@ -12,8 +12,9 @@ pub enum ParsingError {
     UnexpectedToken(Token, Vec<Token>),
     // operator found, list of usable operators
     UnexpectedOperator(Operator, Vec<Operator>),
-    UnexpectedEof,
+    InvalidInclude,
     InvalidExpression(String),
+    UnexpectedEof,
 }
 
 impl ParsingError {
@@ -23,8 +24,9 @@ impl ParsingError {
         match self {
             UnexpectedToken(_, _) => "Unexpected token found",
             UnexpectedOperator(_, _) => "Unexpected operator found",
-            UnexpectedEof => "Unexpected end of template",
             InvalidExpression(_) => "Invalid expression",
+            InvalidInclude => "InvalidInclude",
+            UnexpectedEof => "Unexpected end of template",
         }
     }
 }
@@ -52,15 +54,20 @@ impl SpannedParsingError {
                     .trim()
                     .trim_end_matches(',')
                     .to_owned();
+
+                let mut options = String::new();
+                for t in expected {
+                    options.push_str(&get_token_formatted(t));
+                }
                 if expected.is_empty() {
                     format!("found {}", actual_fmt)
                 } else if expected.len() == 1 {
-                    format!("expected `{}` but found {}", expected[0], actual_fmt)
+                    format!(
+                        "expected {} but found {}",
+                        options.trim().trim_end_matches(','),
+                        actual_fmt
+                    )
                 } else {
-                    let mut options = String::new();
-                    for t in expected {
-                        options.push_str(&get_token_formatted(t));
-                    }
                     format!(
                         "expected one of: {} but found {}",
                         options.trim().trim_end_matches(','),
@@ -79,6 +86,7 @@ impl SpannedParsingError {
                     ops.trim().trim_end_matches(',')
                 )
             }
+            ParsingError::InvalidInclude => "values in an include array must be strings".to_owned(),
             ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
             ParsingError::UnexpectedEof => String::new(),
         };

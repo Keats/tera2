@@ -143,6 +143,41 @@ fn can_provide_good_error_messages() {
                 "found `]`",
             ),
         ),
+        // set
+        (
+            "{% set a = %}",
+            (
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                11..13,
+                "found `%}`",
+            ),
+        ),
+        // extends
+        (
+            "{% extends a %}",
+            (
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                11..12,
+                "expected a string but found an ident",
+            ),
+        ),
+        // includes
+        (
+            "{% include a %}",
+            (
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                11..12,
+                "expected one of: a string, `[` but found an ident",
+            ),
+        ),
+        (
+            "{% include ['a', 1] %}",
+            (
+                ParsingError::InvalidInclude,
+                11..19,
+                "values in an include array must be strings",
+            ),
+        ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {

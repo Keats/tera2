@@ -211,7 +211,83 @@ fn can_parse_set() {
                 assert_eq!(s.global, t.starts_with("{% set_global"));
                 assert_eq!(s.value.to_string(), expr);
             }
-            _ => unreachable!("Got something that wasn't an expression"),
+            _ => unreachable!("Got something that wasn't a set"),
+        }
+    }
+}
+
+#[test]
+fn can_parse_basic_include() {
+    let tests = vec![
+        (
+            "{% include 'a.html' %}",
+            Node::Include {
+                files: vec!["a.html".to_string()],
+                ignore_missing: false,
+            },
+        ),
+        (
+            "{% include `a.html` %}",
+            Node::Include {
+                files: vec!["a.html".to_string()],
+                ignore_missing: false,
+            },
+        ),
+        (
+            "{% include \"a.html\" %}",
+            Node::Include {
+                files: vec!["a.html".to_string()],
+                ignore_missing: false,
+            },
+        ),
+        (
+            "{% include \"a.html\" ignore missing %}",
+            Node::Include {
+                files: vec!["a.html".to_string()],
+                ignore_missing: true,
+            },
+        ),
+        (
+            "{% include ['a.html', 'b.html'] %}",
+            Node::Include {
+                files: vec!["a.html".to_string(), "b.html".to_string()],
+                ignore_missing: false,
+            },
+        ),
+        (
+            "{% include ['a.html', 'b.html'] ignore missing %}",
+            Node::Include {
+                files: vec!["a.html".to_string(), "b.html".to_string()],
+                ignore_missing: true,
+            },
+        ),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_extends() {
+    let tests = vec![
+        "{% extends 'a.html' %}",
+        "{% extends `a.html` %}",
+        "{% extends \"a.html\" %}",
+    ];
+
+    for t in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        match &parser.nodes[0] {
+            Node::Extends(s) => {
+                assert_eq!(s, "a.html");
+            }
+            _ => unreachable!("Got something that wasn't an include"),
         }
     }
 }

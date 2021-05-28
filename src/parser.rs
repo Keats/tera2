@@ -34,6 +34,17 @@ fn infix_binding_power(op: Operator) -> (u8, u8) {
     }
 }
 
+/// Strings are delimited by double quotes, single quotes and backticks
+/// We need to remove those before putting them in the AST
+fn replace_string_markers(input: &str) -> String {
+    match input.chars().next().unwrap() {
+        '"' => input.replace('"', ""),
+        '\'' => input.replace('\'', ""),
+        '`' => input.replace('`', ""),
+        _ => unreachable!("How did you even get there"),
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum ParsingContext {
     Paren,
@@ -104,11 +115,70 @@ impl<'a> Parser<'a> {
                     self.expect(Token::Symbol(Symbol::Assign))?;
                     let value = self.parse_expression(0)?;
                     self.contexts.pop();
-                    if let Token::TagEnd(b) = self.expect_one_of(vec![Token::TagEnd(false), Token::TagEnd(true)])? {
-                        self.trim_left = b;
-                    }
+                    self.expect_tag_end()?;
 
                     Ok(Node::Set(Set { key, value, global }))
+                }
+                Keyword::Include => {
+                    let files = match self
+                        .expect_one_of(vec![Token::String, Token::Symbol(Symbol::LeftBracket)])?
+                    {
+                        Token::String => {
+                            let val = replace_string_markers(self.lexer.slice());
+                            vec![val]
+                        }
+                        Token::Symbol(Symbol::LeftBracket) => {
+                            let start = self.lexer.span().start;
+                            let vals = self.parse_array()?.as_array();
+                            let end = self.lexer.span().end;
+                            let mut files = Vec::with_capacity(vals.len());
+
+                            for v in vals {
+                                match v {
+                                    Expression::String(s) => files.push(s),
+                                    _ => {
+                                        return Err(SpannedParsingError::new(
+                                            ParsingError::InvalidInclude,
+                                            start..end,
+                                        ));
+                                    }
+                                }
+                            }
+                            files
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    let ignore_missing = match self.peek_or_error()? {
+                        Token::Keyword(Keyword::IgnoreMissing) => {
+                            self.lexer.next();
+                            true
+                        }
+                        Token::TagEnd(_) => false,
+                        t => {
+                            return Err(SpannedParsingError::new(
+                                ParsingError::UnexpectedToken(
+                                    t,
+                                    vec![
+                                        Token::Keyword(Keyword::IgnoreMissing),
+                                        Token::TagEnd(true),
+                                        Token::TagEnd(false),
+                                    ],
+                                ),
+                                self.lexer.span(),
+                            ))
+                        }
+                    };
+                    self.expect_tag_end()?;
+                    Ok(Node::Include {
+                        files,
+                        ignore_missing,
+                    })
+                }
+                Keyword::Extends => {
+                    self.expect(Token::String)?;
+                    let val = replace_string_markers(self.lexer.slice());
+                    Ok(Node::Extends(val))
                 }
                 _ => panic!("hey"),
             },
@@ -117,10 +187,6 @@ impl<'a> Parser<'a> {
                 self.lexer.span(),
             )),
         }
-    }
-
-    fn parse_set_tag(&mut self) -> ParsingResult<Node> {
-        panic!("todo")
     }
 
     fn parse_kwargs(&mut self) -> ParsingResult<HashMap<String, Expression>> {
@@ -381,17 +447,7 @@ impl<'a> Parser<'a> {
                     _ => Expression::Ident(ident),
                 }
             }
-            Token::String => Expression::String(
-                self.lexer
-                    .slice()
-                    .trim_start_matches('`')
-                    .trim_start_matches('"')
-                    .trim_start_matches('\'')
-                    .trim_end_matches('`')
-                    .trim_end_matches('"')
-                    .trim_end_matches('\'')
-                    .to_owned(),
-            ),
+            Token::String => Expression::String(replace_string_markers(self.lexer.slice())),
             Token::Symbol(Symbol::LeftBracket) => self.parse_array()?,
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
@@ -610,5 +666,14 @@ impl<'a> Parser<'a> {
             }
             None => Err(eof_error(self.lexer.last_idx())),
         }
+    }
+
+    fn expect_tag_end(&mut self) -> ParsingResult<()> {
+        if let Token::TagEnd(b) =
+            self.expect_one_of(vec![Token::TagEnd(false), Token::TagEnd(true)])?
+        {
+            self.trim_left = b;
+        }
+        Ok(())
     }
 }
