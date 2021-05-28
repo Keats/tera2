@@ -292,6 +292,53 @@ fn can_parse_extends() {
     }
 }
 
+#[test]
+fn can_parse_comments() {
+    let mut parser = Parser::new("{# a comment #}");
+    parser.parse().expect("parsed failed");
+    assert!(parser.nodes.is_empty());
+}
+
+#[test]
+fn can_handle_whitespace_trim_left_side() {
+    let tests = vec![
+        (
+            "\n\n{%- extends 'a.html' %}",
+            Node::Extends("a.html".to_string()),
+        ),
+        ("Hello {{- world }}", Node::Text("Hello".to_string())),
+        ("Hello {#- world #}", Node::Text("Hello".to_string())),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+// #[test]
+// fn can_parse_a_basic_template() {
+//     let tpl = "
+//     <html>
+//       <head>
+//         <title>{{ product.name }}</title>
+//       </head>
+//       <body>
+//         <h1>{{ product.name }} - {{ product.manufacturer | upper }}</h1>
+//         <p>{{ product.summary }}</p>
+//         <p>£{{ product.price * 1.20 }} (VAT inc.)</p>
+//         <p>Look at reviews from your friends {{ username }}</p>
+//         <button>Buy!</button>
+//       </body>
+//     </html>
+//     ";
+//     let mut parser = Parser::new(tpl);
+//     parser.parse().expect("parsed failed");
+//     assert_eq!(parser.nodes[0], Node::Text("".to_string()));
+// }
+
 // TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {

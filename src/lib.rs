@@ -10,6 +10,8 @@ pub mod parser;
 #[cfg(test)]
 mod tests;
 
+pub use parser::Parser;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spanned<T> {
     pub node: T,

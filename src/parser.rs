@@ -67,7 +67,9 @@ pub struct Parser<'a> {
     lexer: PeekableLexer<'a>,
     pub nodes: Vec<Node>,
     contexts: Vec<ParsingContext>,
-    trim_left: bool,
+    // WS management
+    trim_start_next: bool,
+    trim_end_previous: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -79,7 +81,8 @@ impl<'a> Parser<'a> {
             lexer,
             nodes: Vec::new(),
             contexts: Vec::new(),
-            trim_left: false,
+            trim_start_next: false,
+            trim_end_previous: false,
         }
     }
 
@@ -87,15 +90,42 @@ impl<'a> Parser<'a> {
         self.parse_content()
     }
 
+    /// Appends the text up until the new tag/block with whitespace management taken into account
+    fn parse_text(&mut self) {
+        let mut previous = self.lexer.slice_before();
+        if self.trim_end_previous {
+            previous = previous.trim_end();
+        }
+        if self.trim_start_next {
+            previous = previous.trim_start();
+        }
+        self.trim_start_next = false;
+        self.trim_end_previous = false;
+
+        if !previous.is_empty() {
+            self.nodes.push(Node::Text(previous.to_string()));
+        }
+    }
+
     pub(crate) fn parse_content(&mut self) -> ParsingResult<()> {
         match self.lexer.next() {
-            Some(Token::VariableStart(_)) => {
+            Some(Token::VariableStart(ws)) => {
+                self.trim_end_previous = ws;
+                self.parse_text();
                 let expr = self.parse_expression(0)?;
                 self.nodes.push(Node::Expression(expr));
             }
-            Some(Token::TagStart(_)) => {
+            Some(Token::TagStart(ws)) => {
+                self.trim_end_previous = ws;
+                self.parse_text();
                 let node = self.parse_tags()?;
                 self.nodes.push(node);
+            }
+            Some(Token::Comment) => {
+                let comment = self.lexer.slice().to_owned();
+                self.trim_end_previous = comment.starts_with("{#-");
+                self.parse_text();
+                self.trim_start_next = comment.ends_with("-#}");
             }
             None => (),
             _ => todo!("Not implemented yet"),
@@ -672,7 +702,7 @@ impl<'a> Parser<'a> {
         if let Token::TagEnd(b) =
             self.expect_one_of(vec![Token::TagEnd(false), Token::TagEnd(true)])?
         {
-            self.trim_left = b;
+            self.trim_start_next = b;
         }
         Ok(())
     }
