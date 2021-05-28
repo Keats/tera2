@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
                         Token::VariableEnd(b) => self.trim_start_next = b,
                         _ => unreachable!(),
                     }
-                    self.nodes.push(Node::Expression(expr));
+                    self.nodes.push(Node::VariableBlock(expr));
                 }
                 Some(Token::TagStart(ws)) => {
                     self.trim_end_previous = ws;
@@ -142,7 +142,9 @@ impl<'a> Parser<'a> {
                     self.parse_text();
                     break;
                 }
-                t => todo!("Not implemented yet {:?}", t),
+                t => {
+                    todo!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
+                }
             }
         }
 
@@ -236,6 +238,40 @@ impl<'a> Parser<'a> {
                     self.parent = Some(val.clone());
                     self.expect_tag_end()?;
                     Ok(None)
+                }
+                Keyword::Raw => {
+                    self.expect_tag_end()?;
+                    let start = self.lexer.span().end;
+                    let mut end;
+                    let trim_end_previous;
+                    loop {
+                        match self.next_or_error()? {
+                            Token::TagStart(ws) => {
+                                end = self.lexer.span().start;
+                                match self.peek_or_error()? {
+                                    Token::Keyword(Keyword::EndRaw) => {
+                                        println!("{:?}", self.lexer.slice());
+                                        trim_end_previous = ws;
+                                        self.lexer.next();
+                                        break;
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    let mut slice = self.lexer.slice_at(start..end);
+                    if self.trim_start_next {
+                        slice = slice.trim_start();
+                    }
+                    if trim_end_previous {
+                        slice = slice.trim_end();
+                    }
+                    let body = slice.to_owned();
+                    self.expect_tag_end()?;
+
+                    Ok(Some(Node::Raw(body)))
                 }
                 _ => panic!("hey"),
             },

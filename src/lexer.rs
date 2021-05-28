@@ -437,6 +437,9 @@ impl<'source> PeekableLexer<'source> {
         let start = self.span().start;
         &self.source[self.last..start]
     }
+    pub(crate) fn slice_at(&self, span: Range<usize>) -> &str {
+        &self.source[span.start..span.end]
+    }
 }
 
 impl<'source> Iterator for PeekableLexer<'source> {

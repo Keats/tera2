@@ -29,7 +29,7 @@ fn can_parse_ident() {
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         match &parser.nodes[0] {
-            Node::Expression(e) => {
+            Node::VariableBlock(e) => {
                 assert_eq!(e.to_string(), t.replace("{{ ", "").replace(" }}", ""))
             }
             _ => unreachable!("Got something that wasn't an expression"),
@@ -181,7 +181,7 @@ fn can_parse_expression() {
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         match &parser.nodes[0] {
-            Node::Expression(e) => {
+            Node::VariableBlock(e) => {
                 assert_eq!(e.to_string(), expected)
             }
             _ => unreachable!("Got something that wasn't an expression"),
@@ -299,6 +299,27 @@ fn can_handle_whitespace_trim_left_side() {
     let tests = vec![
         ("Hello {{- world }}", Node::Text("Hello".to_string())),
         ("Hello {#- world #}", Node::Text("Hello".to_string())),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_raw() {
+    let tests = vec![
+        (
+            "{% raw %}Hello {{world}} {%- endraw %}",
+            Node::Raw("Hello {{world}}".to_string()),
+        ),
+        (
+            "{% raw -%}\r\nHello {% raw %} {% endraw %}",
+            Node::Raw("Hello {% raw %} ".to_string()),
+        ),
     ];
 
     for (t, expected) in tests {

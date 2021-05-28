@@ -125,8 +125,9 @@ pub struct Set {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Text(String),
-    Expression(Expression),
+    VariableBlock(Expression),
     Set(Set),
+    Raw(String),
     Include {
         files: Vec<String>,
         ignore_missing: bool,

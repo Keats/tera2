@@ -186,6 +186,14 @@ fn can_provide_good_error_messages() {
                 "values in an include array must be strings",
             ),
         ),
+        (
+            "{% include ['a', 'b'] ignoremissing %}",
+            (
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                22..35,
+                "expected one of: `ignore missing`, `-%}`, `%}` but found an ident",
+            ),
+        ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {
