@@ -318,26 +318,27 @@ fn can_handle_whitespace_trim_left_side() {
     }
 }
 
-// #[test]
-// fn can_parse_a_basic_template() {
-//     let tpl = "
-//     <html>
-//       <head>
-//         <title>{{ product.name }}</title>
-//       </head>
-//       <body>
-//         <h1>{{ product.name }} - {{ product.manufacturer | upper }}</h1>
-//         <p>{{ product.summary }}</p>
-//         <p>£{{ product.price * 1.20 }} (VAT inc.)</p>
-//         <p>Look at reviews from your friends {{ username }}</p>
-//         <button>Buy!</button>
-//       </body>
-//     </html>
-//     ";
-//     let mut parser = Parser::new(tpl);
-//     parser.parse().expect("parsed failed");
-//     assert_eq!(parser.nodes[0], Node::Text("".to_string()));
-// }
+#[test]
+fn can_parse_a_basic_template() {
+    let tpl = "
+    <html>
+      <head>
+        <title>{{ product.name }}</title>
+      </head>
+      <body>
+        <h1>{{ product.name }} - {{ product.manufacturer | upper }}</h1>
+        <p>{{ product.summary }}</p>
+        <p>£{{ product.price * 1.20 }} (VAT inc.)</p>
+        <p>Look at reviews from your friends {{ username }}</p>
+        <button>Buy!</button>
+      </body>
+    </html>
+    ";
+    let mut parser = Parser::new(tpl);
+    parser.parse().expect("parsed failed");
+    println!("{:?}", parser.nodes);
+    assert_eq!(parser.nodes[0], Node::Text("".to_string()));
+}
 
 // TODO: Do we care about that in practice
 // #[test]

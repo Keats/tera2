@@ -215,7 +215,6 @@ impl fmt::Display for Token {
     }
 }
 
-// TODO: inline those?
 impl Token {
     fn from_content(tok: Content) -> Self {
         match tok {
@@ -422,7 +421,7 @@ impl<'source> PeekableLexer<'source> {
         match &self.lexer {
             LexerKind::Content(l) => l.span(),
             LexerKind::InTag(l) => l.span(),
-            LexerKind::Done => unreachable!(),
+            LexerKind::Done => self.source.len()..self.source.len(),
         }
     }
 

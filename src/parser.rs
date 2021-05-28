@@ -108,27 +108,38 @@ impl<'a> Parser<'a> {
     }
 
     pub(crate) fn parse_content(&mut self) -> ParsingResult<()> {
-        match self.lexer.next() {
-            Some(Token::VariableStart(ws)) => {
-                self.trim_end_previous = ws;
-                self.parse_text();
-                let expr = self.parse_expression(0)?;
-                self.nodes.push(Node::Expression(expr));
+        loop {
+            match self.lexer.next() {
+                Some(Token::VariableStart(ws)) => {
+                    self.trim_end_previous = ws;
+                    self.parse_text();
+                    let expr = self.parse_expression(0)?;
+                    match self
+                        .expect_one_of(vec![Token::VariableEnd(true), Token::VariableEnd(false)])?
+                    {
+                        Token::VariableEnd(b) => self.trim_start_next = b,
+                        _ => unreachable!(),
+                    }
+                    self.nodes.push(Node::Expression(expr));
+                }
+                Some(Token::TagStart(ws)) => {
+                    self.trim_end_previous = ws;
+                    self.parse_text();
+                    let node = self.parse_tags()?;
+                    self.nodes.push(node);
+                }
+                Some(Token::Comment) => {
+                    let comment = self.lexer.slice().to_owned();
+                    self.trim_end_previous = comment.starts_with("{#-");
+                    self.parse_text();
+                    self.trim_start_next = comment.ends_with("-#}");
+                }
+                None => {
+                    self.parse_text();
+                    break;
+                }
+                t => todo!("Not implemented yet {:?}", t),
             }
-            Some(Token::TagStart(ws)) => {
-                self.trim_end_previous = ws;
-                self.parse_text();
-                let node = self.parse_tags()?;
-                self.nodes.push(node);
-            }
-            Some(Token::Comment) => {
-                let comment = self.lexer.slice().to_owned();
-                self.trim_end_previous = comment.starts_with("{#-");
-                self.parse_text();
-                self.trim_start_next = comment.ends_with("-#}");
-            }
-            None => (),
-            _ => todo!("Not implemented yet"),
         }
 
         Ok(())
@@ -208,6 +219,7 @@ impl<'a> Parser<'a> {
                 Keyword::Extends => {
                     self.expect(Token::String)?;
                     let val = replace_string_markers(self.lexer.slice());
+                    self.expect_tag_end()?;
                     Ok(Node::Extends(val))
                 }
                 _ => panic!("hey"),
