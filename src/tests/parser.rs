@@ -1,4 +1,4 @@
-use crate::ast::Node;
+use crate::ast::{Block, Expression, Node};
 use crate::parser::Parser;
 
 #[test]
@@ -319,6 +319,49 @@ fn can_parse_raw() {
         (
             "{% raw -%}\r\nHello {% raw %} {% endraw %}",
             Node::Raw("Hello {% raw %} ".to_string()),
+        ),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_block() {
+    let tests = vec![
+        (
+            "{% block hey -%} Hello {{-world}} {%- endblock %}",
+            Node::Block(Block {
+                name: "hey".to_string(),
+                body: vec![
+                    Node::Text("Hello".to_string()),
+                    Node::VariableBlock(Expression::Ident("world".to_string())),
+                ],
+            }),
+        ),
+        (
+            "{% block hey -%} Hello {{-world}} {%- endblock hey %}",
+            Node::Block(Block {
+                name: "hey".to_string(),
+                body: vec![
+                    Node::Text("Hello".to_string()),
+                    Node::VariableBlock(Expression::Ident("world".to_string())),
+                ],
+            }),
+        ),
+        (
+            "{% block hey -%} {% block ho %}{% endblock %} {%- endblock hey %}",
+            Node::Block(Block {
+                name: "hey".to_string(),
+                body: vec![Node::Block(Block {
+                    name: "ho".to_string(),
+                    body: vec![],
+                })],
+            }),
         ),
     ];
 

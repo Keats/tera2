@@ -194,6 +194,15 @@ fn can_provide_good_error_messages() {
                 "expected one of: `ignore missing`, `-%}`, `%}` but found an ident",
             ),
         ),
+        // blocks
+        (
+            "{% block a %}{% endblock b %}",
+            (
+                ParsingError::MismatchedBlock(String::new()),
+                27..29,
+                "opening block was named `a`",
+            ),
+        ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {

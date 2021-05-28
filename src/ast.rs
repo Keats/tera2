@@ -23,7 +23,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub(crate) fn as_array(self) -> Vec<Expression> {
+    pub(crate) fn into_array(self) -> Vec<Expression> {
         match self {
             Expression::Array(vals) => vals,
             _ => panic!("Called as_array on a non array value"),
@@ -121,6 +121,24 @@ pub struct Set {
     pub global: bool,
 }
 
+/// A block definition
+#[derive(Clone, Debug, PartialEq)]
+pub struct Block {
+    /// The block name
+    pub name: String,
+    /// The block content
+    pub body: Vec<Node>,
+}
+
+/// An if/elif/else condition with their respective body
+#[derive(Clone, Debug, PartialEq)]
+pub struct If {
+    /// First item if the if, all the ones after are elif
+    pub conditions: Vec<(Expression, Vec<Node>)>,
+    /// The optional `else` block
+    pub otherwise: Vec<Node>,
+}
+
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -132,4 +150,6 @@ pub enum Node {
         files: Vec<String>,
         ignore_missing: bool,
     },
+    Block(Block),
+    If(If),
 }

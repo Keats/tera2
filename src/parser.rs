@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Expression, Node, Set};
+use crate::ast::{Block, Expression, Node, Set};
 use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
 
@@ -47,15 +47,18 @@ fn replace_string_markers(input: &str) -> String {
 
 #[derive(Clone, Debug, PartialEq)]
 enum ParsingContext {
+    // Those ones happen in an expression only
     Paren,
     Array,
     TestArgs,
     Kwargs,
+    Set,
+    // Those below have their own body
     If,
     Elif,
+    Else,
     For,
-    Block,
-    Set,
+    Block(Block),
 }
 
 fn eof_error(last_idx: usize) -> SpannedParsingError {
@@ -67,7 +70,7 @@ pub struct Parser<'a> {
     lexer: PeekableLexer<'a>,
     pub nodes: Vec<Node>,
     contexts: Vec<ParsingContext>,
-    // filled when we encounter a {% extends %}
+    // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
     // WS management
     trim_start_next: bool,
@@ -93,6 +96,43 @@ impl<'a> Parser<'a> {
         self.parse_content()
     }
 
+    fn is_in_block(&self) -> bool {
+        for ctx in self.contexts.iter().rev() {
+            match ctx {
+                ParsingContext::Block(_) => return true,
+                _ => (),
+            };
+        }
+        false
+    }
+
+    fn pop_block(&mut self) -> Block {
+        let mut nodes = vec![];
+        loop {
+            match self.contexts.pop().unwrap() {
+                ParsingContext::Block(mut b) => {
+                    b.body.append(&mut nodes);
+                    return b;
+                }
+                _ => unreachable!("hey"),
+            }
+        }
+    }
+
+    fn push_node(&mut self, node: Node) {
+        for ctx in self.contexts.iter_mut().rev() {
+            match ctx {
+                ParsingContext::Block(b) => {
+                    b.body.push(node);
+                    return;
+                }
+                _ => todo!("TODO"),
+            }
+        }
+
+        self.nodes.push(node);
+    }
+
     /// Appends the text up until the new tag/block with whitespace management taken into account
     fn parse_text(&mut self) {
         let mut previous = self.lexer.slice_before();
@@ -106,7 +146,8 @@ impl<'a> Parser<'a> {
         self.trim_end_previous = false;
 
         if !previous.is_empty() {
-            self.nodes.push(Node::Text(previous.to_string()));
+            let node = Node::Text(previous.to_string());
+            self.push_node(node);
         }
     }
 
@@ -123,13 +164,13 @@ impl<'a> Parser<'a> {
                         Token::VariableEnd(b) => self.trim_start_next = b,
                         _ => unreachable!(),
                     }
-                    self.nodes.push(Node::VariableBlock(expr));
+                    self.push_node(Node::VariableBlock(expr));
                 }
                 Some(Token::TagStart(ws)) => {
                     self.trim_end_previous = ws;
                     self.parse_text();
                     if let Some(node) = self.parse_tags()? {
-                        self.nodes.push(node);
+                        self.push_node(node);
                     }
                 }
                 Some(Token::Comment) => {
@@ -176,7 +217,7 @@ impl<'a> Parser<'a> {
                         }
                         Token::Symbol(Symbol::LeftBracket) => {
                             let start = self.lexer.span().start;
-                            let vals = self.parse_array()?.as_array();
+                            let vals = self.parse_array()?.into_array();
                             let end = self.lexer.span().end;
                             let mut files = Vec::with_capacity(vals.len());
 
@@ -235,7 +276,7 @@ impl<'a> Parser<'a> {
 
                     self.expect(Token::String)?;
                     let val = replace_string_markers(self.lexer.slice());
-                    self.parent = Some(val.clone());
+                    self.parent = Some(val);
                     self.expect_tag_end()?;
                     Ok(None)
                 }
@@ -245,20 +286,13 @@ impl<'a> Parser<'a> {
                     let mut end;
                     let trim_end_previous;
                     loop {
-                        match self.next_or_error()? {
-                            Token::TagStart(ws) => {
-                                end = self.lexer.span().start;
-                                match self.peek_or_error()? {
-                                    Token::Keyword(Keyword::EndRaw) => {
-                                        println!("{:?}", self.lexer.slice());
-                                        trim_end_previous = ws;
-                                        self.lexer.next();
-                                        break;
-                                    }
-                                    _ => (),
-                                }
+                        if let Token::TagStart(ws) = self.next_or_error()? {
+                            end = self.lexer.span().start;
+                            if let Token::Keyword(Keyword::EndRaw) = self.peek_or_error()? {
+                                trim_end_previous = ws;
+                                self.lexer.next();
+                                break;
                             }
-                            _ => (),
                         }
                     }
                     let mut slice = self.lexer.slice_at(start..end);
@@ -273,7 +307,46 @@ impl<'a> Parser<'a> {
 
                     Ok(Some(Node::Raw(body)))
                 }
-                _ => panic!("hey"),
+                Keyword::Block => {
+                    self.expect(Token::Ident)?;
+                    let name = self.parse_ident()?;
+                    self.expect_tag_end()?;
+                    self.contexts.push(ParsingContext::Block(Block {
+                        name,
+                        body: Vec::new(),
+                    }));
+                    Ok(None)
+                }
+                Keyword::EndBlock => {
+                    if !self.is_in_block() {
+                        return Err(SpannedParsingError::new(
+                            ParsingError::UnexpectedToken(
+                                Token::Keyword(Keyword::EndBlock),
+                                vec![],
+                            ),
+                            self.lexer.span(),
+                        ));
+                    }
+
+                    let mut name = String::new();
+                    if let Token::Ident = self.peek_or_error()? {
+                        self.lexer.next();
+                        name = self.parse_ident()?;
+                    }
+
+                    let block = self.pop_block();
+
+                    if !name.is_empty() && block.name != name {
+                        return Err(SpannedParsingError::new(
+                            ParsingError::MismatchedBlock(block.name),
+                            self.lexer.span(),
+                        ));
+                    }
+
+                    self.expect_tag_end()?;
+                    Ok(Some(Node::Block(block)))
+                }
+                t => panic!("TODO: {:?}", t),
             },
             t => Err(SpannedParsingError::new(
                 ParsingError::UnexpectedToken(t, vec![]),
