@@ -67,6 +67,8 @@ pub struct Parser<'a> {
     lexer: PeekableLexer<'a>,
     pub nodes: Vec<Node>,
     contexts: Vec<ParsingContext>,
+    // filled when we encounter a {% extends %}
+    pub parent: Option<String>,
     // WS management
     trim_start_next: bool,
     trim_end_previous: bool,
@@ -83,6 +85,7 @@ impl<'a> Parser<'a> {
             contexts: Vec::new(),
             trim_start_next: false,
             trim_end_previous: false,
+            parent: None,
         }
     }
 
@@ -125,8 +128,9 @@ impl<'a> Parser<'a> {
                 Some(Token::TagStart(ws)) => {
                     self.trim_end_previous = ws;
                     self.parse_text();
-                    let node = self.parse_tags()?;
-                    self.nodes.push(node);
+                    if let Some(node) = self.parse_tags()? {
+                        self.nodes.push(node);
+                    }
                 }
                 Some(Token::Comment) => {
                     let comment = self.lexer.slice().to_owned();
@@ -145,7 +149,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn parse_tags(&mut self) -> ParsingResult<Node> {
+    fn parse_tags(&mut self) -> ParsingResult<Option<Node>> {
         match self.next_or_error()? {
             Token::Keyword(k) => match k {
                 Keyword::Set | Keyword::SetGlobal => {
@@ -158,7 +162,7 @@ impl<'a> Parser<'a> {
                     self.contexts.pop();
                     self.expect_tag_end()?;
 
-                    Ok(Node::Set(Set { key, value, global }))
+                    Ok(Some(Node::Set(Set { key, value, global })))
                 }
                 Keyword::Include => {
                     let files = match self
@@ -211,16 +215,27 @@ impl<'a> Parser<'a> {
                         }
                     };
                     self.expect_tag_end()?;
-                    Ok(Node::Include {
+                    Ok(Some(Node::Include {
                         files,
                         ignore_missing,
-                    })
+                    }))
                 }
                 Keyword::Extends => {
+                    if let Some(ref existing) = self.parent {
+                        return Err(SpannedParsingError::new(
+                            ParsingError::DuplicateExtend(format!(
+                                "Template is already extending '{}'",
+                                existing
+                            )),
+                            self.lexer.span(),
+                        ));
+                    }
+
                     self.expect(Token::String)?;
                     let val = replace_string_markers(self.lexer.slice());
+                    self.parent = Some(val.clone());
                     self.expect_tag_end()?;
-                    Ok(Node::Extends(val))
+                    Ok(None)
                 }
                 _ => panic!("hey"),
             },

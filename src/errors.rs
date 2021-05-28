@@ -13,6 +13,7 @@ pub enum ParsingError {
     // operator found, list of usable operators
     UnexpectedOperator(Operator, Vec<Operator>),
     InvalidInclude,
+    DuplicateExtend(String),
     InvalidExpression(String),
     UnexpectedEof,
 }
@@ -26,6 +27,7 @@ impl ParsingError {
             UnexpectedOperator(_, _) => "Unexpected operator found",
             InvalidExpression(_) => "Invalid expression",
             InvalidInclude => "InvalidInclude",
+            DuplicateExtend(_) => "Several extend tags found",
             UnexpectedEof => "Unexpected end of template",
         }
     }
@@ -88,6 +90,7 @@ impl SpannedParsingError {
             }
             ParsingError::InvalidInclude => "values in an include array must be strings".to_owned(),
             ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
+            ParsingError::DuplicateExtend(ref msg) => msg.to_owned(),
             ParsingError::UnexpectedEof => String::new(),
         };
 

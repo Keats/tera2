@@ -161,6 +161,14 @@ fn can_provide_good_error_messages() {
                 "expected a string but found an ident",
             ),
         ),
+        (
+            "{% extends 'a' %}{% extends 'b' %}",
+            (
+                ParsingError::DuplicateExtend(String::new()),
+                20..27,
+                "Template is already extending 'a'",
+            ),
+        ),
         // includes
         (
             "{% include a %}",

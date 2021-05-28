@@ -127,7 +127,6 @@ pub enum Node {
     Text(String),
     Expression(Expression),
     Set(Set),
-    Extends(String),
     Include {
         files: Vec<String>,
         ignore_missing: bool,

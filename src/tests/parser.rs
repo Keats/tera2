@@ -283,12 +283,7 @@ fn can_parse_extends() {
         println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
-        match &parser.nodes[0] {
-            Node::Extends(s) => {
-                assert_eq!(s, "a.html");
-            }
-            _ => unreachable!("Got something that wasn't an include"),
-        }
+        assert_eq!(parser.parent, Some("a.html".to_owned()));
     }
 }
 
@@ -302,10 +297,6 @@ fn can_parse_comments() {
 #[test]
 fn can_handle_whitespace_trim_left_side() {
     let tests = vec![
-        (
-            "\n\n{%- extends 'a.html' %}",
-            Node::Extends("a.html".to_string()),
-        ),
         ("Hello {{- world }}", Node::Text("Hello".to_string())),
         ("Hello {#- world #}", Node::Text("Hello".to_string())),
     ];
@@ -336,8 +327,8 @@ fn can_parse_a_basic_template() {
     ";
     let mut parser = Parser::new(tpl);
     parser.parse().expect("parsed failed");
-    println!("{:?}", parser.nodes);
-    assert_eq!(parser.nodes[0], Node::Text("".to_string()));
+    println!("{:#?}", parser.nodes);
+    assert_eq!(parser.nodes.len(), 13);
 }
 
 // TODO: Do we care about that in practice
