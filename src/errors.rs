@@ -16,6 +16,7 @@ pub enum ParsingError {
     MismatchedBlock(String),
     DuplicateExtend(String),
     InvalidExpression(String),
+    TagNotAllowedHere(String),
     UnexpectedEof,
 }
 
@@ -30,6 +31,7 @@ impl ParsingError {
             InvalidInclude => "InvalidInclude",
             DuplicateExtend(_) => "Several extend tags found",
             MismatchedBlock(_) => "The endblock doesn't back the current block",
+            TagNotAllowedHere(_) => "This tag is not allowed here",
             UnexpectedEof => "Unexpected end of template",
         }
     }
@@ -92,8 +94,13 @@ impl SpannedParsingError {
             }
             ParsingError::InvalidInclude => "values in an include array must be strings".to_owned(),
             ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
-            ParsingError::DuplicateExtend(ref msg) => msg.to_owned(),
+            ParsingError::DuplicateExtend(ref msg) => {
+                format!("template is already extending '{}'", msg)
+            }
             ParsingError::MismatchedBlock(ref msg) => format!("opening block was named `{}`", msg),
+            ParsingError::TagNotAllowedHere(ref name) => {
+                format!("tag `{}` cannot be nested in other tags", name)
+            }
             ParsingError::UnexpectedEof => String::new(),
         };
 

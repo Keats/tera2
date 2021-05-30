@@ -4,7 +4,7 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
 use crate::errors::ParsingError;
-use crate::lexer::{Operator, Token};
+use crate::lexer::{Keyword, Operator, Token};
 use crate::parser::Parser;
 
 fn output_diagnostic(tpl: &str, diag: &Diagnostic<()>) {
@@ -166,7 +166,16 @@ fn can_provide_good_error_messages() {
             (
                 ParsingError::DuplicateExtend(String::new()),
                 20..27,
-                "Template is already extending 'a'",
+                "template is already extending 'a'",
+            ),
+        ),
+        // extends need to be at the top
+        (
+            "{% if true %}{% extends 'b' %}{% endif %}",
+            (
+                ParsingError::TagNotAllowedHere(String::new()),
+                16..23,
+                "tag `extends` cannot be nested in other tags",
             ),
         ),
         // includes
@@ -203,14 +212,39 @@ fn can_provide_good_error_messages() {
                 "opening block was named `a`",
             ),
         ),
+        // ifs
+        (
+            "{% elif a %}{% else %}{% endif %}",
+            (
+                ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+                3..7,
+                "found `elif`",
+            ),
+        ),
+        (
+            "{% else %}{% endif %}",
+            (
+                ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+                3..7,
+                "found `else`",
+            ),
+        ),
+        (
+            "{% if a %}{% else %}{% elif b %} {% endif %}",
+            (
+                ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+                23..27,
+                "found `elif`",
+            ),
+        ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {
         println!("Testing: {}", t);
         let err = Parser::new(t).parse().unwrap_err();
-        assert_eq!(err.range, range);
         let diag = err.report();
-        // output_diagnostic(t, &diag);
+        output_diagnostic(t, &diag);
+        assert_eq!(err.range, range);
         assert_eq!(diag.message, error_type.message());
         assert_eq!(diag.severity, Severity::Error);
         assert_eq!(diag.labels[0].range, err.range);

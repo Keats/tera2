@@ -139,6 +139,15 @@ pub struct If {
     pub otherwise: Vec<Node>,
 }
 
+/// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
+#[derive(Clone, Debug, PartialEq)]
+pub struct FilterSection {
+    pub name: String,
+    pub kwargs: HashMap<String, Expression>,
+    /// The filter body
+    pub body: Vec<Node>,
+}
+
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -152,4 +161,5 @@ pub enum Node {
     },
     Block(Block),
     If(If),
+    FilterSection(FilterSection),
 }

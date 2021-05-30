@@ -1,4 +1,4 @@
-use crate::ast::{Block, Expression, Node};
+use crate::ast::{Block, Expression, If, Node};
 use crate::parser::Parser;
 
 #[test]
@@ -364,6 +364,37 @@ fn can_parse_block() {
             }),
         ),
     ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_if_elif_else() {
+    let tests = vec![(
+        "{% if true -%} Hello {%- elif false -%} otherwise{% elif b %}ELIF{%- else -%}{{world}} {%- endif %}",
+        Node::If(If {
+            conditions: vec![
+                (
+                    Expression::Bool(true),
+                    vec![Node::Text("Hello".to_string())],
+                ),
+                (
+                    Expression::Bool(false),
+                    vec![Node::Text("otherwise".to_string())],
+                ),
+                (
+                    Expression::Ident("b".to_string()),
+                    vec![Node::Text("ELIF".to_string())],
+                ),
+            ],
+            otherwise: vec![Node::VariableBlock(Expression::Ident("world".to_string()))],
+        }),
+    )];
 
     for (t, expected) in tests {
         println!("{:?}", t);
