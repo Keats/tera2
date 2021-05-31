@@ -1,4 +1,4 @@
-use crate::ast::{Block, Expression, FilterSection, If, Node};
+use crate::ast::{Block, Expression, FilterSection, If, MacroDefinition, Node};
 use crate::parser::Parser;
 use std::collections::HashMap;
 
@@ -438,7 +438,7 @@ fn can_parse_filter_sections() {
             Node::FilterSection(FilterSection {
                 name: "upper".to_string(),
                 kwargs: hashmap! {
-                    "hey".to_string() => Expression::Int(1),
+                    "hey".to_string() => Expression::Integer(1),
                 },
                 body: vec![Node::Text("hello".to_string())],
             }),
@@ -448,7 +448,7 @@ fn can_parse_filter_sections() {
             Node::FilterSection(FilterSection {
                 name: "upper".to_string(),
                 kwargs: hashmap! {
-                    "hey".to_string() => Expression::Int(1),
+                    "hey".to_string() => Expression::Integer(1),
                 },
                 body: vec![Node::If(If {
                     conditions: vec![(Expression::Bool(true), vec![Node::Text("a".to_string())])],
@@ -488,6 +488,41 @@ fn can_parse_a_basic_template() {
     assert_eq!(parser.nodes.len(), 13);
 }
 
+#[test]
+fn can_parse_macro_definitions() {
+    let tests = vec![
+        (
+            "{% macro popup() -%} hello {%- endmacro %}",
+            hashmap!(
+                "popup".to_owned() => MacroDefinition {
+                    name: "popup".to_owned(),
+                    kwargs: HashMap::new(),
+                    body: vec![Node::Text("hello".to_owned())]
+                },
+            ),
+        ),
+        (
+            "{% macro another(hey='ho', optional) -%} hello {%- endmacro %}",
+            hashmap!(
+                "another".to_owned() => MacroDefinition {
+                    name: "another".to_owned(),
+                    kwargs: hashmap!(
+                        "hey".to_owned() => Some(Expression::Str("ho".to_owned())),
+                        "optional".to_owned() => None,
+                    ),
+                    body: vec![Node::Text("hello".to_owned())]
+                },
+            ),
+        ),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.macros, expected);
+    }
+}
 // TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {

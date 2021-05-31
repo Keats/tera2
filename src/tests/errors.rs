@@ -208,7 +208,7 @@ fn can_provide_good_error_messages() {
             "{% block a %}{% endblock b %}",
             (
                 ParsingError::MismatchedBlock(String::new()),
-                27..29,
+                25..26,
                 "opening block was named `a`",
             ),
         ),
@@ -237,6 +237,22 @@ fn can_provide_good_error_messages() {
                 "found `elif`",
             ),
         ),
+        (
+            "{% macro popup() -%} hello {%- endfilter %}",
+            (
+                ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+                31..40,
+                "found `endfilter`",
+            ),
+        ),
+        // (
+        //     "{% macro popup(hey=hola) -%} hello {%- endfilter %}",
+        //     (
+        //         ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+        //         31..40,
+        //         "found `endfilter`",
+        //     ),
+        // ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {

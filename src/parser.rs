@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Block, Expression, FilterSection, If, Node, Set};
+use crate::ast::{Block, Expression, FilterSection, If, MacroDefinition, Node, Set};
 use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
 
@@ -60,6 +60,7 @@ enum ParsingContext {
     For,
     Block(Block),
     FilterSection(FilterSection),
+    MacroDefinition(MacroDefinition),
 }
 
 fn eof_error(last_idx: usize) -> SpannedParsingError {
@@ -76,6 +77,7 @@ pub struct Parser<'a> {
     // if we have a parent template, we only care about the blocks, whatever is in between is
     // disregarded
     pub blocks: HashMap<String, Block>,
+    pub macros: HashMap<String, MacroDefinition>,
     // WS management
     trim_start_next: bool,
     trim_end_previous: bool,
@@ -94,11 +96,41 @@ impl<'a> Parser<'a> {
             trim_end_previous: false,
             parent: None,
             blocks: HashMap::new(),
+            macros: HashMap::new(),
         }
     }
 
     pub(crate) fn parse(&mut self) -> ParsingResult<()> {
         self.parse_content()
+    }
+
+    fn pop_macro_definition(&mut self) -> ParsingResult<MacroDefinition> {
+        let mut nodes = vec![];
+        loop {
+            match self.contexts.pop() {
+                Some(ParsingContext::Block(b)) => {
+                    nodes.push(Node::Block(b));
+                }
+                Some(ParsingContext::If(i))
+                | Some(ParsingContext::Elif(i))
+                | Some(ParsingContext::Else(i)) => {
+                    nodes.push(Node::If(i));
+                }
+                Some(ParsingContext::FilterSection(f)) => {
+                    nodes.push(Node::FilterSection(f));
+                }
+                Some(ParsingContext::MacroDefinition(mut m)) => {
+                    m.body.append(&mut nodes);
+                    return Ok(m);
+                }
+                _ => break,
+            }
+        }
+
+        Err(SpannedParsingError::new(
+            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFilter), vec![]),
+            self.lexer.span(),
+        ))
     }
 
     fn pop_filter_section(&mut self) -> ParsingResult<FilterSection> {
@@ -117,8 +149,7 @@ impl<'a> Parser<'a> {
                     f.body.append(&mut nodes);
                     return Ok(f);
                 }
-                None => break,
-                r => unreachable!("pop filter unreachable: {:?}", r),
+                _ => break,
             }
         }
 
@@ -144,8 +175,7 @@ impl<'a> Parser<'a> {
                 Some(ParsingContext::FilterSection(f)) => {
                     nodes.push(Node::FilterSection(f));
                 }
-                None => break,
-                r => unreachable!("pop block unreachable: {:?}", r),
+                _ => break,
             }
         }
 
@@ -181,8 +211,7 @@ impl<'a> Parser<'a> {
                 Some(ParsingContext::FilterSection(f)) => {
                     nodes.push(Node::FilterSection(f));
                 }
-                None => break,
-                r => unreachable!("pop if unreachable: {:?}", r),
+                _ => break,
             }
         }
 
@@ -209,6 +238,10 @@ impl<'a> Parser<'a> {
                 }
                 ParsingContext::FilterSection(f) => {
                     f.body.push(node);
+                    return;
+                }
+                ParsingContext::MacroDefinition(m) => {
+                    m.body.push(node);
                     return;
                 }
                 _ => todo!("TODO"),
@@ -292,16 +325,12 @@ impl<'a> Parser<'a> {
                     ));
                 }
 
-                for ctx in &self.contexts {
-                    // TODO
-                }
-
                 match k {
                     Keyword::Set | Keyword::SetGlobal => {
                         self.contexts.push(ParsingContext::Set);
                         let global = k == Keyword::SetGlobal;
                         self.expect(Token::Ident)?;
-                        let key = self.parse_ident()?;
+                        let key = self.lexer.slice().to_owned();
                         self.expect(Token::Symbol(Symbol::Assign))?;
                         let value = self.parse_expression(0)?;
                         self.contexts.pop();
@@ -326,7 +355,7 @@ impl<'a> Parser<'a> {
 
                                 for v in vals {
                                     match v {
-                                        Expression::String(s) => files.push(s),
+                                        Expression::Str(s) => files.push(s),
                                         _ => {
                                             return Err(SpannedParsingError::new(
                                                 ParsingError::InvalidInclude,
@@ -409,7 +438,7 @@ impl<'a> Parser<'a> {
                     }
                     Keyword::Block => {
                         self.expect(Token::Ident)?;
-                        let name = self.parse_ident()?;
+                        let name = self.lexer.slice().to_owned();
                         self.expect_tag_end()?;
                         self.contexts.push(ParsingContext::Block(Block {
                             name,
@@ -422,7 +451,7 @@ impl<'a> Parser<'a> {
                         let mut name = String::new();
                         if let Token::Ident = self.peek_or_error()? {
                             self.lexer.next();
-                            name = self.parse_ident()?;
+                            name = self.lexer.slice().to_owned();
                         }
 
                         if !name.is_empty() && block.name != name {
@@ -465,7 +494,7 @@ impl<'a> Parser<'a> {
                     }
                     Keyword::Filter => {
                         self.expect(Token::Ident)?;
-                        let name = self.parse_ident()?;
+                        let name = self.lexer.slice().to_owned();
                         let kwargs = match self.peek_or_error()? {
                             Token::Symbol(Symbol::LeftParen) => self.parse_kwargs()?,
                             _ => HashMap::new(),
@@ -483,6 +512,77 @@ impl<'a> Parser<'a> {
                         let f = self.pop_filter_section()?;
                         self.expect_tag_end()?;
                         Ok(Some(Node::FilterSection(f)))
+                    }
+                    Keyword::Macro => {
+                        self.expect(Token::Ident)?;
+                        let name = self.lexer.slice().to_owned();
+                        let mut kwargs = HashMap::new();
+
+                        // Not going through parse_kwargs as it has slightly different rules
+                        self.expect(Token::Symbol(Symbol::LeftParen))?;
+                        loop {
+                            if let Token::Symbol(Symbol::RightParen) = self.peek_or_error()? {
+                                break;
+                            }
+                            self.expect(Token::Ident)?;
+                            let name = self.lexer.slice().to_owned();
+                            kwargs.insert(name.clone(), None);
+
+                            match self.peek_or_error()? {
+                                Token::Symbol(Symbol::Assign) => {
+                                    self.lexer.next();
+                                    let val = match self.next_or_error()? {
+                                        Token::Bool(b) => Expression::Bool(b),
+                                        Token::String => Expression::Str(replace_string_markers(
+                                            self.lexer.slice(),
+                                        )),
+                                        Token::Integer(i) => Expression::Integer(i),
+                                        Token::Float(f) => Expression::Float(f),
+                                        t => {
+                                            return Err(SpannedParsingError::new(
+                                                ParsingError::UnexpectedToken(
+                                                    t,
+                                                    vec![
+                                                        Token::Bool(true),
+                                                        Token::String,
+                                                        Token::Integer(0),
+                                                        Token::Float(0.0),
+                                                    ],
+                                                ),
+                                                self.lexer.span(),
+                                            ));
+                                        }
+                                    };
+                                    println!("Value: {:?}", val);
+                                    kwargs.insert(name, Some(val));
+                                    if let Token::Symbol(Symbol::Comma) = self.peek_or_error()? {
+                                        self.lexer.next();
+                                        continue;
+                                    }
+                                }
+                                Token::Symbol(Symbol::Comma) => {
+                                    println!("Got a comma");
+                                    self.lexer.next();
+                                    continue;
+                                }
+                                _ => continue,
+                            }
+                        }
+                        self.expect(Token::Symbol(Symbol::RightParen))?;
+                        self.expect_tag_end()?;
+                        self.contexts
+                            .push(ParsingContext::MacroDefinition(MacroDefinition {
+                                name,
+                                kwargs,
+                                body: Vec::new(),
+                            }));
+                        Ok(None)
+                    }
+                    Keyword::EndMacro => {
+                        let macro_def = self.pop_macro_definition()?;
+                        self.expect_tag_end()?;
+                        self.macros.insert(macro_def.name.clone(), macro_def);
+                        Ok(None)
                     }
                     t => panic!("TODO: {:?}", t),
                 }
@@ -725,7 +825,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
         let mut lhs = match self.next_or_error()? {
-            Token::Integer(i) => Expression::Int(i),
+            Token::Integer(i) => Expression::Integer(i),
             Token::Float(i) => Expression::Float(i),
             Token::Bool(i) => Expression::Bool(i),
             Token::Ident => {
@@ -752,7 +852,7 @@ impl<'a> Parser<'a> {
                     _ => Expression::Ident(ident),
                 }
             }
-            Token::String => Expression::String(replace_string_markers(self.lexer.slice())),
+            Token::String => Expression::Str(replace_string_markers(self.lexer.slice())),
             Token::Symbol(Symbol::LeftBracket) => self.parse_array()?,
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);

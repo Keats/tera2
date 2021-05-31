@@ -7,8 +7,8 @@ use crate::lexer::Operator;
 #[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
-    String(String),
-    Int(i64),
+    Str(String),
+    Integer(i64),
     Float(f64),
     Bool(bool),
     Ident(String),
@@ -36,8 +36,8 @@ impl fmt::Display for Expression {
         use Expression::*;
 
         match self {
-            String(i) => write!(f, "'{}'", i),
-            Int(i) => write!(f, "{}", i),
+            Str(i) => write!(f, "'{}'", i),
+            Integer(i) => write!(f, "{}", i),
             Float(i) => write!(f, "{}", i),
             Ident(i) => write!(f, "{}", i),
             Bool(i) => write!(f, "{}", i),
@@ -145,6 +145,15 @@ pub struct FilterSection {
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
     /// The filter body
+    pub body: Vec<Node>,
+}
+
+/// A Macro definition `{% macro hello() %}...{% endmacro %}`
+#[derive(Clone, Debug, PartialEq)]
+pub struct MacroDefinition {
+    pub name: String,
+    /// The args for that macro: name -> optional default value
+    pub kwargs: HashMap<String, Option<Expression>>,
     pub body: Vec<Node>,
 }
 
