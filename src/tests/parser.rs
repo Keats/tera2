@@ -1,5 +1,23 @@
-use crate::ast::{Block, Expression, If, Node};
+use crate::ast::{Block, Expression, FilterSection, If, Node};
 use crate::parser::Parser;
+use std::collections::HashMap;
+
+macro_rules! hashmap {
+    (@single $($x:tt)*) => (());
+    (@count $($rest:expr),*) => (<[()]>::len(&[$(hashmap!(@single $rest)),*]));
+
+    ($($key:expr => $value:expr,)+) => { hashmap!($($key => $value),+) };
+    ($($key:expr => $value:expr),*) => {
+        {
+            let _cap = hashmap!(@count $($key),*);
+            let mut _map = ::std::collections::HashMap::with_capacity(_cap);
+            $(
+                let _ = _map.insert($key, $value);
+            )*
+            _map
+        }
+    };
+}
 
 #[test]
 fn can_parse_ident() {
@@ -395,6 +413,50 @@ fn can_parse_if_elif_else() {
             otherwise: vec![Node::VariableBlock(Expression::Ident("world".to_string()))],
         }),
     )];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_filter_sections() {
+    let tests = vec![
+        (
+            "{% filter safe -%} hello {%- endfilter %}",
+            Node::FilterSection(FilterSection {
+                name: "safe".to_string(),
+                kwargs: HashMap::new(),
+                body: vec![Node::Text("hello".to_string())],
+            }),
+        ),
+        (
+            "{% filter upper(hey=1) -%} hello {%- endfilter %}",
+            Node::FilterSection(FilterSection {
+                name: "upper".to_string(),
+                kwargs: hashmap! {
+                    "hey".to_string() => Expression::Int(1),
+                },
+                body: vec![Node::Text("hello".to_string())],
+            }),
+        ),
+        (
+            "{% filter upper(hey=1) -%}{% if true %}a{%endif %}{%- endfilter %}",
+            Node::FilterSection(FilterSection {
+                name: "upper".to_string(),
+                kwargs: hashmap! {
+                    "hey".to_string() => Expression::Int(1),
+                },
+                body: vec![Node::If(If {
+                    conditions: vec![(Expression::Bool(true), vec![Node::Text("a".to_string())])],
+                    otherwise: vec![],
+                })],
+            }),
+        ),
+    ];
 
     for (t, expected) in tests {
         println!("{:?}", t);

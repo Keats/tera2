@@ -101,6 +101,33 @@ impl<'a> Parser<'a> {
         self.parse_content()
     }
 
+    fn pop_filter_section(&mut self) -> ParsingResult<FilterSection> {
+        let mut nodes = vec![];
+        loop {
+            match self.contexts.pop() {
+                Some(ParsingContext::Block(b)) => {
+                    nodes.push(Node::Block(b));
+                }
+                Some(ParsingContext::If(i))
+                | Some(ParsingContext::Elif(i))
+                | Some(ParsingContext::Else(i)) => {
+                    nodes.push(Node::If(i));
+                }
+                Some(ParsingContext::FilterSection(mut f)) => {
+                    f.body.append(&mut nodes);
+                    return Ok(f);
+                }
+                None => break,
+                r => unreachable!("pop filter unreachable: {:?}", r),
+            }
+        }
+
+        Err(SpannedParsingError::new(
+            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFilter), vec![]),
+            self.lexer.span(),
+        ))
+    }
+
     fn pop_block(&mut self) -> ParsingResult<Block> {
         let mut nodes = vec![];
         loop {
@@ -114,8 +141,11 @@ impl<'a> Parser<'a> {
                 | Some(ParsingContext::Else(i)) => {
                     nodes.push(Node::If(i));
                 }
+                Some(ParsingContext::FilterSection(f)) => {
+                    nodes.push(Node::FilterSection(f));
+                }
                 None => break,
-                _ => unreachable!("hey"),
+                r => unreachable!("pop block unreachable: {:?}", r),
             }
         }
 
@@ -148,8 +178,11 @@ impl<'a> Parser<'a> {
                 Some(ParsingContext::Block(b)) => {
                     nodes.push(Node::Block(b));
                 }
+                Some(ParsingContext::FilterSection(f)) => {
+                    nodes.push(Node::FilterSection(f));
+                }
                 None => break,
-                _ => unreachable!("hey"),
+                r => unreachable!("pop if unreachable: {:?}", r),
             }
         }
 
@@ -172,6 +205,10 @@ impl<'a> Parser<'a> {
                 }
                 ParsingContext::Else(i) => {
                     i.otherwise.push(node);
+                    return;
+                }
+                ParsingContext::FilterSection(f) => {
+                    f.body.push(node);
                     return;
                 }
                 _ => todo!("TODO"),
@@ -425,6 +462,27 @@ impl<'a> Parser<'a> {
                         let i = self.pop_if(k)?;
                         self.expect_tag_end()?;
                         Ok(Some(Node::If(i)))
+                    }
+                    Keyword::Filter => {
+                        self.expect(Token::Ident)?;
+                        let name = self.parse_ident()?;
+                        let kwargs = match self.peek_or_error()? {
+                            Token::Symbol(Symbol::LeftParen) => self.parse_kwargs()?,
+                            _ => HashMap::new(),
+                        };
+                        self.expect_tag_end()?;
+                        self.contexts
+                            .push(ParsingContext::FilterSection(FilterSection {
+                                name,
+                                kwargs,
+                                body: vec![],
+                            }));
+                        Ok(None)
+                    }
+                    Keyword::EndFilter => {
+                        let f = self.pop_filter_section()?;
+                        self.expect_tag_end()?;
+                        Ok(Some(Node::FilterSection(f)))
                     }
                     t => panic!("TODO: {:?}", t),
                 }
