@@ -81,6 +81,8 @@ pub struct Parser<'a> {
     pub macros: HashMap<String, MacroDefinition>,
     // (file, namespace)
     pub macro_imports: Vec<(String, String)>,
+    // The size in bytes of the text, not including any tags
+    pub size_hint: usize,
     // WS management
     trim_start_next: bool,
     trim_end_previous: bool,
@@ -101,6 +103,7 @@ impl<'a> Parser<'a> {
             blocks: HashMap::new(),
             macros: HashMap::new(),
             macro_imports: Vec::new(),
+            size_hint: 0,
         }
     }
 
@@ -321,6 +324,7 @@ impl<'a> Parser<'a> {
         self.trim_end_previous = false;
 
         if !previous.is_empty() {
+            self.size_hint += previous.len();
             let node = Node::Text(previous.to_string());
             self.push_node(node);
         }
@@ -409,9 +413,8 @@ impl<'a> Parser<'a> {
                 if k == Keyword::Continue || k == Keyword::Break {
                     let mut allowed_in_context = false;
                     for ctx in &self.contexts {
-                        match ctx {
-                            ParsingContext::ForLoop(_) => allowed_in_context = true,
-                            _ => (),
+                        if let ParsingContext::ForLoop(_) = ctx {
+                            allowed_in_context = true
                         }
                     }
                     if !allowed_in_context {
