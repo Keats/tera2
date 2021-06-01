@@ -17,6 +17,7 @@ pub enum ParsingError {
     DuplicateExtend(String),
     InvalidExpression(String),
     TagNotAllowedHere(String),
+    ConflictingMacroImport(String),
     UnexpectedEof,
 }
 
@@ -28,10 +29,11 @@ impl ParsingError {
             UnexpectedToken(_, _) => "Unexpected token found",
             UnexpectedOperator(_, _) => "Unexpected operator found",
             InvalidExpression(_) => "Invalid expression",
-            InvalidInclude => "InvalidInclude",
+            InvalidInclude => "Invalid include",
             DuplicateExtend(_) => "Several extend tags found",
             MismatchedBlock(_) => "The endblock doesn't back the current block",
             TagNotAllowedHere(_) => "This tag is not allowed here",
+            ConflictingMacroImport(_) => "Conflicting macro imports",
             UnexpectedEof => "Unexpected end of template",
         }
     }
@@ -44,10 +46,10 @@ impl SpannedParsingError {
     pub fn report(&self) -> Diagnostic<()> {
         let get_token_formatted = |t: &Token| -> String {
             match t {
-                Token::Error => "unexpected characters".to_owned(),
-                Token::Integer(_) => "an integer".to_owned(),
-                Token::Float(_) => "a float".to_owned(),
-                Token::Bool(_) => "a boolean".to_owned(),
+                Token::Error => "unexpected characters, ".to_owned(),
+                Token::Integer(_) => "an integer, ".to_owned(),
+                Token::Float(_) => "a float, ".to_owned(),
+                Token::Bool(_) => "a boolean, ".to_owned(),
                 Token::Ident => format!("{}, ", t),
                 Token::String => format!("{}, ", t),
                 t => format!("`{}`, ", t),
@@ -94,6 +96,7 @@ impl SpannedParsingError {
             }
             ParsingError::InvalidInclude => "values in an include array must be strings".to_owned(),
             ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
+            ParsingError::ConflictingMacroImport(ref msg) => msg.to_owned(),
             ParsingError::DuplicateExtend(ref msg) => {
                 format!("template is already extending '{}'", msg)
             }

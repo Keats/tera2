@@ -13,7 +13,7 @@ DOING:
 TODO:
 
 
-6. Finish parser with whitespace handling done while parsing
+6. Finish parser with whitespace handling done while parsing: check for super()
 7. Fuzz
 8. Profit
 

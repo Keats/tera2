@@ -78,6 +78,8 @@ pub struct Parser<'a> {
     // disregarded
     pub blocks: HashMap<String, Block>,
     pub macros: HashMap<String, MacroDefinition>,
+    // (file, namespace)
+    pub macro_imports: Vec<(String, String)>,
     // WS management
     trim_start_next: bool,
     trim_end_previous: bool,
@@ -97,6 +99,7 @@ impl<'a> Parser<'a> {
             parent: None,
             blocks: HashMap::new(),
             macros: HashMap::new(),
+            macro_imports: Vec::new(),
         }
     }
 
@@ -302,7 +305,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 t => {
-                    todo!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
+                    unreachable!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
                 }
             }
         }
@@ -582,6 +585,28 @@ impl<'a> Parser<'a> {
                         let macro_def = self.pop_macro_definition()?;
                         self.expect_tag_end()?;
                         self.macros.insert(macro_def.name.clone(), macro_def);
+                        Ok(None)
+                    }
+                    Keyword::Import => {
+                        self.expect(Token::String)?;
+                        let filename = replace_string_markers(self.lexer.slice());
+                        self.expect(Token::Keyword(Keyword::As))?;
+                        self.expect(Token::Ident)?;
+                        let namespace = self.lexer.slice().to_owned();
+                        for (existing_filename, existing_namespace) in &self.macro_imports {
+                            if existing_namespace == &namespace {
+                                return Err(SpannedParsingError::new(
+                                    ParsingError::ConflictingMacroImport(format!(
+                                        "namespace {} is already imported for the file '{}'",
+                                        namespace, existing_filename
+                                    )),
+                                    self.lexer.span(),
+                                ));
+                            }
+                        }
+                        self.expect_tag_end()?;
+                        self.macro_imports.push((filename, namespace));
+
                         Ok(None)
                     }
                     t => panic!("TODO: {:?}", t),

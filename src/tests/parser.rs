@@ -523,6 +523,27 @@ fn can_parse_macro_definitions() {
         assert_eq!(parser.macros, expected);
     }
 }
+
+#[test]
+fn can_parse_macro_imports() {
+    let tests = vec![
+        (
+            r#"{% import 'macros.html' as macros %}"#,
+            vec![("macros.html".to_owned(), "macros".to_owned())],
+        ),
+        (
+            r#"{% import 'macros.html' as macros %}"#,
+            vec![("macros.html".to_owned(), "macros".to_owned())],
+        ),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.macro_imports, expected);
+    }
+}
 // TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {

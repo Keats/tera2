@@ -245,14 +245,22 @@ fn can_provide_good_error_messages() {
                 "found `endfilter`",
             ),
         ),
-        // (
-        //     "{% macro popup(hey=hola) -%} hello {%- endfilter %}",
-        //     (
-        //         ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
-        //         31..40,
-        //         "found `endfilter`",
-        //     ),
-        // ),
+        (
+            "{% macro popup(hey=hola) -%} hello {%- endfilter %}",
+            (
+                ParsingError::UnexpectedToken(Token::Keyword(Keyword::Elif), vec![]),
+                19..23,
+                "expected one of: a boolean, a string, an integer, a float but found an ident",
+            ),
+        ),
+        (
+            "{% import 'macros.html' as macros %}{% import 'macrose.html' as macros %}",
+            (
+                ParsingError::ConflictingMacroImport(String::new()),
+                64..70,
+                "namespace macros is already imported for the file 'macros.html'",
+            ),
+        ),
     ];
 
     for (t, (error_type, range, note_msg)) in tests {
