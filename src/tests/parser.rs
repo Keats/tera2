@@ -1,4 +1,5 @@
 use crate::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node};
+use crate::lexer::Operator;
 use crate::parser::Parser;
 use std::collections::HashMap;
 
@@ -353,40 +354,40 @@ fn can_parse_block() {
     let tests = vec![
         (
             "{% block hey -%} Hello {{-world}} {%- endblock %}",
-            Node::Block(Block {
+            Block {
                 name: "hey".to_string(),
                 body: vec![
                     Node::Text("Hello".to_string()),
                     Node::VariableBlock(Expression::Ident("world".to_string())),
                 ],
-            }),
+            },
         ),
         (
             "{% block hey -%} Hello {{-world}} {%- endblock hey %}",
-            Node::Block(Block {
+            Block {
                 name: "hey".to_string(),
                 body: vec![
                     Node::Text("Hello".to_string()),
                     Node::VariableBlock(Expression::Ident("world".to_string())),
                 ],
-            }),
+            },
         ),
         (
-            "{% block hey -%} {% block ho %}{% endblock %} {%- endblock hey %}",
-            Node::Block(Block {
+            "{% block hey -%} {% block ho %}hey{% endblock %} {%- endblock hey %}",
+            Block {
                 name: "hey".to_string(),
                 body: vec![Node::Block(Block {
                     name: "ho".to_string(),
-                    body: vec![],
+                    body: vec![Node::Text("hey".to_string())],
                 })],
-            }),
+            },
         ),
         (
             "{% block hey -%} {{ super() }}{%- endblock hey %}",
-            Node::Block(Block {
+            Block {
                 name: "hey".to_string(),
                 body: vec![Node::Super],
-            }),
+            },
         ),
     ];
 
@@ -394,7 +395,18 @@ fn can_parse_block() {
         println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
-        assert_eq!(parser.nodes[0], expected);
+        assert_eq!(parser.nodes[0], Node::Block(expected.clone()));
+        println!("{:?}", parser.blocks);
+        assert_eq!(parser.blocks["hey"], expected);
+        if parser.blocks.contains_key("ho") {
+            assert_eq!(
+                parser.blocks["ho"],
+                Block {
+                    name: "ho".to_owned(),
+                    body: vec![Node::Text("hey".to_owned())]
+                }
+            );
+        }
     }
 }
 
@@ -412,11 +424,47 @@ fn can_parse_for_loop() {
             }),
         ),
         (
-            "{% for v in my_array -%} {{ v }}{% else %}Empty{%- endfor %}",
+            "{% for v in [1, 2,] -%} {{ v }}{%- endfor %}",
             Node::ForLoop(ForLoop {
                 key: None,
                 value: "v".to_owned(),
-                container: Expression::Ident("my_array".to_owned()),
+                container: Expression::Array(vec![Expression::Integer(1), Expression::Integer(2)]),
+                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                otherwise: vec![],
+            }),
+        ),
+        (
+            "{% for v in 'hello' -%} {{ v }}{%- endfor %}",
+            Node::ForLoop(ForLoop {
+                key: None,
+                value: "v".to_owned(),
+                container: Expression::Str("hello".to_owned()),
+                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                otherwise: vec![],
+            }),
+        ),
+        (
+            "{% for v in my_array | sort -%} {{ v }}{% else %}Empty{%- endfor %}",
+            Node::ForLoop(ForLoop {
+                key: None,
+                value: "v".to_owned(),
+                container: Expression::Expr(
+                    Operator::Pipe,
+                    vec![
+                        Expression::Ident("my_array".to_owned()),
+                        Expression::Function("sort".to_owned(), HashMap::new()),
+                    ],
+                ),
+                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                otherwise: vec![Node::Text("Empty".to_owned())],
+            }),
+        ),
+        (
+            "{% for k, v in obj -%} {{ v }}{% else %}Empty{%- endfor %}",
+            Node::ForLoop(ForLoop {
+                key: Some("k".to_owned()),
+                value: "v".to_owned(),
+                container: Expression::Ident("obj".to_owned()),
                 body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
                 otherwise: vec![Node::Text("Empty".to_owned())],
             }),
@@ -466,11 +514,11 @@ fn can_parse_if_elif_else() {
 fn can_parse_filter_sections() {
     let tests = vec![
         (
-            "{% filter safe -%} hello {%- endfilter %}",
+            "{% filter safe %} hello {% endfilter %}",
             Node::FilterSection(FilterSection {
                 name: "safe".to_string(),
                 kwargs: HashMap::new(),
-                body: vec![Node::Text("hello".to_string())],
+                body: vec![Node::Text(" hello ".to_string())],
             }),
         ),
         (
@@ -504,28 +552,6 @@ fn can_parse_filter_sections() {
         parser.parse().expect("parsed failed");
         assert_eq!(parser.nodes[0], expected);
     }
-}
-
-#[test]
-fn can_parse_a_basic_template() {
-    let tpl = "
-    <html>
-      <head>
-        <title>{{ product.name }}</title>
-      </head>
-      <body>
-        <h1>{{ product.name }} - {{ product.manufacturer | upper }}</h1>
-        <p>{{ product.summary }}</p>
-        <p>£{{ product.price * 1.20 }} (VAT inc.)</p>
-        <p>Look at reviews from your friends {{ username }}</p>
-        <button>Buy!</button>
-      </body>
-    </html>
-    ";
-    let mut parser = Parser::new(tpl);
-    parser.parse().expect("parsed failed");
-    println!("{:#?}", parser.nodes);
-    assert_eq!(parser.nodes.len(), 13);
 }
 
 #[test]
@@ -584,6 +610,81 @@ fn can_parse_macro_imports() {
         assert_eq!(parser.macro_imports, expected);
     }
 }
+
+#[test]
+fn can_parse_a_basic_template() {
+    let tpl = "
+    <html>
+      <head>
+        <title>{{ product.name }}</title>
+      </head>
+      <body>
+        <h1>{{ product.name }} - {{ product.manufacturer | upper }}</h1>
+        <p>{{ product.summary }}</p>
+        <p>£{{ product.price * 1.20 }} (VAT inc.)</p>
+        <p>Look at reviews from your friends {{ username }}</p>
+        <button>Buy!</button>
+      </body>
+    </html>
+    ";
+    let mut parser = Parser::new(tpl);
+    parser.parse().expect("parsed failed");
+    println!("{:#?}", parser.nodes);
+    assert_eq!(parser.nodes.len(), 13);
+}
+
+#[test]
+fn can_parse_slightly_complex_template() {
+    let tpl = "
+    <html>
+      <head>
+        <title>{% block title %}{{ product.name }}{% endblock title %}</title>
+      </head>
+      <body>
+        {%- block content -%}
+            {%- for item in items -%}
+                {%- if item.show -%}{{item.name}}{%- else -%}-{%- endif -%}
+            {%- else -%}
+                No items.
+            {%- endfor -%}
+        {%- endblock -%}
+      </body>
+    </html>";
+    let mut parser = Parser::new(tpl);
+    parser.parse().expect("parsed failed");
+    println!("{:#?}", parser.nodes);
+    let expected = vec![
+        Node::Text("\n    <html>\n      <head>\n        <title>".to_string()),
+        Node::Block(Block {
+            name: "title".to_owned(),
+            body: vec![Node::VariableBlock(Expression::Ident(
+                "product.name".to_owned(),
+            ))],
+        }),
+        Node::Text("</title>\n      </head>\n      <body>".to_owned()),
+        Node::Block(Block {
+            name: "content".to_owned(),
+            body: vec![Node::ForLoop(ForLoop {
+                key: None,
+                value: "item".to_owned(),
+                container: Expression::Ident("items".to_string()),
+                body: vec![Node::If(If {
+                    conditions: vec![(
+                        Expression::Ident("item.show".to_owned()),
+                        vec![Node::VariableBlock(Expression::Ident(
+                            "item.name".to_owned(),
+                        ))],
+                    )],
+                    otherwise: vec![Node::Text("-".to_owned())],
+                })],
+                otherwise: vec![Node::Text("No items.".to_owned())],
+            })],
+        }),
+        Node::Text("</body>\n    </html>".to_owned()),
+    ];
+    assert_eq!(parser.nodes, expected);
+}
+
 // TODO: Do we care about that in practice
 // #[test]
 // fn can_parse_expression_constant_folding() {

@@ -107,8 +107,68 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> ParsingResult<()> {
-        self.parse_content()
+    pub fn parse(&mut self) -> ParsingResult<()> {
+        loop {
+            match self.lexer.next() {
+                Some(Token::VariableStart(ws)) => {
+                    self.trim_end_previous = ws;
+                    self.parse_text();
+                    // It can either be an expression or super()
+                    if let Token::Keyword(Keyword::Super) = self.peek_or_error()? {
+                        self.lexer.next();
+                        let mut in_block = false;
+                        for ctx in &self.contexts {
+                            if let ParsingContext::Block(_) = ctx {
+                                in_block = true;
+                                break;
+                            }
+                        }
+                        if !in_block {
+                            // TODO: explain super() can only be used in blocks
+                            return Err(SpannedParsingError::new(
+                                ParsingError::UnexpectedToken(
+                                    Token::Keyword(Keyword::Super),
+                                    vec![],
+                                ),
+                                self.lexer.span(),
+                            ));
+                        }
+                        self.push_node(Node::Super);
+                    } else {
+                        let expr = self.parse_expression(0)?;
+                        self.push_node(Node::VariableBlock(expr));
+                    }
+                    match self
+                        .expect_one_of(vec![Token::VariableEnd(true), Token::VariableEnd(false)])?
+                    {
+                        Token::VariableEnd(b) => self.trim_start_next = b,
+                        _ => unreachable!(),
+                    }
+                }
+                Some(Token::TagStart(ws)) => {
+                    self.trim_end_previous = ws;
+                    self.parse_text();
+                    if let Some(node) = self.parse_tags()? {
+                        self.push_node(node);
+                    }
+                }
+                Some(Token::Comment) => {
+                    let comment = self.lexer.slice().to_owned();
+                    self.trim_end_previous = comment.starts_with("{#-");
+                    self.parse_text();
+                    self.trim_start_next = comment.ends_with("-#}");
+                }
+                None => {
+                    self.parse_text();
+                    break;
+                }
+                t => {
+                    unreachable!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn pop_forloop(&mut self) -> ParsingResult<ForLoop> {
@@ -330,70 +390,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub(crate) fn parse_content(&mut self) -> ParsingResult<()> {
-        loop {
-            match self.lexer.next() {
-                Some(Token::VariableStart(ws)) => {
-                    self.trim_end_previous = ws;
-                    self.parse_text();
-                    // It can either be an expression or super()
-                    if let Token::Keyword(Keyword::Super) = self.peek_or_error()? {
-                        self.lexer.next();
-                        let mut in_block = false;
-                        for ctx in &self.contexts {
-                            if let ParsingContext::Block(_) = ctx {
-                                in_block = true;
-                                break;
-                            }
-                        }
-                        if !in_block {
-                            // TODO: explain super() can only be used in blocks
-                            return Err(SpannedParsingError::new(
-                                ParsingError::UnexpectedToken(
-                                    Token::Keyword(Keyword::Super),
-                                    vec![],
-                                ),
-                                self.lexer.span(),
-                            ));
-                        }
-                        self.push_node(Node::Super);
-                    } else {
-                        let expr = self.parse_expression(0)?;
-                        self.push_node(Node::VariableBlock(expr));
-                    }
-                    match self
-                        .expect_one_of(vec![Token::VariableEnd(true), Token::VariableEnd(false)])?
-                    {
-                        Token::VariableEnd(b) => self.trim_start_next = b,
-                        _ => unreachable!(),
-                    }
-                }
-                Some(Token::TagStart(ws)) => {
-                    self.trim_end_previous = ws;
-                    self.parse_text();
-                    if let Some(node) = self.parse_tags()? {
-                        self.push_node(node);
-                    }
-                }
-                Some(Token::Comment) => {
-                    let comment = self.lexer.slice().to_owned();
-                    self.trim_end_previous = comment.starts_with("{#-");
-                    self.parse_text();
-                    self.trim_start_next = comment.ends_with("-#}");
-                }
-                None => {
-                    self.parse_text();
-                    break;
-                }
-                t => {
-                    unreachable!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     fn parse_tags(&mut self) -> ParsingResult<Option<Node>> {
         match self.next_or_error()? {
             Token::Keyword(k) => {
@@ -560,6 +556,8 @@ impl<'a> Parser<'a> {
                                 self.lexer.span(),
                             ));
                         }
+
+                        self.blocks.insert(block.name.clone(), block.clone());
 
                         self.expect_tag_end()?;
                         Ok(Some(Node::Block(block)))
@@ -1021,7 +1019,7 @@ impl<'a> Parser<'a> {
         Ok(Expression::Test(name, args))
     }
 
-    pub fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
+    fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
         let mut lhs = match self.next_or_error()? {
             Token::Integer(i) => Expression::Integer(i),
             Token::Float(i) => Expression::Float(i),
