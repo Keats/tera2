@@ -23,14 +23,6 @@ pub enum Expression {
 }
 
 impl Expression {
-    // TODO: probably remove that and inline it
-    pub(crate) fn into_array(self) -> Vec<Expression> {
-        match self {
-            Expression::Array(vals) => vals,
-            _ => panic!("Called as_array on a non array value"),
-        }
-    }
-
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         use Expression::*;
         matches!(

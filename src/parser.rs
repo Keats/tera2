@@ -76,7 +76,7 @@ pub struct Parser<'a> {
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
     // if we have a parent template, we only care about the blocks, whatever is in between is
-    // disregarded
+    // disregarded and we will only look at the fields below
     pub blocks: HashMap<String, Block>,
     pub macros: HashMap<String, MacroDefinition>,
     // (file, namespace)
@@ -157,6 +157,12 @@ impl<'a> Parser<'a> {
                     self.trim_end_previous = comment.starts_with("{#-");
                     self.parse_text();
                     self.trim_start_next = comment.ends_with("-#}");
+                }
+                Some(Token::Error) => {
+                    return Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(Token::Error, vec![]),
+                        self.lexer.span(),
+                    ));
                 }
                 None => {
                     self.parse_text();
@@ -445,7 +451,7 @@ impl<'a> Parser<'a> {
                             }
                             Token::Symbol(Symbol::LeftBracket) => {
                                 let start = self.lexer.span().start;
-                                let vals = self.parse_array()?.into_array();
+                                let vals = self.parse_array()?;
                                 let end = self.lexer.span().end;
                                 let mut files = Vec::with_capacity(vals.len());
 
@@ -678,7 +684,6 @@ impl<'a> Parser<'a> {
                                             ));
                                         }
                                     };
-                                    println!("Value: {:?}", val);
                                     kwargs.insert(name, Some(val));
                                     if let Token::Symbol(Symbol::Comma) = self.peek_or_error()? {
                                         self.lexer.next();
@@ -686,7 +691,6 @@ impl<'a> Parser<'a> {
                                     }
                                 }
                                 Token::Symbol(Symbol::Comma) => {
-                                    println!("Got a comma");
                                     self.lexer.next();
                                     continue;
                                 }
@@ -779,7 +783,10 @@ impl<'a> Parser<'a> {
                         self.expect_tag_end()?;
                         Ok(Some(Node::Break))
                     }
-                    t => panic!("TODO: {:?}", t),
+                    k => Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(Token::Keyword(k), vec![]),
+                        self.lexer.span(),
+                    )),
                 }
             }
             t => Err(SpannedParsingError::new(
@@ -953,8 +960,7 @@ impl<'a> Parser<'a> {
         Ok(base_ident)
     }
 
-    // TODO: return the vec instead
-    fn parse_array(&mut self) -> ParsingResult<Expression> {
+    fn parse_array(&mut self) -> ParsingResult<Vec<Expression>> {
         let mut vals = Vec::new();
         self.contexts.push(ParsingContext::Array);
 
@@ -972,7 +978,7 @@ impl<'a> Parser<'a> {
         }
 
         self.contexts.pop();
-        Ok(Expression::Array(vals))
+        Ok(vals)
     }
 
     pub(crate) fn parse_test(&mut self) -> ParsingResult<Expression> {
@@ -1049,7 +1055,7 @@ impl<'a> Parser<'a> {
                 }
             }
             Token::String => Expression::Str(replace_string_markers(self.lexer.slice())),
-            Token::Symbol(Symbol::LeftBracket) => self.parse_array()?,
+            Token::Symbol(Symbol::LeftBracket) => Expression::Array(self.parse_array()?),
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
                 let lhs = self.parse_expression(0)?;
@@ -1206,6 +1212,12 @@ impl<'a> Parser<'a> {
 
     fn peek_or_error(&mut self) -> ParsingResult<Token> {
         match self.lexer.peek() {
+            Some(Token::Error) => {
+                return Err(SpannedParsingError::new(
+                    ParsingError::UnexpectedToken(Token::Error, vec![]),
+                    self.lexer.span(),
+                ));
+            }
             Some(t) => Ok(t),
             None => {
                 self.lexer.next();
@@ -1216,6 +1228,12 @@ impl<'a> Parser<'a> {
 
     fn next_or_error(&mut self) -> ParsingResult<Token> {
         match self.lexer.next() {
+            Some(Token::Error) => {
+                return Err(SpannedParsingError::new(
+                    ParsingError::UnexpectedToken(Token::Error, vec![]),
+                    self.lexer.span(),
+                ));
+            }
             Some(t) => Ok(t),
             None => Err(eof_error(self.lexer.last_idx())),
         }
