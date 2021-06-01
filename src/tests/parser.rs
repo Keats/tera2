@@ -1,4 +1,4 @@
-use crate::ast::{Block, Expression, FilterSection, If, MacroDefinition, Node};
+use crate::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node};
 use crate::parser::Parser;
 use std::collections::HashMap;
 
@@ -386,6 +386,39 @@ fn can_parse_block() {
             Node::Block(Block {
                 name: "hey".to_string(),
                 body: vec![Node::Super],
+            }),
+        ),
+    ];
+
+    for (t, expected) in tests {
+        println!("{:?}", t);
+        let mut parser = Parser::new(t);
+        parser.parse().expect("parsed failed");
+        assert_eq!(parser.nodes[0], expected);
+    }
+}
+
+#[test]
+fn can_parse_for_loop() {
+    let tests = vec![
+        (
+            "{% for v in my_array -%} {{ v }}{%- endfor %}",
+            Node::ForLoop(ForLoop {
+                key: None,
+                value: "v".to_owned(),
+                container: Expression::Ident("my_array".to_owned()),
+                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                otherwise: vec![],
+            }),
+        ),
+        (
+            "{% for v in my_array -%} {{ v }}{% else %}Empty{%- endfor %}",
+            Node::ForLoop(ForLoop {
+                key: None,
+                value: "v".to_owned(),
+                container: Expression::Ident("my_array".to_owned()),
+                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                otherwise: vec![Node::Text("Empty".to_owned())],
             }),
         ),
     ];

@@ -16,7 +16,8 @@ pub enum ParsingError {
     MismatchedBlock(String),
     DuplicateExtend(String),
     InvalidExpression(String),
-    TagNotAllowedHere(String),
+    CannotIterateOn,
+    TagCannotBeNest(String),
     ConflictingMacroImport(String),
     UnexpectedEof,
 }
@@ -32,8 +33,9 @@ impl ParsingError {
             InvalidInclude => "Invalid include",
             DuplicateExtend(_) => "Several extend tags found",
             MismatchedBlock(_) => "The endblock doesn't back the current block",
-            TagNotAllowedHere(_) => "This tag is not allowed here",
+            TagCannotBeNest(_) => "This tag is not allowed here",
             ConflictingMacroImport(_) => "Conflicting macro imports",
+            CannotIterateOn => "Cannot iterate on this kind of values",
             UnexpectedEof => "Unexpected end of template",
         }
     }
@@ -97,11 +99,14 @@ impl SpannedParsingError {
             ParsingError::InvalidInclude => "values in an include array must be strings".to_owned(),
             ParsingError::InvalidExpression(ref msg) => msg.to_owned(),
             ParsingError::ConflictingMacroImport(ref msg) => msg.to_owned(),
+            ParsingError::CannotIterateOn => {
+                "for loops can only iterate on strings, arrays, idents and function".to_owned()
+            }
             ParsingError::DuplicateExtend(ref msg) => {
                 format!("template is already extending '{}'", msg)
             }
             ParsingError::MismatchedBlock(ref msg) => format!("opening block was named `{}`", msg),
-            ParsingError::TagNotAllowedHere(ref name) => {
+            ParsingError::TagCannotBeNest(ref name) => {
                 format!("tag `{}` cannot be nested in other tags", name)
             }
             ParsingError::UnexpectedEof => String::new(),

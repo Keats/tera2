@@ -173,7 +173,7 @@ fn can_provide_good_error_messages() {
         (
             "{% if true %}{% extends 'b' %}{% endif %}",
             (
-                ParsingError::TagNotAllowedHere(String::new()),
+                ParsingError::TagCannotBeNest(String::new()),
                 16..23,
                 "tag `extends` cannot be nested in other tags",
             ),
@@ -267,6 +267,14 @@ fn can_provide_good_error_messages() {
                 ParsingError::ConflictingMacroImport(String::new()),
                 64..70,
                 "namespace macros is already imported for the file 'macros.html'",
+            ),
+        ),
+        (
+            "{% for i in true %}{% endfor %}",
+            (
+                ParsingError::CannotIterateOn,
+                11..17,
+                "for loops can only iterate on strings, arrays, idents and function",
             ),
         ),
     ];

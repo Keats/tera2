@@ -30,6 +30,14 @@ impl Expression {
             _ => panic!("Called as_array on a non array value"),
         }
     }
+
+    pub(crate) fn can_be_iterated_on(&self) -> bool {
+        use Expression::*;
+        matches!(
+            self,
+            Str(_) | Ident(_) | Array(_) | Function(_, _) | Expr(_, _)
+        )
+    }
 }
 
 impl fmt::Display for Expression {
@@ -170,13 +178,12 @@ pub struct ForLoop {
     /// What's in the forloop itself
     pub body: Vec<Node>,
     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
-    pub empty_body: Vec<Node>,
+    pub otherwise: Vec<Node>,
 }
 
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
-    Super,
     Text(String),
     VariableBlock(Expression),
     Set(Set),
@@ -186,7 +193,10 @@ pub enum Node {
         ignore_missing: bool,
     },
     Block(Block),
+    Super,
     If(If),
     ForLoop(ForLoop),
+    Continue,
+    Break,
     FilterSection(FilterSection),
 }

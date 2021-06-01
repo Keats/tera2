@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Block, Expression, FilterSection, If, MacroDefinition, Node, Set};
+use crate::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set};
 use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
 
@@ -57,7 +57,8 @@ enum ParsingContext {
     If(If),
     Elif(If),
     Else(If),
-    For,
+    ForLoop(ForLoop),
+    ElseForLoop(ForLoop),
     Block(Block),
     FilterSection(FilterSection),
     MacroDefinition(MacroDefinition),
@@ -107,6 +108,39 @@ impl<'a> Parser<'a> {
         self.parse_content()
     }
 
+    fn pop_forloop(&mut self) -> ParsingResult<ForLoop> {
+        let mut nodes = vec![];
+        loop {
+            match self.contexts.pop() {
+                Some(ParsingContext::Block(b)) => {
+                    nodes.push(Node::Block(b));
+                }
+                Some(ParsingContext::If(i))
+                | Some(ParsingContext::Elif(i))
+                | Some(ParsingContext::Else(i)) => {
+                    nodes.push(Node::If(i));
+                }
+                Some(ParsingContext::FilterSection(f)) => {
+                    nodes.push(Node::FilterSection(f));
+                }
+                Some(ParsingContext::ForLoop(mut f)) => {
+                    f.body.append(&mut nodes);
+                    return Ok(f);
+                }
+                Some(ParsingContext::ElseForLoop(mut f)) => {
+                    f.otherwise.append(&mut nodes);
+                    return Ok(f);
+                }
+                _ => break,
+            }
+        }
+
+        Err(SpannedParsingError::new(
+            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFor), vec![]),
+            self.lexer.span(),
+        ))
+    }
+
     fn pop_macro_definition(&mut self) -> ParsingResult<MacroDefinition> {
         let mut nodes = vec![];
         loop {
@@ -118,6 +152,9 @@ impl<'a> Parser<'a> {
                 | Some(ParsingContext::Elif(i))
                 | Some(ParsingContext::Else(i)) => {
                     nodes.push(Node::If(i));
+                }
+                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
+                    nodes.push(Node::ForLoop(f));
                 }
                 Some(ParsingContext::FilterSection(f)) => {
                     nodes.push(Node::FilterSection(f));
@@ -148,6 +185,9 @@ impl<'a> Parser<'a> {
                 | Some(ParsingContext::Else(i)) => {
                     nodes.push(Node::If(i));
                 }
+                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
+                    nodes.push(Node::ForLoop(f));
+                }
                 Some(ParsingContext::FilterSection(mut f)) => {
                     f.body.append(&mut nodes);
                     return Ok(f);
@@ -174,6 +214,9 @@ impl<'a> Parser<'a> {
                 | Some(ParsingContext::Elif(i))
                 | Some(ParsingContext::Else(i)) => {
                     nodes.push(Node::If(i));
+                }
+                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
+                    nodes.push(Node::ForLoop(f));
                 }
                 Some(ParsingContext::FilterSection(f)) => {
                     nodes.push(Node::FilterSection(f));
@@ -207,6 +250,9 @@ impl<'a> Parser<'a> {
                     }
                     i.otherwise.append(&mut nodes);
                     return Ok(i);
+                }
+                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
+                    nodes.push(Node::ForLoop(f));
                 }
                 Some(ParsingContext::Block(b)) => {
                     nodes.push(Node::Block(b));
@@ -247,6 +293,14 @@ impl<'a> Parser<'a> {
                     m.body.push(node);
                     return;
                 }
+                ParsingContext::ForLoop(f) => {
+                    f.body.push(node);
+                    return;
+                }
+                ParsingContext::ElseForLoop(f) => {
+                    f.otherwise.push(node);
+                    return;
+                }
                 _ => todo!("TODO"),
             }
         }
@@ -283,12 +337,9 @@ impl<'a> Parser<'a> {
                         self.lexer.next();
                         let mut in_block = false;
                         for ctx in &self.contexts {
-                            match ctx {
-                                ParsingContext::Block(_) => {
-                                    in_block = true;
-                                    break;
-                                }
-                                _ => (),
+                            if let ParsingContext::Block(_) = ctx {
+                                in_block = true;
+                                break;
                             }
                         }
                         if !in_block {
@@ -349,9 +400,26 @@ impl<'a> Parser<'a> {
 
                 if !at_top_level && (k == Keyword::Extends || k == Keyword::Macro) {
                     return Err(SpannedParsingError::new(
-                        ParsingError::TagNotAllowedHere(format!("{}", k)),
+                        ParsingError::TagCannotBeNest(format!("{}", k)),
                         self.lexer.span(),
                     ));
+                }
+
+                // some tags can only be used in forloop
+                if k == Keyword::Continue || k == Keyword::Break {
+                    let mut allowed_in_context = false;
+                    for ctx in &self.contexts {
+                        match ctx {
+                            ParsingContext::ForLoop(_) => allowed_in_context = true,
+                            _ => (),
+                        }
+                    }
+                    if !allowed_in_context {
+                        return Err(SpannedParsingError::new(
+                            ParsingError::TagCannotBeNest(format!("{}", k)),
+                            self.lexer.span(),
+                        ));
+                    }
                 }
 
                 match k {
@@ -511,9 +579,36 @@ impl<'a> Parser<'a> {
                         Ok(None)
                     }
                     Keyword::Else => {
-                        let i = self.pop_if(k)?;
+                        // else can be found in a if or a for loop
+                        let mut ctx_found = false;
+                        for ctx in self.contexts.iter().rev() {
+                            match ctx {
+                                ParsingContext::If(_) | ParsingContext::Elif(_) => {
+                                    let i = self.pop_if(k)?;
+                                    self.contexts.push(ParsingContext::Else(i));
+                                    ctx_found = true;
+                                    break;
+                                }
+                                ParsingContext::ForLoop(_) => {
+                                    let f = self.pop_forloop()?;
+                                    self.contexts.push(ParsingContext::ElseForLoop(f));
+                                    ctx_found = true;
+                                    break;
+                                }
+                                _ => (),
+                            }
+                        }
+                        // TODO: better error message
+                        if !ctx_found {
+                            return Err(SpannedParsingError::new(
+                                ParsingError::UnexpectedToken(
+                                    Token::Keyword(Keyword::Else),
+                                    vec![],
+                                ),
+                                self.lexer.span(),
+                            ));
+                        }
                         self.expect_tag_end()?;
-                        self.contexts.push(ParsingContext::Else(i));
                         Ok(None)
                     }
                     Keyword::EndIf => {
@@ -634,6 +729,54 @@ impl<'a> Parser<'a> {
                         self.macro_imports.push((filename, namespace));
 
                         Ok(None)
+                    }
+                    Keyword::For => {
+                        self.expect(Token::Ident)?;
+                        let name1 = self.lexer.slice().to_owned();
+                        let mut name2 = String::new();
+                        if Token::Symbol(Symbol::Comma) == self.peek_or_error()? {
+                            self.lexer.next();
+                            self.expect(Token::Ident)?;
+                            name2 = self.lexer.slice().to_owned();
+                        }
+                        self.expect(Token::Op(Operator::In))?;
+                        let start = self.lexer.span().end;
+                        let expr = self.parse_expression(0)?;
+                        let end = self.lexer.span().start;
+                        if !expr.can_be_iterated_on() {
+                            return Err(SpannedParsingError::new(
+                                ParsingError::CannotIterateOn,
+                                start..end,
+                            ));
+                        }
+                        let key = if name2.is_empty() {
+                            None
+                        } else {
+                            Some(name1.clone())
+                        };
+                        self.contexts.push(ParsingContext::ForLoop(ForLoop {
+                            value: if key.is_none() { name1 } else { name2 },
+                            key,
+                            container: expr,
+                            body: Vec::new(),
+                            otherwise: Vec::new(),
+                        }));
+
+                        self.expect_tag_end()?;
+                        Ok(None)
+                    }
+                    Keyword::EndFor => {
+                        let f = self.pop_forloop()?;
+                        self.expect_tag_end()?;
+                        Ok(Some(Node::ForLoop(f)))
+                    }
+                    Keyword::Continue => {
+                        self.expect_tag_end()?;
+                        Ok(Some(Node::Continue))
+                    }
+                    Keyword::Break => {
+                        self.expect_tag_end()?;
+                        Ok(Some(Node::Break))
                     }
                     t => panic!("TODO: {:?}", t),
                 }
