@@ -131,7 +131,7 @@ impl<'a> Parser<'a> {
         }
 
         Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFilter), vec![]),
+            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndMacro), vec![]),
             self.lexer.span(),
         ))
     }
@@ -278,14 +278,40 @@ impl<'a> Parser<'a> {
                 Some(Token::VariableStart(ws)) => {
                     self.trim_end_previous = ws;
                     self.parse_text();
-                    let expr = self.parse_expression(0)?;
+                    // It can either be an expression or super()
+                    if let Token::Keyword(Keyword::Super) = self.peek_or_error()? {
+                        self.lexer.next();
+                        let mut in_block = false;
+                        for ctx in &self.contexts {
+                            match ctx {
+                                ParsingContext::Block(_) => {
+                                    in_block = true;
+                                    break;
+                                }
+                                _ => (),
+                            }
+                        }
+                        if !in_block {
+                            // TODO: explain super() can only be used in blocks
+                            return Err(SpannedParsingError::new(
+                                ParsingError::UnexpectedToken(
+                                    Token::Keyword(Keyword::Super),
+                                    vec![],
+                                ),
+                                self.lexer.span(),
+                            ));
+                        }
+                        self.push_node(Node::Super);
+                    } else {
+                        let expr = self.parse_expression(0)?;
+                        self.push_node(Node::VariableBlock(expr));
+                    }
                     match self
                         .expect_one_of(vec![Token::VariableEnd(true), Token::VariableEnd(false)])?
                     {
                         Token::VariableEnd(b) => self.trim_start_next = b,
                         _ => unreachable!(),
                     }
-                    self.push_node(Node::VariableBlock(expr));
                 }
                 Some(Token::TagStart(ws)) => {
                     self.trim_end_previous = ws;
@@ -783,6 +809,7 @@ impl<'a> Parser<'a> {
         Ok(base_ident)
     }
 
+    // TODO: return the vec instead
     fn parse_array(&mut self) -> ParsingResult<Expression> {
         let mut vals = Vec::new();
         self.contexts.push(ParsingContext::Array);

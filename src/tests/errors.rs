@@ -212,6 +212,14 @@ fn can_provide_good_error_messages() {
                 "opening block was named `a`",
             ),
         ),
+        (
+            "{{super()}}",
+            (
+                ParsingError::UnexpectedToken(Token::Ident, vec![]),
+                2..9,
+                "found `super()`",
+            ),
+        ),
         // ifs
         (
             "{% elif a %}{% else %}{% endif %}",

@@ -23,6 +23,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    // TODO: probably remove that and inline it
     pub(crate) fn into_array(self) -> Vec<Expression> {
         match self {
             Expression::Array(vals) => vals,
@@ -157,9 +158,25 @@ pub struct MacroDefinition {
     pub body: Vec<Node>,
 }
 
+/// A forloop: can be over values or key/values
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForLoop {
+    /// Name of the key in the loop (only when iterating on map-like objects)
+    pub key: Option<String>,
+    /// Name of the local variable for the value in the loop
+    pub value: String,
+    /// Expression being iterated on
+    pub container: Expression,
+    /// What's in the forloop itself
+    pub body: Vec<Node>,
+    /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
+    pub empty_body: Vec<Node>,
+}
+
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
+    Super,
     Text(String),
     VariableBlock(Expression),
     Set(Set),
@@ -170,5 +187,6 @@ pub enum Node {
     },
     Block(Block),
     If(If),
+    ForLoop(ForLoop),
     FilterSection(FilterSection),
 }

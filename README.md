@@ -3,17 +3,16 @@ DONE:
 2. Start writing parser (expression only for now) using Tera AST if it makes sense: https://github.com/Keats/tera/blob/master/src/parser/ast.rs 
 3. Add pratt parser: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 4. Add error handling with nice error reporting with https://github.com/brendanzab/codespan and LOTS OF tests
-
-
-DOING:
-
 5. Validation + Constant folding in parser for expression (https://github.com/Keats/tera/blob/master/src/parser/tests/parser.rs#L1074), 
    can also constant fold at expression level (1==1)
+
+DOING:
+6. Finish parser with whitespace handling done while parsing
+
    
 TODO:
 
 
-6. Finish parser with whitespace handling done while parsing: check for super()
 7. Fuzz
 8. Profit
 

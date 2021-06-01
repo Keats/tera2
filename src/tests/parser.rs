@@ -381,6 +381,13 @@ fn can_parse_block() {
                 })],
             }),
         ),
+        (
+            "{% block hey -%} {{ super() }}{%- endblock hey %}",
+            Node::Block(Block {
+                name: "hey".to_string(),
+                body: vec![Node::Super],
+            }),
+        ),
     ];
 
     for (t, expected) in tests {
