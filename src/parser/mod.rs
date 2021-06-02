@@ -1,8 +1,16 @@
+use crate::parser::ast::{
+    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set,
+};
+use crate::parser::errors::{ParsingError, ParsingResult, SpannedParsingError};
+use crate::parser::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
 use std::collections::HashMap;
 
-use crate::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set};
-use crate::errors::{ParsingError, ParsingResult, SpannedParsingError};
-use crate::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
+pub mod ast;
+mod errors;
+mod lexer;
+
+#[cfg(test)]
+mod tests;
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 

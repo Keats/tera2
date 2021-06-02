@@ -3,8 +3,8 @@ use std::fmt;
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 
-use crate::lexer::{Operator, Token};
-use crate::Spanned;
+use crate::parser::lexer::{Operator, Token};
+use crate::utils::Spanned;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParsingError {

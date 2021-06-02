@@ -1,5 +1,5 @@
-use crate::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node};
-use crate::lexer::Operator;
+use crate::parser::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node};
+use crate::parser::lexer::Operator;
 use crate::parser::Parser;
 use std::collections::HashMap;
 

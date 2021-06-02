@@ -3,8 +3,8 @@ use codespan_reporting::files;
 use codespan_reporting::term;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 
-use crate::errors::ParsingError;
-use crate::lexer::{Keyword, Operator, Token};
+use crate::parser::errors::ParsingError;
+use crate::parser::lexer::{Keyword, Operator, Token};
 use crate::parser::Parser;
 
 fn output_diagnostic(tpl: &str, diag: &Diagnostic<()>) {
