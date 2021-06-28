@@ -1,9 +1,10 @@
 use crate::parser::ast::{
-    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set,
+    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set, SpannedExpression,
 };
 use crate::parser::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::parser::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
 use std::collections::HashMap;
+use std::ops::Range;
 
 pub mod ast;
 mod errors;
@@ -92,6 +93,8 @@ pub struct Parser<'a> {
     // The size in bytes of the text, not including any tags
     pub size_hint: usize,
     // WS management
+    // The equivalent of `trim_blocks` and `lstrip_blocks` set to True in Jinja2
+    smart_whitespace: bool,
     trim_start_next: bool,
     trim_end_previous: bool,
 }
@@ -112,7 +115,12 @@ impl<'a> Parser<'a> {
             macros: HashMap::new(),
             macro_imports: Vec::new(),
             size_hint: 0,
+            smart_whitespace: false,
         }
+    }
+
+    pub fn enable_smart_whitespace(&mut self) {
+        self.smart_whitespace = true;
     }
 
     pub fn parse(&mut self) -> ParsingResult<()> {
@@ -154,7 +162,7 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Some(Token::TagStart(ws)) => {
-                    self.trim_end_previous = ws;
+                    self.trim_end_previous = ws || self.smart_whitespace;
                     self.parse_text();
                     if let Some(node) = self.parse_tags()? {
                         self.push_node(node);
@@ -464,7 +472,7 @@ impl<'a> Parser<'a> {
                                 let mut files = Vec::with_capacity(vals.len());
 
                                 for v in vals {
-                                    match v {
+                                    match v.node {
                                         Expression::Str(s) => files.push(s),
                                         _ => {
                                             return Err(SpannedParsingError::new(
@@ -692,7 +700,10 @@ impl<'a> Parser<'a> {
                                             ));
                                         }
                                     };
-                                    kwargs.insert(name, Some(val));
+                                    kwargs.insert(
+                                        name,
+                                        Some(SpannedExpression::new(val, self.lexer.span())),
+                                    );
                                     if let Token::Symbol(Symbol::Comma) = self.peek_or_error()? {
                                         self.lexer.next();
                                         continue;
@@ -804,7 +815,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_kwargs(&mut self) -> ParsingResult<HashMap<String, Expression>> {
+    fn parse_kwargs(&mut self) -> ParsingResult<HashMap<String, SpannedExpression>> {
         let mut kwargs = HashMap::new();
         self.contexts.push(ParsingContext::Kwargs);
 
@@ -839,13 +850,16 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
-    fn parse_ident(&mut self) -> ParsingResult<String> {
+    fn parse_ident(&mut self) -> ParsingResult<(String, Range<usize>)> {
         // We are already at the ident token when we start
+        let start = self.lexer.span().start;
+        let mut end;
         let mut base_ident = self.lexer.slice().to_owned();
         let mut after_dot = false;
         let mut in_brackets = Vec::new();
 
         loop {
+            end = self.lexer.span().end;
             let token = self.peek_or_error()?;
 
             // After a dot, only an ident or an integer is allowed
@@ -919,11 +933,13 @@ impl<'a> Parser<'a> {
             // In array it can be followed by a `,` and in functions by `=` or `,`
             let mut allow_comma = false;
             let mut allow_assign = false;
+            let mut allow_right_parent = false;
             if let Some(c) = self.contexts.last() {
                 allow_comma = *c == ParsingContext::Array
                     || *c == ParsingContext::TestArgs
                     || *c == ParsingContext::Kwargs;
                 allow_assign = *c == ParsingContext::Kwargs || *c == ParsingContext::Set;
+                allow_right_parent = *c == ParsingContext::Paren;
             }
 
             match token {
@@ -949,6 +965,9 @@ impl<'a> Parser<'a> {
                     if token == Token::Symbol(Symbol::Assign) && allow_assign {
                         break;
                     }
+                    if token == Token::Symbol(Symbol::RightParen) && allow_right_parent {
+                        break;
+                    }
 
                     self.lexer.next();
                     return Err(SpannedParsingError::new(
@@ -965,10 +984,10 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Ok(base_ident)
+        Ok((base_ident, start..end))
     }
 
-    fn parse_array(&mut self) -> ParsingResult<Vec<Expression>> {
+    fn parse_array(&mut self) -> ParsingResult<Vec<SpannedExpression>> {
         let mut vals = Vec::new();
         self.contexts.push(ParsingContext::Array);
 
@@ -989,8 +1008,9 @@ impl<'a> Parser<'a> {
         Ok(vals)
     }
 
-    pub(crate) fn parse_test(&mut self) -> ParsingResult<Expression> {
+    pub(crate) fn parse_test(&mut self) -> ParsingResult<SpannedExpression> {
         self.expect(Token::Ident)?;
+        let start = self.lexer.span().start;
         let name = self.lexer.slice().to_owned();
         let mut args = vec![];
         self.contexts.push(ParsingContext::TestArgs);
@@ -1030,23 +1050,29 @@ impl<'a> Parser<'a> {
         }
 
         self.contexts.pop();
-        Ok(Expression::Test(name, args))
+        Ok(SpannedExpression::new(
+            Expression::Test(name, args),
+            start..self.lexer.span().start,
+        ))
     }
 
-    fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<Expression> {
+    fn parse_expression(&mut self, min_bp: u8) -> ParsingResult<SpannedExpression> {
         let mut lhs = match self.next_or_error()? {
-            Token::Integer(i) => Expression::Integer(i),
-            Token::Float(i) => Expression::Float(i),
-            Token::Bool(i) => Expression::Bool(i),
+            Token::Integer(i) => SpannedExpression::new(Expression::Integer(i), self.lexer.span()),
+            Token::Float(i) => SpannedExpression::new(Expression::Float(i), self.lexer.span()),
+            Token::Bool(i) => SpannedExpression::new(Expression::Bool(i), self.lexer.span()),
             Token::Ident => {
                 // Need to parse it first in case it's actually an ident since we will move
                 // past it otherwise
-                let ident = self.parse_ident()?;
+                let (ident, span) = self.parse_ident()?;
                 match self.lexer.peek() {
                     // a function
                     Some(Token::Symbol(Symbol::LeftParen)) => {
                         let kwargs = self.parse_kwargs()?;
-                        Expression::Function(ident, kwargs)
+                        SpannedExpression::new(
+                            Expression::Function(ident, kwargs),
+                            span.start..self.lexer.span().start,
+                        )
                     }
                     // a macro call
                     Some(Token::Symbol(Symbol::DoubleColumn)) => {
@@ -1057,13 +1083,23 @@ impl<'a> Parser<'a> {
                         // and left paren
                         self.peek_and_expect(Token::Symbol(Symbol::LeftParen))?;
                         let kwargs = self.parse_kwargs()?;
-                        Expression::MacroCall(ident, macro_name, kwargs)
+                        SpannedExpression::new(
+                            Expression::MacroCall(ident, macro_name, kwargs),
+                            span.start..self.lexer.span().start,
+                        )
                     }
-                    _ => Expression::Ident(ident),
+                    _ => SpannedExpression::new(Expression::Ident(ident), span),
                 }
             }
-            Token::String => Expression::Str(replace_string_markers(self.lexer.slice())),
-            Token::Symbol(Symbol::LeftBracket) => Expression::Array(self.parse_array()?),
+            Token::String => SpannedExpression::new(
+                Expression::Str(replace_string_markers(self.lexer.slice())),
+                self.lexer.span(),
+            ),
+            Token::Symbol(Symbol::LeftBracket) => {
+                let start = self.lexer.span().start;
+                let array = self.parse_array()?;
+                SpannedExpression::new(Expression::Array(array), start..self.lexer.span().end)
+            }
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
                 let lhs = self.parse_expression(0)?;
@@ -1072,13 +1108,15 @@ impl<'a> Parser<'a> {
                 lhs
             }
             Token::Op(op) => {
+                let start = self.lexer.span().start;
                 let (_, r_bp) = prefix_binding_power(op).map_err(|mut e| {
                     e.range = self.lexer.span();
                     e
                 })?;
 
                 let rhs = self.parse_expression(r_bp)?;
-                Expression::Expr(op, vec![rhs])
+                let end = rhs.range.end;
+                SpannedExpression::new(Expression::Expr(op, vec![rhs]), start..end)
             }
             t => {
                 return Err(SpannedParsingError::new(
@@ -1201,15 +1239,20 @@ impl<'a> Parser<'a> {
             // We can have filters that look like ident, without parentheses so we need to convert
             // them to a function
             if op == Operator::Pipe {
-                rhs = match rhs {
-                    Expression::Ident(s) => Expression::Function(s, HashMap::new()),
+                rhs = match rhs.node {
+                    Expression::Ident(s) => {
+                        SpannedExpression::new(Expression::Function(s, HashMap::new()), rhs.range)
+                    }
                     _ => rhs,
                 };
             }
+            let start = lhs.range.start;
+            let end = rhs.range.end;
+            lhs = SpannedExpression::new(Expression::Expr(op, vec![lhs, rhs]), start..end);
 
-            lhs = Expression::Expr(op, vec![lhs, rhs]);
             if negated {
-                lhs = Expression::Expr(Operator::Not, vec![lhs]);
+                let span = lhs.range.clone();
+                lhs = SpannedExpression::new(Expression::Expr(Operator::Not, vec![lhs]), span);
                 negated = false;
             }
             continue;
@@ -1220,12 +1263,10 @@ impl<'a> Parser<'a> {
 
     fn peek_or_error(&mut self) -> ParsingResult<Token> {
         match self.lexer.peek() {
-            Some(Token::Error) => {
-                return Err(SpannedParsingError::new(
-                    ParsingError::UnexpectedToken(Token::Error, vec![]),
-                    self.lexer.span(),
-                ));
-            }
+            Some(Token::Error) => Err(SpannedParsingError::new(
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                self.lexer.span(),
+            )),
             Some(t) => Ok(t),
             None => {
                 self.lexer.next();
@@ -1236,12 +1277,10 @@ impl<'a> Parser<'a> {
 
     fn next_or_error(&mut self) -> ParsingResult<Token> {
         match self.lexer.next() {
-            Some(Token::Error) => {
-                return Err(SpannedParsingError::new(
-                    ParsingError::UnexpectedToken(Token::Error, vec![]),
-                    self.lexer.span(),
-                ));
-            }
+            Some(Token::Error) => Err(SpannedParsingError::new(
+                ParsingError::UnexpectedToken(Token::Error, vec![]),
+                self.lexer.span(),
+            )),
             Some(t) => Ok(t),
             None => Err(eof_error(self.lexer.last_idx())),
         }

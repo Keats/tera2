@@ -1,4 +1,6 @@
-use crate::parser::ast::{Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node};
+use crate::parser::ast::{
+    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, SpannedExpression,
+};
 use crate::parser::lexer::Operator;
 use crate::parser::Parser;
 use std::collections::HashMap;
@@ -193,6 +195,24 @@ fn can_parse_expression() {
             "{{ not admin | default(val=true) }}",
             "(not (| admin default{val=true}))",
         ),
+        // Things not working in Tera v1
+        // https://github.com/Keats/tera/issues/478
+        ("{{ a > b and a > c }}", "(and (> a b) (> a c))"),
+        ("{{ (a > b) and (a > c) }}", "(and (> a b) (> a c))"),
+        (
+            "{{ (person in groupA) and person in groupB }}",
+            "(and (in person groupA) (in person groupB))",
+        ),
+        (
+            "{{ (query.tags ~ ' ' ~ tags) | trim }}",
+            "(| (~ (~ query.tags ' ') tags) trim{})",
+        ),
+        (
+            "{{ a and a is containing('a') or b and b is containing('b') }}",
+            "(and (or (and a (is a containing{'a'})) b) (is b containing{'b'}))",
+        ),
+        ("{{ not (not a) }}", "(not (not a))"),
+        ("{{ not not a }}", "(not (not a))"),
     ];
 
     for (t, expected) in tests {
@@ -299,7 +319,6 @@ fn can_parse_extends() {
     ];
 
     for t in tests {
-        println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         assert_eq!(parser.parent, Some("a.html".to_owned()));
@@ -321,7 +340,6 @@ fn can_handle_whitespace_trim_left_side() {
     ];
 
     for (t, expected) in tests {
-        println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         assert_eq!(parser.nodes[0], expected);
@@ -342,7 +360,6 @@ fn can_parse_raw() {
     ];
 
     for (t, expected) in tests {
-        println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         assert_eq!(parser.nodes[0], expected);
@@ -358,7 +375,10 @@ fn can_parse_block() {
                 name: "hey".to_string(),
                 body: vec![
                     Node::Text("Hello".to_string()),
-                    Node::VariableBlock(Expression::Ident("world".to_string())),
+                    Node::VariableBlock(SpannedExpression::new(
+                        Expression::Ident("world".to_string()),
+                        26..31,
+                    )),
                 ],
             },
         ),
@@ -368,7 +388,10 @@ fn can_parse_block() {
                 name: "hey".to_string(),
                 body: vec![
                     Node::Text("Hello".to_string()),
-                    Node::VariableBlock(Expression::Ident("world".to_string())),
+                    Node::VariableBlock(SpannedExpression::new(
+                        Expression::Ident("world".to_string()),
+                        26..31,
+                    )),
                 ],
             },
         ),
@@ -392,11 +415,9 @@ fn can_parse_block() {
     ];
 
     for (t, expected) in tests {
-        println!("{:?}", t);
         let mut parser = Parser::new(t);
         parser.parse().expect("parsed failed");
         assert_eq!(parser.nodes[0], Node::Block(expected.clone()));
-        println!("{:?}", parser.blocks);
         assert_eq!(parser.blocks["hey"], expected);
         if parser.blocks.contains_key("ho") {
             assert_eq!(
@@ -418,8 +439,11 @@ fn can_parse_for_loop() {
             Node::ForLoop(ForLoop {
                 key: None,
                 value: "v".to_owned(),
-                container: Expression::Ident("my_array".to_owned()),
-                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                container: SpannedExpression::new(Expression::Ident("my_array".to_owned()), 12..20),
+                body: vec![Node::VariableBlock(SpannedExpression::new(
+                    Expression::Ident("v".to_owned()),
+                    28..29,
+                ))],
                 otherwise: vec![],
             }),
         ),
@@ -428,8 +452,17 @@ fn can_parse_for_loop() {
             Node::ForLoop(ForLoop {
                 key: None,
                 value: "v".to_owned(),
-                container: Expression::Array(vec![Expression::Integer(1), Expression::Integer(2)]),
-                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                container: SpannedExpression::new(
+                    Expression::Array(vec![
+                        SpannedExpression::new(Expression::Integer(1), 13..14),
+                        SpannedExpression::new(Expression::Integer(2), 16..17),
+                    ]),
+                    12..19,
+                ),
+                body: vec![Node::VariableBlock(SpannedExpression::new(
+                    Expression::Ident("v".to_owned()),
+                    27..28,
+                ))],
                 otherwise: vec![],
             }),
         ),
@@ -438,8 +471,11 @@ fn can_parse_for_loop() {
             Node::ForLoop(ForLoop {
                 key: None,
                 value: "v".to_owned(),
-                container: Expression::Str("hello".to_owned()),
-                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                container: SpannedExpression::new(Expression::Str("hello".to_owned()), 12..19),
+                body: vec![Node::VariableBlock(SpannedExpression::new(
+                    Expression::Ident("v".to_owned()),
+                    27..28,
+                ))],
                 otherwise: vec![],
             }),
         ),
@@ -448,14 +484,26 @@ fn can_parse_for_loop() {
             Node::ForLoop(ForLoop {
                 key: None,
                 value: "v".to_owned(),
-                container: Expression::Expr(
-                    Operator::Pipe,
-                    vec![
-                        Expression::Ident("my_array".to_owned()),
-                        Expression::Function("sort".to_owned(), HashMap::new()),
-                    ],
+                container: SpannedExpression::new(
+                    Expression::Expr(
+                        Operator::Pipe,
+                        vec![
+                            SpannedExpression::new(
+                                Expression::Ident("my_array".to_owned()),
+                                12..20,
+                            ),
+                            SpannedExpression::new(
+                                Expression::Function("sort".to_owned(), HashMap::new()),
+                                23..27,
+                            ),
+                        ],
+                    ),
+                    12..27,
                 ),
-                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                body: vec![Node::VariableBlock(SpannedExpression::new(
+                    Expression::Ident("v".to_owned()),
+                    35..36,
+                ))],
                 otherwise: vec![Node::Text("Empty".to_owned())],
             }),
         ),
@@ -464,8 +512,11 @@ fn can_parse_for_loop() {
             Node::ForLoop(ForLoop {
                 key: Some("k".to_owned()),
                 value: "v".to_owned(),
-                container: Expression::Ident("obj".to_owned()),
-                body: vec![Node::VariableBlock(Expression::Ident("v".to_owned()))],
+                container: SpannedExpression::new(Expression::Ident("obj".to_owned()), 15..18),
+                body: vec![Node::VariableBlock(SpannedExpression::new(
+                    Expression::Ident("v".to_owned()),
+                    26..27,
+                ))],
                 otherwise: vec![Node::Text("Empty".to_owned())],
             }),
         ),
@@ -486,19 +537,19 @@ fn can_parse_if_elif_else() {
         Node::If(If {
             conditions: vec![
                 (
-                    Expression::Bool(true),
+                    SpannedExpression::new(Expression::Bool(true), 6..10),
                     vec![Node::Text("Hello".to_string())],
                 ),
                 (
-                    Expression::Bool(false),
+                    SpannedExpression::new(Expression::Bool(false), 30..35),
                     vec![Node::Text("otherwise".to_string())],
                 ),
                 (
-                    Expression::Ident("b".to_string()),
+                    SpannedExpression::new(Expression::Ident("b".to_string()), 57..58),
                     vec![Node::Text("ELIF".to_string())],
                 ),
             ],
-            otherwise: vec![Node::VariableBlock(Expression::Ident("world".to_string()))],
+            otherwise: vec![Node::VariableBlock(SpannedExpression::new(Expression::Ident("world".to_string()), 79..84))],
         }),
     )];
 
@@ -526,7 +577,7 @@ fn can_parse_filter_sections() {
             Node::FilterSection(FilterSection {
                 name: "upper".to_string(),
                 kwargs: hashmap! {
-                    "hey".to_string() => Expression::Integer(1),
+                    "hey".to_string() => SpannedExpression::new(Expression::Integer(1), 20..21),
                 },
                 body: vec![Node::Text("hello".to_string())],
             }),
@@ -536,10 +587,13 @@ fn can_parse_filter_sections() {
             Node::FilterSection(FilterSection {
                 name: "upper".to_string(),
                 kwargs: hashmap! {
-                    "hey".to_string() => Expression::Integer(1),
+                    "hey".to_string() => SpannedExpression::new(Expression::Integer(1), 20..21),
                 },
                 body: vec![Node::If(If {
-                    conditions: vec![(Expression::Bool(true), vec![Node::Text("a".to_string())])],
+                    conditions: vec![(
+                        SpannedExpression::new(Expression::Bool(true), 32..36),
+                        vec![Node::Text("a".to_string())],
+                    )],
                     otherwise: vec![],
                 })],
             }),
@@ -573,7 +627,7 @@ fn can_parse_macro_definitions() {
                 "another".to_owned() => MacroDefinition {
                     name: "another".to_owned(),
                     kwargs: hashmap!(
-                        "hey".to_owned() => Some(Expression::Str("ho".to_owned())),
+                        "hey".to_owned() => Some(SpannedExpression::new(Expression::Str("ho".to_owned()), 21..25)),
                         "optional".to_owned() => None,
                     ),
                     body: vec![Node::Text("hello".to_owned())]
@@ -657,8 +711,9 @@ fn can_parse_slightly_complex_template() {
         Node::Text("\n    <html>\n      <head>\n        <title>".to_string()),
         Node::Block(Block {
             name: "title".to_owned(),
-            body: vec![Node::VariableBlock(Expression::Ident(
-                "product.name".to_owned(),
+            body: vec![Node::VariableBlock(SpannedExpression::new(
+                Expression::Ident("product.name".to_owned()),
+                60..72,
             ))],
         }),
         Node::Text("</title>\n      </head>\n      <body>".to_owned()),
@@ -667,12 +722,13 @@ fn can_parse_slightly_complex_template() {
             body: vec![Node::ForLoop(ForLoop {
                 key: None,
                 value: "item".to_owned(),
-                container: Expression::Ident("items".to_string()),
+                container: SpannedExpression::new(Expression::Ident("items".to_string()), 189..194),
                 body: vec![Node::If(If {
                     conditions: vec![(
-                        Expression::Ident("item.show".to_owned()),
-                        vec![Node::VariableBlock(Expression::Ident(
-                            "item.name".to_owned(),
+                        SpannedExpression::new(Expression::Ident("item.show".to_owned()), 222..231),
+                        vec![Node::VariableBlock(SpannedExpression::new(
+                            Expression::Ident("item.name".to_owned()),
+                            237..246,
                         ))],
                     )],
                     otherwise: vec![Node::Text("-".to_owned())],
@@ -684,6 +740,28 @@ fn can_parse_slightly_complex_template() {
     ];
     assert_eq!(parser.nodes, expected);
 }
+
+// TODO: decide what we actually want to do
+// trim only before tags if there is a newline in it?
+// TODO: find examples in ansible/salt/others of places where indentation matter
+// #[test]
+// fn can_enable_smart_whitespace_handling() {
+//     let tpl = "\
+// <div>
+//     {% if True %}
+//         yay
+//     {% endif %}
+// </div>";
+//     let mut parser = Parser::new(tpl);
+//     parser.enable_smart_whitespace();
+//     parser.parse().expect("parsed failed");
+//     let expected = vec![
+//         Node::Text("<div>".to_owned()),
+//         Node::If(If { conditions: vec![(Expression::Bool(true), vec![Node::Text("\n        yay".to_owned())])], otherwise: vec![] }),
+//         Node::Text("\n</div>".to_owned()),
+//     ];
+//     assert_eq!(parser.nodes, expected);
+// }
 
 // TODO: Do we care about that in practice
 // #[test]

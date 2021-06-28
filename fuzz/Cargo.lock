@@ -83,6 +83,7 @@ version = "0.1.0"
 dependencies = [
  "codespan-reporting",
  "logos",
+ "valuable",
 ]
 
 [[package]]
@@ -154,6 +155,24 @@ name = "utf8-ranges"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4ae116fef2b7fea257ed6440d3cfcff7f190865f170cdad00bb6465bf18ecba"
+
+[[package]]
+name = "valuable"
+version = "0.1.0"
+source = "git+https://github.com/tokio-rs/valuable/#6e6ba81013753f70a21801133b041727f92e7f42"
+dependencies = [
+ "valuable-derive",
+]
+
+[[package]]
+name = "valuable-derive"
+version = "0.1.0"
+source = "git+https://github.com/tokio-rs/valuable/#6e6ba81013753f70a21801133b041727f92e7f42"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "winapi"

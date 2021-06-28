@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::parser::lexer::Operator;
+use crate::utils::Spanned;
 
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
@@ -12,31 +13,33 @@ pub enum Expression {
     Float(f64),
     Bool(bool),
     Ident(String),
-    Array(Vec<Expression>),
+    Array(Vec<SpannedExpression>),
     // name, args
-    Test(String, Vec<Expression>),
+    Test(String, Vec<SpannedExpression>),
     // namespace, name, kwargs
-    MacroCall(String, String, HashMap<String, Expression>),
+    MacroCall(String, String, HashMap<String, SpannedExpression>),
     // name, kwargs
-    Function(String, HashMap<String, Expression>),
-    Expr(Operator, Vec<Expression>),
+    Function(String, HashMap<String, SpannedExpression>),
+    Expr(Operator, Vec<SpannedExpression>),
 }
 
-impl Expression {
+pub type SpannedExpression = Spanned<Expression>;
+
+impl SpannedExpression {
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         use Expression::*;
         matches!(
-            self,
+            self.node,
             Str(_) | Ident(_) | Array(_) | Function(_, _) | Expr(_, _)
         )
     }
 }
 
-impl fmt::Display for Expression {
+impl fmt::Display for SpannedExpression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
 
-        match self {
+        match &self.node {
             Str(i) => write!(f, "'{}'", i),
             Integer(i) => write!(f, "{}", i),
             Float(i) => write!(f, "{}", i),
@@ -116,7 +119,7 @@ pub struct Set {
     /// The name for that value in the context
     pub key: String,
     /// The value to assign
-    pub value: Expression,
+    pub value: SpannedExpression,
     /// Whether we want to set the variable globally or locally
     /// global_set is only useful in loops
     pub global: bool,
@@ -135,7 +138,7 @@ pub struct Block {
 #[derive(Clone, Debug, PartialEq)]
 pub struct If {
     /// First item if the if, all the ones after are elif
-    pub conditions: Vec<(Expression, Vec<Node>)>,
+    pub conditions: Vec<(SpannedExpression, Vec<Node>)>,
     /// The optional `else` block
     pub otherwise: Vec<Node>,
 }
@@ -144,7 +147,7 @@ pub struct If {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterSection {
     pub name: String,
-    pub kwargs: HashMap<String, Expression>,
+    pub kwargs: HashMap<String, SpannedExpression>,
     /// The filter body
     pub body: Vec<Node>,
 }
@@ -154,7 +157,7 @@ pub struct FilterSection {
 pub struct MacroDefinition {
     pub name: String,
     /// The args for that macro: name -> optional default value
-    pub kwargs: HashMap<String, Option<Expression>>,
+    pub kwargs: HashMap<String, Option<SpannedExpression>>,
     pub body: Vec<Node>,
 }
 
@@ -166,7 +169,7 @@ pub struct ForLoop {
     /// Name of the local variable for the value in the loop
     pub value: String,
     /// Expression being iterated on
-    pub container: Expression,
+    pub container: SpannedExpression,
     /// What's in the forloop itself
     pub body: Vec<Node>,
     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
@@ -177,7 +180,7 @@ pub struct ForLoop {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Text(String),
-    VariableBlock(Expression),
+    VariableBlock(SpannedExpression),
     Set(Set),
     Raw(String),
     Include {
