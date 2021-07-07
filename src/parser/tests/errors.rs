@@ -283,7 +283,7 @@ fn can_provide_good_error_messages() {
         println!("Testing: {}", t);
         let err = Parser::new(t).parse().unwrap_err();
         let diag = err.report();
-        output_diagnostic(t, &diag);
+        // output_diagnostic(t, &diag);
         assert_eq!(err.range, range);
         assert_eq!(diag.message, error_type.message());
         assert_eq!(diag.severity, Severity::Error);

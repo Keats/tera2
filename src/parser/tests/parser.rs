@@ -107,6 +107,8 @@ fn can_parse_expression() {
         ),
         // in
         ("{{ a in b }}", "(in a b)"),
+        ("{{ a in range(end=2) }}", "(in a range{end=2})"),
+        ("{{ a in 'hello' }}", "(in a 'hello')"),
         ("{{ a in b and b in c }}", "(and (in a b) (in b c))"),
         // https://github.com/mozilla/nunjucks/pull/336
         (
@@ -237,6 +239,7 @@ fn can_parse_set() {
         ("{% set a = macros::something() %}", "macros::something{}"),
         ("{% set a = utcnow() %}", "utcnow{}"),
         ("{% set a = [1, true, 'hello'] %}", "[1, true, 'hello']"),
+        ("{% set a = [1, true, [1,2]] %}", "[1, true, [1, 2]]"),
         ("{% set_global a = 1 %}", "1"),
     ];
 

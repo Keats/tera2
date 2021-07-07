@@ -386,7 +386,7 @@ impl<'a> Parser<'a> {
                     f.otherwise.push(node);
                     return;
                 }
-                _ => todo!("TODO"),
+                _ => continue,
             }
         }
 
