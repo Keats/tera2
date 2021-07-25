@@ -173,7 +173,7 @@ fn can_provide_good_error_messages() {
         (
             "{% if true %}{% extends 'b' %}{% endif %}",
             (
-                ParsingError::TagCannotBeNest(String::new()),
+                ParsingError::TagCannotBeNested(String::new()),
                 16..23,
                 "tag `extends` cannot be nested in other tags",
             ),

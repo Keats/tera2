@@ -1,7 +1,9 @@
 use std::fmt;
+use std::ops::Range;
 
 use logos::{Lexer, Logos};
-use std::ops::Range;
+
+use crate::parser::errors::{ParsingError, ParsingResult, SpannedParsingError};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operator {
@@ -386,6 +388,11 @@ pub(crate) struct PeekableLexer<'source> {
     peeked: Option<Option<Token>>,
 }
 
+/// Common error when lexing: we expected something but got nothing
+fn eof_error(last_idx: usize) -> SpannedParsingError {
+    SpannedParsingError::new(ParsingError::UnexpectedEof, last_idx..last_idx)
+}
+
 impl<'source> PeekableLexer<'source> {
     pub(crate) fn new(source: &'source str) -> Self {
         Self {
@@ -413,6 +420,27 @@ impl<'source> PeekableLexer<'source> {
         self.peeked.unwrap()
     }
 
+    /// Drops the next token, meant to be used after peeking
+    pub(crate) fn drop(&mut self) {
+        self.next();
+    }
+
+    pub(crate) fn expect(&mut self, token: Token) -> ParsingResult<()> {
+        match self.next() {
+            Some(t) => {
+                if t != token {
+                    Err(SpannedParsingError::new(
+                        ParsingError::UnexpectedToken(t, vec![token]),
+                        self.span(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            None => Err(eof_error(self.last_idx())),
+        }
+    }
+
     pub(crate) fn last_idx(&self) -> usize {
         self.last
     }
@@ -437,6 +465,7 @@ impl<'source> PeekableLexer<'source> {
         let start = self.span().start;
         &self.source[self.last..start]
     }
+
     pub(crate) fn slice_at(&self, span: Range<usize>) -> &str {
         &self.source[span.start..span.end]
     }

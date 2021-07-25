@@ -1,5 +1,4 @@
-#![feature(test)]
-extern crate test;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser_test::Parser;
 
 static SIMPLE_TEMPLATE: &'static str = "
@@ -34,18 +33,20 @@ static SLIGHTLY_COMPLEX_TEMPLATE: &'static str = "
 </html>
 ";
 
-#[bench]
-fn bench_parsing_simple_template(b: &mut test::Bencher) {
-    b.iter(|| {
-        let mut parser = Parser::new(SIMPLE_TEMPLATE);
-        parser.parse();
+fn criterion_benchmark(c: &mut Criterion) {
+    c.bench_function("simple", |b| {
+        b.iter(|| {
+            let mut parser = Parser::new(SIMPLE_TEMPLATE);
+            let _ = parser.parse();
+        })
+    });
+    c.bench_function("slightly complex", |b| {
+        b.iter(|| {
+            let mut parser = Parser::new(SLIGHTLY_COMPLEX_TEMPLATE);
+            let _ = parser.parse();
+        })
     });
 }
 
-#[bench]
-fn bench_parsing_slightly_complex_template(b: &mut test::Bencher) {
-    b.iter(|| {
-        let mut parser = Parser::new(SLIGHTLY_COMPLEX_TEMPLATE);
-        parser.parse();
-    });
-}
+criterion_group!(benches, criterion_benchmark);
+criterion_main!(benches);

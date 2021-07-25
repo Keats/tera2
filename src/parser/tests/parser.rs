@@ -1,5 +1,6 @@
 use crate::parser::ast::{
-    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, SpannedExpression,
+    Block, Expression, FilterSection, ForLoop, FunctionCall, If, Include, MacroDefinition, Node,
+    SpannedExpression,
 };
 use crate::parser::lexer::Operator;
 use crate::parser::Parser;
@@ -134,6 +135,10 @@ fn can_parse_expression() {
         ("{{ [1] + [3, 2] | sort }}", "(| (+ [1] [3, 2]) sort{})"),
         ("{{ (1 + 2.1) | round }}", "(| (+ 1 2.1) round{})"),
         (
+            "{{ ([1, 2, 3] | length) + 1 }}",
+            "(+ (| [1, 2, 3] length{}) 1)",
+        ),
+        (
             "{{ value | json_encode | safe }}",
             "(| (| value json_encode{}) safe{})",
         ),
@@ -263,45 +268,45 @@ fn can_parse_basic_include() {
     let tests = vec![
         (
             "{% include 'a.html' %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string()],
                 ignore_missing: false,
-            },
+            }),
         ),
         (
             "{% include `a.html` %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string()],
                 ignore_missing: false,
-            },
+            }),
         ),
         (
             "{% include \"a.html\" %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string()],
                 ignore_missing: false,
-            },
+            }),
         ),
         (
             "{% include \"a.html\" ignore missing %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string()],
                 ignore_missing: true,
-            },
+            }),
         ),
         (
             "{% include ['a.html', 'b.html'] %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string(), "b.html".to_string()],
                 ignore_missing: false,
-            },
+            }),
         ),
         (
             "{% include ['a.html', 'b.html'] ignore missing %}",
-            Node::Include {
+            Node::Include(Include {
                 files: vec!["a.html".to_string(), "b.html".to_string()],
                 ignore_missing: true,
-            },
+            }),
         ),
     ];
 
@@ -496,7 +501,10 @@ fn can_parse_for_loop() {
                                 12..20,
                             ),
                             SpannedExpression::new(
-                                Expression::Function("sort".to_owned(), HashMap::new()),
+                                Expression::FunctionCall(FunctionCall {
+                                    name: "sort".to_owned(),
+                                    kwargs: HashMap::new(),
+                                }),
                                 23..27,
                             ),
                         ],

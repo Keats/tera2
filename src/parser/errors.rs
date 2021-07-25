@@ -17,7 +17,7 @@ pub enum ParsingError {
     DuplicateExtend(String),
     InvalidExpression(String),
     CannotIterateOn,
-    TagCannotBeNest(String),
+    TagCannotBeNested(String),
     ConflictingMacroImport(String),
     UnexpectedEof,
 }
@@ -33,7 +33,7 @@ impl ParsingError {
             InvalidInclude => "Invalid include",
             DuplicateExtend(_) => "Several extend tags found",
             MismatchedBlock(_) => "The endblock doesn't back the current block",
-            TagCannotBeNest(_) => "This tag is not allowed here",
+            TagCannotBeNested(_) => "This tag is not allowed here",
             ConflictingMacroImport(_) => "Conflicting macro imports",
             CannotIterateOn => "Cannot iterate on this kind of values",
             UnexpectedEof => "Unexpected end of template",
@@ -60,7 +60,7 @@ impl SpannedParsingError {
 
         let msg = match &self.node {
             ParsingError::UnexpectedToken(actual, ref expected) => {
-                let actual_fmt = get_token_formatted(&actual)
+                let actual_fmt = get_token_formatted(actual)
                     .trim()
                     .trim_end_matches(',')
                     .to_owned();
@@ -106,7 +106,7 @@ impl SpannedParsingError {
                 format!("template is already extending '{}'", msg)
             }
             ParsingError::MismatchedBlock(ref msg) => format!("opening block was named `{}`", msg),
-            ParsingError::TagCannotBeNest(ref name) => {
+            ParsingError::TagCannotBeNested(ref name) => {
                 format!("tag `{}` cannot be nested in other tags", name)
             }
             ParsingError::UnexpectedEof => String::new(),

@@ -14,23 +14,39 @@ pub enum Expression {
     Bool(bool),
     Ident(String),
     Array(Vec<SpannedExpression>),
-    // name, args
-    Test(String, Vec<SpannedExpression>),
-    // namespace, name, kwargs
-    MacroCall(String, String, HashMap<String, SpannedExpression>),
-    // name, kwargs
-    Function(String, HashMap<String, SpannedExpression>),
+    Test(Test),
+    MacroCall(MacroCall),
+    FunctionCall(FunctionCall),
     Expr(Operator, Vec<SpannedExpression>),
 }
 
 pub type SpannedExpression = Spanned<Expression>;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Test {
+    pub name: String,
+    pub args: Vec<SpannedExpression>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MacroCall {
+    pub namespace: String,
+    pub name: String,
+    pub kwargs: HashMap<String, SpannedExpression>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FunctionCall {
+    pub name: String,
+    pub kwargs: HashMap<String, SpannedExpression>,
+}
 
 impl SpannedExpression {
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         use Expression::*;
         matches!(
             self.node,
-            Str(_) | Ident(_) | Array(_) | Function(_, _) | Expr(_, _)
+            Str(_) | Ident(_) | Array(_) | FunctionCall(_) | Expr(_, _)
         )
     }
 }
@@ -56,13 +72,13 @@ impl fmt::Display for SpannedExpression {
                 }
                 write!(f, "]")
             }
-            Test(name, rest) => {
-                write!(f, "{}", name)?;
+            Test(t) => {
+                write!(f, "{}", t.name)?;
 
-                if !rest.is_empty() {
+                if !t.args.is_empty() {
                     write!(f, "{{",)?;
-                    for (i, s) in rest.iter().enumerate() {
-                        if i == rest.len() - 1 {
+                    for (i, s) in t.args.iter().enumerate() {
+                        if i == t.args.len() - 1 {
                             write!(f, "{}", s)?
                         } else {
                             write!(f, "{}, ", s)?
@@ -72,31 +88,31 @@ impl fmt::Display for SpannedExpression {
                 }
                 Ok(())
             }
-            MacroCall(namespace, name, kwargs) => {
-                write!(f, "{}::{}", namespace, name)?;
+            MacroCall(mc) => {
+                write!(f, "{}::{}", mc.namespace, mc.name)?;
                 write!(f, "{{",)?;
-                let mut keys = kwargs.keys().collect::<Vec<_>>();
+                let mut keys = mc.kwargs.keys().collect::<Vec<_>>();
                 keys.sort();
                 for (i, k) in keys.iter().enumerate() {
-                    if i == kwargs.len() - 1 {
-                        write!(f, "{}={}", k, kwargs[*k])?
+                    if i == mc.kwargs.len() - 1 {
+                        write!(f, "{}={}", k, mc.kwargs[*k])?
                     } else {
-                        write!(f, "{}={}, ", k, kwargs[*k])?
+                        write!(f, "{}={}, ", k, mc.kwargs[*k])?
                     }
                 }
                 write!(f, "}}",)?;
                 Ok(())
             }
-            Function(name, kwargs) => {
-                write!(f, "{}", name)?;
+            FunctionCall(fc) => {
+                write!(f, "{}", fc.name)?;
                 write!(f, "{{",)?;
-                let mut keys = kwargs.keys().collect::<Vec<_>>();
+                let mut keys = fc.kwargs.keys().collect::<Vec<_>>();
                 keys.sort();
                 for (i, k) in keys.iter().enumerate() {
-                    if i == kwargs.len() - 1 {
-                        write!(f, "{}={}", k, kwargs[*k])?
+                    if i == fc.kwargs.len() - 1 {
+                        write!(f, "{}={}", k, fc.kwargs[*k])?
                     } else {
-                        write!(f, "{}={}, ", k, kwargs[*k])?
+                        write!(f, "{}={}, ", k, fc.kwargs[*k])?
                     }
                 }
                 write!(f, "}}",)?;
@@ -176,6 +192,12 @@ pub struct ForLoop {
     pub otherwise: Vec<Node>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Include {
+    pub files: Vec<String>,
+    pub ignore_missing: bool,
+}
+
 /// All Tera nodes that can be encountered
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -183,10 +205,7 @@ pub enum Node {
     VariableBlock(SpannedExpression),
     Set(Set),
     Raw(String),
-    Include {
-        files: Vec<String>,
-        ignore_missing: bool,
-    },
+    Include(Include),
     Block(Block),
     Super,
     If(If),

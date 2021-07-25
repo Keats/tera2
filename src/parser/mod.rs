@@ -1,5 +1,6 @@
 use crate::parser::ast::{
-    Block, Expression, FilterSection, ForLoop, If, MacroDefinition, Node, Set, SpannedExpression,
+    Block, Expression, FilterSection, ForLoop, FunctionCall, If, Include, MacroCall,
+    MacroDefinition, Node, Set, SpannedExpression, Test,
 };
 use crate::parser::errors::{ParsingError, ParsingResult, SpannedParsingError};
 use crate::parser::lexer::{Keyword, Operator, PeekableLexer, Symbol, Token};
@@ -422,7 +423,7 @@ impl<'a> Parser<'a> {
 
                 if !at_top_level && (k == Keyword::Extends || k == Keyword::Macro) {
                     return Err(SpannedParsingError::new(
-                        ParsingError::TagCannotBeNest(format!("{}", k)),
+                        ParsingError::TagCannotBeNested(format!("{}", k)),
                         self.lexer.span(),
                     ));
                 }
@@ -437,7 +438,7 @@ impl<'a> Parser<'a> {
                     }
                     if !allowed_in_context {
                         return Err(SpannedParsingError::new(
-                            ParsingError::TagCannotBeNest(format!("{}", k)),
+                            ParsingError::TagCannotBeNested(format!("{}", k)),
                             self.lexer.span(),
                         ));
                     }
@@ -447,9 +448,9 @@ impl<'a> Parser<'a> {
                     Keyword::Set | Keyword::SetGlobal => {
                         self.contexts.push(ParsingContext::Set);
                         let global = k == Keyword::SetGlobal;
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let key = self.lexer.slice().to_owned();
-                        self.expect(Token::Symbol(Symbol::Assign))?;
+                        self.lexer.expect(Token::Symbol(Symbol::Assign))?;
                         let value = self.parse_expression(0)?;
                         self.contexts.pop();
                         self.expect_tag_end()?;
@@ -508,10 +509,10 @@ impl<'a> Parser<'a> {
                             }
                         };
                         self.expect_tag_end()?;
-                        Ok(Some(Node::Include {
+                        Ok(Some(Node::Include(Include {
                             files,
                             ignore_missing,
-                        }))
+                        })))
                     }
                     Keyword::Extends => {
                         if let Some(ref existing) = self.parent {
@@ -521,7 +522,7 @@ impl<'a> Parser<'a> {
                             ));
                         }
 
-                        self.expect(Token::String)?;
+                        self.lexer.expect(Token::String)?;
                         let val = replace_string_markers(self.lexer.slice());
                         self.parent = Some(val);
                         self.expect_tag_end()?;
@@ -555,7 +556,7 @@ impl<'a> Parser<'a> {
                         Ok(Some(Node::Raw(body)))
                     }
                     Keyword::Block => {
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let name = self.lexer.slice().to_owned();
                         self.expect_tag_end()?;
                         self.contexts.push(ParsingContext::Block(Block {
@@ -640,7 +641,7 @@ impl<'a> Parser<'a> {
                         Ok(Some(Node::If(i)))
                     }
                     Keyword::Filter => {
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let name = self.lexer.slice().to_owned();
                         let kwargs = match self.peek_or_error()? {
                             Token::Symbol(Symbol::LeftParen) => self.parse_kwargs()?,
@@ -661,17 +662,17 @@ impl<'a> Parser<'a> {
                         Ok(Some(Node::FilterSection(f)))
                     }
                     Keyword::Macro => {
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let name = self.lexer.slice().to_owned();
                         let mut kwargs = HashMap::new();
 
                         // Not going through parse_kwargs as it has slightly different rules
-                        self.expect(Token::Symbol(Symbol::LeftParen))?;
+                        self.lexer.expect(Token::Symbol(Symbol::LeftParen))?;
                         loop {
                             if let Token::Symbol(Symbol::RightParen) = self.peek_or_error()? {
                                 break;
                             }
-                            self.expect(Token::Ident)?;
+                            self.lexer.expect(Token::Ident)?;
                             let name = self.lexer.slice().to_owned();
                             kwargs.insert(name.clone(), None);
 
@@ -716,7 +717,7 @@ impl<'a> Parser<'a> {
                                 _ => continue,
                             }
                         }
-                        self.expect(Token::Symbol(Symbol::RightParen))?;
+                        self.lexer.expect(Token::Symbol(Symbol::RightParen))?;
                         self.expect_tag_end()?;
                         self.contexts
                             .push(ParsingContext::MacroDefinition(MacroDefinition {
@@ -733,10 +734,10 @@ impl<'a> Parser<'a> {
                         Ok(None)
                     }
                     Keyword::Import => {
-                        self.expect(Token::String)?;
+                        self.lexer.expect(Token::String)?;
                         let filename = replace_string_markers(self.lexer.slice());
-                        self.expect(Token::Keyword(Keyword::As))?;
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Keyword(Keyword::As))?;
+                        self.lexer.expect(Token::Ident)?;
                         let namespace = self.lexer.slice().to_owned();
                         for (existing_filename, existing_namespace) in &self.macro_imports {
                             if existing_namespace == &namespace {
@@ -755,15 +756,15 @@ impl<'a> Parser<'a> {
                         Ok(None)
                     }
                     Keyword::For => {
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let name1 = self.lexer.slice().to_owned();
                         let mut name2 = String::new();
                         if Token::Symbol(Symbol::Comma) == self.peek_or_error()? {
                             self.lexer.next();
-                            self.expect(Token::Ident)?;
+                            self.lexer.expect(Token::Ident)?;
                             name2 = self.lexer.slice().to_owned();
                         }
-                        self.expect(Token::Op(Operator::In))?;
+                        self.lexer.expect(Token::Op(Operator::In))?;
                         let start = self.lexer.span().end;
                         let expr = self.parse_expression(0)?;
                         let end = self.lexer.span().start;
@@ -819,7 +820,7 @@ impl<'a> Parser<'a> {
         let mut kwargs = HashMap::new();
         self.contexts.push(ParsingContext::Kwargs);
 
-        self.expect(Token::Symbol(Symbol::LeftParen))?;
+        self.lexer.expect(Token::Symbol(Symbol::LeftParen))?;
 
         loop {
             let name = match self.next_or_error()? {
@@ -836,7 +837,7 @@ impl<'a> Parser<'a> {
                 }
             };
 
-            self.expect(Token::Symbol(Symbol::Assign))?;
+            self.lexer.expect(Token::Symbol(Symbol::Assign))?;
             let value = self.parse_expression(0)?;
             kwargs.insert(name, value);
 
@@ -869,7 +870,7 @@ impl<'a> Parser<'a> {
 
                 match token {
                     Token::Ident => {
-                        base_ident.push_str(&self.lexer.slice());
+                        base_ident.push_str(self.lexer.slice());
                     }
                     Token::Integer(i) => {
                         base_ident.push_str(&i.to_string());
@@ -890,7 +891,7 @@ impl<'a> Parser<'a> {
 
                 match token {
                     Token::Ident => {
-                        base_ident.push_str(&self.lexer.slice());
+                        base_ident.push_str(self.lexer.slice());
                     }
                     Token::Integer(i) => {
                         base_ident.push_str(&i.to_string());
@@ -1008,8 +1009,8 @@ impl<'a> Parser<'a> {
         Ok(vals)
     }
 
-    pub(crate) fn parse_test(&mut self) -> ParsingResult<SpannedExpression> {
-        self.expect(Token::Ident)?;
+    fn parse_test(&mut self) -> ParsingResult<SpannedExpression> {
+        self.lexer.expect(Token::Ident)?;
         let start = self.lexer.span().start;
         let name = self.lexer.slice().to_owned();
         let mut args = vec![];
@@ -1051,7 +1052,7 @@ impl<'a> Parser<'a> {
 
         self.contexts.pop();
         Ok(SpannedExpression::new(
-            Expression::Test(name, args),
+            Expression::Test(Test { name, args }),
             start..self.lexer.span().start,
         ))
     }
@@ -1070,7 +1071,10 @@ impl<'a> Parser<'a> {
                     Some(Token::Symbol(Symbol::LeftParen)) => {
                         let kwargs = self.parse_kwargs()?;
                         SpannedExpression::new(
-                            Expression::Function(ident, kwargs),
+                            Expression::FunctionCall(FunctionCall {
+                                name: ident,
+                                kwargs,
+                            }),
                             span.start..self.lexer.span().start,
                         )
                     }
@@ -1078,13 +1082,17 @@ impl<'a> Parser<'a> {
                     Some(Token::Symbol(Symbol::DoubleColumn)) => {
                         self.lexer.next();
                         // Should be followed by macro name
-                        self.expect(Token::Ident)?;
+                        self.lexer.expect(Token::Ident)?;
                         let macro_name = self.lexer.slice().to_owned();
                         // and left paren
                         self.peek_and_expect(Token::Symbol(Symbol::LeftParen))?;
                         let kwargs = self.parse_kwargs()?;
                         SpannedExpression::new(
-                            Expression::MacroCall(ident, macro_name, kwargs),
+                            Expression::MacroCall(MacroCall {
+                                namespace: ident,
+                                name: macro_name,
+                                kwargs,
+                            }),
                             span.start..self.lexer.span().start,
                         )
                     }
@@ -1103,7 +1111,7 @@ impl<'a> Parser<'a> {
             Token::Symbol(Symbol::LeftParen) => {
                 self.contexts.push(ParsingContext::Paren);
                 let lhs = self.parse_expression(0)?;
-                self.expect(Token::Symbol(Symbol::RightParen))?;
+                self.lexer.expect(Token::Symbol(Symbol::RightParen))?;
                 self.contexts.pop();
                 lhs
             }
@@ -1240,9 +1248,13 @@ impl<'a> Parser<'a> {
             // them to a function
             if op == Operator::Pipe {
                 rhs = match rhs.node {
-                    Expression::Ident(s) => {
-                        SpannedExpression::new(Expression::Function(s, HashMap::new()), rhs.range)
-                    }
+                    Expression::Ident(s) => SpannedExpression::new(
+                        Expression::FunctionCall(FunctionCall {
+                            name: s,
+                            kwargs: HashMap::new(),
+                        }),
+                        rhs.range,
+                    ),
                     _ => rhs,
                 };
             }
@@ -1288,22 +1300,6 @@ impl<'a> Parser<'a> {
 
     fn peek_and_expect(&mut self, token: Token) -> ParsingResult<()> {
         match self.lexer.peek() {
-            Some(t) => {
-                if t != token {
-                    Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(t, vec![token]),
-                        self.lexer.span(),
-                    ))
-                } else {
-                    Ok(())
-                }
-            }
-            None => Err(eof_error(self.lexer.last_idx())),
-        }
-    }
-
-    fn expect(&mut self, token: Token) -> ParsingResult<()> {
-        match self.lexer.next() {
             Some(t) => {
                 if t != token {
                     Err(SpannedParsingError::new(
