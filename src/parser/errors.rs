@@ -6,6 +6,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use crate::parser::lexer::{Operator, Token};
 use crate::utils::Spanned;
 
+// #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParsingError {
     // token we got, list of token we were supposed to get if known
@@ -17,7 +18,7 @@ pub enum ParsingError {
     DuplicateExtend(String),
     InvalidExpression(String),
     CannotIterateOn,
-    TagCannotBeNested(String),
+    TagNotAllowed(String),
     ConflictingMacroImport(String),
     UnexpectedEof,
 }
@@ -33,7 +34,7 @@ impl ParsingError {
             InvalidInclude => "Invalid include",
             DuplicateExtend(_) => "Several extend tags found",
             MismatchedBlock(_) => "The endblock doesn't back the current block",
-            TagCannotBeNested(_) => "This tag is not allowed here",
+            TagNotAllowed(_) => "This tag is not allowed here",
             ConflictingMacroImport(_) => "Conflicting macro imports",
             CannotIterateOn => "Cannot iterate on this kind of values",
             UnexpectedEof => "Unexpected end of template",
@@ -106,7 +107,7 @@ impl SpannedParsingError {
                 format!("template is already extending '{}'", msg)
             }
             ParsingError::MismatchedBlock(ref msg) => format!("opening block was named `{}`", msg),
-            ParsingError::TagCannotBeNested(ref name) => {
+            ParsingError::TagNotAllowed(ref name) => {
                 format!("tag `{}` cannot be nested in other tags", name)
             }
             ParsingError::UnexpectedEof => String::new(),

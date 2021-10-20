@@ -4,6 +4,16 @@ use std::fmt;
 use crate::parser::lexer::Operator;
 use crate::utils::Spanned;
 
+/// The various possible literals in variable blocks/squared brackets
+#[derive(Clone, Debug, PartialEq)]
+#[allow(missing_docs)]
+pub enum Literal {
+    Str(String),
+    Integer(i64),
+    Float(f64),
+    Bool(bool),
+}
+
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]

@@ -264,7 +264,7 @@ fn can_parse_set() {
 }
 
 #[test]
-fn can_parse_basic_include() {
+fn can_parse_include() {
     let tests = vec![
         (
             "{% include 'a.html' %}",
@@ -423,18 +423,13 @@ fn can_parse_block() {
     ];
 
     for (t, expected) in tests {
+        println!("{:?}", t);
         let mut parser = Parser::new(t);
-        parser.parse().expect("parsed failed");
+        parser.parse().expect("parser failed");
         assert_eq!(parser.nodes[0], Node::Block(expected.clone()));
-        assert_eq!(parser.blocks["hey"], expected);
+        assert_eq!(parser.blocks["hey"], expected.body);
         if parser.blocks.contains_key("ho") {
-            assert_eq!(
-                parser.blocks["ho"],
-                Block {
-                    name: "ho".to_owned(),
-                    body: vec![Node::Text("hey".to_owned())]
-                }
-            );
+            assert_eq!(parser.blocks["ho"], vec![Node::Text("hey".to_owned())]);
         }
     }
 }

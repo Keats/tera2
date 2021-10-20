@@ -386,6 +386,7 @@ pub(crate) struct PeekableLexer<'source> {
     lexer: LexerKind<'source>,
     last: usize,
     peeked: Option<Option<Token>>,
+    current: Option<Token>,
 }
 
 /// Common error when lexing: we expected something but got nothing
@@ -400,6 +401,7 @@ impl<'source> PeekableLexer<'source> {
             lexer: LexerKind::Content(Lexer::new(source)),
             last: 0,
             peeked: None,
+            current: None,
         }
     }
 
@@ -410,6 +412,7 @@ impl<'source> PeekableLexer<'source> {
             lexer: LexerKind::InTag(Lexer::new(source)),
             last: 0,
             peeked: None,
+            current: None,
         }
     }
 
@@ -453,6 +456,11 @@ impl<'source> PeekableLexer<'source> {
         }
     }
 
+    /// Only called after a `next` call so we know we have something
+    pub(crate) fn current(&self) -> Token {
+        self.current.unwrap()
+    }
+
     pub(crate) fn slice(&self) -> &str {
         match &self.lexer {
             LexerKind::Content(l) => l.slice(),
@@ -476,6 +484,7 @@ impl<'source> Iterator for PeekableLexer<'source> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(peeked) = self.peeked.take() {
+            self.current = peeked;
             peeked
         } else {
             match std::mem::take(&mut self.lexer) {
@@ -487,7 +496,9 @@ impl<'source> Iterator for PeekableLexer<'source> {
                     } else {
                         self.lexer = LexerKind::Content(lexer);
                     }
-                    Some(Token::from_content(tok))
+                    let token = Token::from_content(tok);
+                    self.current = Some(token);
+                    Some(token)
                 }
                 LexerKind::InTag(mut lexer) => {
                     self.last = lexer.span().end;
@@ -497,7 +508,9 @@ impl<'source> Iterator for PeekableLexer<'source> {
                     } else {
                         self.lexer = LexerKind::InTag(lexer);
                     }
-                    Some(Token::from_in_tag(tok))
+                    let token = Token::from_in_tag(tok);
+                    self.current = Some(token);
+                    Some(token)
                 }
                 LexerKind::Done => None,
             }

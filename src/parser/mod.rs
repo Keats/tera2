@@ -63,15 +63,12 @@ enum ParsingContext {
     TestArgs,
     Kwargs,
     Set,
-    // Those below have their own body
-    If(If),
-    Elif(If),
-    Else(If),
-    ForLoop(ForLoop),
-    ElseForLoop(ForLoop),
-    Block(Block),
-    FilterSection(FilterSection),
-    MacroDefinition(MacroDefinition),
+    // Those ones exist to provide better error messages
+    ForLoop,
+    Block,
+    MacroDefinition,
+    If,
+    FilterSection,
 }
 
 fn eof_error(last_idx: usize) -> SpannedParsingError {
@@ -87,7 +84,7 @@ pub struct Parser<'a> {
     pub parent: Option<String>,
     // if we have a parent template, we only care about the blocks, whatever is in between is
     // disregarded and we will only look at the fields below
-    pub blocks: HashMap<String, Block>,
+    pub blocks: HashMap<String, Vec<Node>>,
     pub macros: HashMap<String, MacroDefinition>,
     // (file, namespace)
     pub macro_imports: Vec<(String, String)>,
@@ -124,23 +121,30 @@ impl<'a> Parser<'a> {
         self.smart_whitespace = true;
     }
 
-    pub fn parse(&mut self) -> ParsingResult<()> {
-        loop {
-            match self.lexer.next() {
-                Some(Token::VariableStart(ws)) => {
+    fn parse_until<F: Fn(&Token) -> bool>(&mut self, end_check_fn: F) -> ParsingResult<Vec<Node>> {
+        let mut nodes = Vec::new();
+
+        while let Some(token) = self.lexer.next() {
+            match token {
+                Token::VariableStart(ws) => {
                     self.trim_end_previous = ws;
-                    self.parse_text();
+                    if let Some(n) = self.parse_text() {
+                        nodes.push(n);
+                    }
+
                     // It can either be an expression or super()
                     if let Token::Keyword(Keyword::Super) = self.peek_or_error()? {
-                        self.lexer.next();
                         let mut in_block = false;
                         for ctx in &self.contexts {
-                            if let ParsingContext::Block(_) = ctx {
+                            if ctx == &ParsingContext::Block {
                                 in_block = true;
                                 break;
                             }
                         }
-                        if !in_block {
+
+                        if in_block {
+                            nodes.push(Node::Super);
+                        } else {
                             // TODO: explain super() can only be used in blocks
                             return Err(SpannedParsingError::new(
                                 ParsingError::UnexpectedToken(
@@ -150,11 +154,12 @@ impl<'a> Parser<'a> {
                                 self.lexer.span(),
                             ));
                         }
-                        self.push_node(Node::Super);
+                        self.next_or_error()?;
                     } else {
                         let expr = self.parse_expression(0)?;
-                        self.push_node(Node::VariableBlock(expr));
+                        nodes.push(Node::VariableBlock(expr));
                     }
+
                     match self
                         .expect_one_of(vec![Token::VariableEnd(true), Token::VariableEnd(false)])?
                     {
@@ -162,28 +167,32 @@ impl<'a> Parser<'a> {
                         _ => unreachable!(),
                     }
                 }
-                Some(Token::TagStart(ws)) => {
-                    self.trim_end_previous = ws || self.smart_whitespace;
-                    self.parse_text();
-                    if let Some(node) = self.parse_tags()? {
-                        self.push_node(node);
+                Token::TagStart(ws) => {
+                    self.trim_end_previous = ws;
+                    if let Some(n) = self.parse_text() {
+                        nodes.push(n);
+                    }
+                    let next_token = self.peek_or_error()?;
+                    if end_check_fn(&next_token) {
+                        return Ok(nodes);
+                    }
+                    if let Some(node) = self.parse_tag()? {
+                        nodes.push(node);
                     }
                 }
-                Some(Token::Comment) => {
+                Token::Comment => {
                     let comment = self.lexer.slice().to_owned();
                     self.trim_end_previous = comment.starts_with("{#-");
-                    self.parse_text();
+                    if let Some(n) = self.parse_text() {
+                        nodes.push(n);
+                    }
                     self.trim_start_next = comment.ends_with("-#}");
                 }
-                Some(Token::Error) => {
+                Token::Error => {
                     return Err(SpannedParsingError::new(
                         ParsingError::UnexpectedToken(Token::Error, vec![]),
                         self.lexer.span(),
                     ));
-                }
-                None => {
-                    self.parse_text();
-                    break;
                 }
                 t => {
                     unreachable!("Not implemented yet {:?}; {:?}", t, self.lexer.span())
@@ -191,211 +200,24 @@ impl<'a> Parser<'a> {
             }
         }
 
+        if let Some(n) = self.parse_text() {
+            nodes.push(n);
+        }
+
+        Ok(nodes)
+    }
+
+    pub fn parse(&mut self) -> ParsingResult<()> {
+        // TODO: clean up parse_ident somehow
+        // TODO: revamp errors + ensure super etc are only used in the correct place
+        // TODO: revamp all expect fns
+
+        self.nodes = self.parse_until(|_| false)?;
         Ok(())
     }
 
-    fn pop_forloop(&mut self) -> ParsingResult<ForLoop> {
-        let mut nodes = vec![];
-        loop {
-            match self.contexts.pop() {
-                Some(ParsingContext::Block(b)) => {
-                    nodes.push(Node::Block(b));
-                }
-                Some(ParsingContext::If(i))
-                | Some(ParsingContext::Elif(i))
-                | Some(ParsingContext::Else(i)) => {
-                    nodes.push(Node::If(i));
-                }
-                Some(ParsingContext::FilterSection(f)) => {
-                    nodes.push(Node::FilterSection(f));
-                }
-                Some(ParsingContext::ForLoop(mut f)) => {
-                    f.body.append(&mut nodes);
-                    return Ok(f);
-                }
-                Some(ParsingContext::ElseForLoop(mut f)) => {
-                    f.otherwise.append(&mut nodes);
-                    return Ok(f);
-                }
-                _ => break,
-            }
-        }
-
-        Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFor), vec![]),
-            self.lexer.span(),
-        ))
-    }
-
-    fn pop_macro_definition(&mut self) -> ParsingResult<MacroDefinition> {
-        let mut nodes = vec![];
-        loop {
-            match self.contexts.pop() {
-                Some(ParsingContext::Block(b)) => {
-                    nodes.push(Node::Block(b));
-                }
-                Some(ParsingContext::If(i))
-                | Some(ParsingContext::Elif(i))
-                | Some(ParsingContext::Else(i)) => {
-                    nodes.push(Node::If(i));
-                }
-                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
-                    nodes.push(Node::ForLoop(f));
-                }
-                Some(ParsingContext::FilterSection(f)) => {
-                    nodes.push(Node::FilterSection(f));
-                }
-                Some(ParsingContext::MacroDefinition(mut m)) => {
-                    m.body.append(&mut nodes);
-                    return Ok(m);
-                }
-                _ => break,
-            }
-        }
-
-        Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndMacro), vec![]),
-            self.lexer.span(),
-        ))
-    }
-
-    fn pop_filter_section(&mut self) -> ParsingResult<FilterSection> {
-        let mut nodes = vec![];
-        loop {
-            match self.contexts.pop() {
-                Some(ParsingContext::Block(b)) => {
-                    nodes.push(Node::Block(b));
-                }
-                Some(ParsingContext::If(i))
-                | Some(ParsingContext::Elif(i))
-                | Some(ParsingContext::Else(i)) => {
-                    nodes.push(Node::If(i));
-                }
-                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
-                    nodes.push(Node::ForLoop(f));
-                }
-                Some(ParsingContext::FilterSection(mut f)) => {
-                    f.body.append(&mut nodes);
-                    return Ok(f);
-                }
-                _ => break,
-            }
-        }
-
-        Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndFilter), vec![]),
-            self.lexer.span(),
-        ))
-    }
-
-    fn pop_block(&mut self) -> ParsingResult<Block> {
-        let mut nodes = vec![];
-        loop {
-            match self.contexts.pop() {
-                Some(ParsingContext::Block(mut b)) => {
-                    b.body.append(&mut nodes);
-                    return Ok(b);
-                }
-                Some(ParsingContext::If(i))
-                | Some(ParsingContext::Elif(i))
-                | Some(ParsingContext::Else(i)) => {
-                    nodes.push(Node::If(i));
-                }
-                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
-                    nodes.push(Node::ForLoop(f));
-                }
-                Some(ParsingContext::FilterSection(f)) => {
-                    nodes.push(Node::FilterSection(f));
-                }
-                _ => break,
-            }
-        }
-
-        Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(Keyword::EndBlock), vec![]),
-            self.lexer.span(),
-        ))
-    }
-
-    fn pop_if(&mut self, keyword: Keyword) -> ParsingResult<If> {
-        let mut nodes = vec![];
-        loop {
-            match self.contexts.pop() {
-                Some(ParsingContext::If(mut i)) => {
-                    i.conditions.last_mut().unwrap().1.append(&mut nodes);
-                    return Ok(i);
-                }
-                Some(ParsingContext::Elif(mut i)) => {
-                    i.conditions.last_mut().unwrap().1.append(&mut nodes);
-                    return Ok(i);
-                }
-                Some(ParsingContext::Else(mut i)) => {
-                    // Can't have elifs in elses
-                    if keyword == Keyword::Elif {
-                        break;
-                    }
-                    i.otherwise.append(&mut nodes);
-                    return Ok(i);
-                }
-                Some(ParsingContext::ForLoop(f)) | Some(ParsingContext::ElseForLoop(f)) => {
-                    nodes.push(Node::ForLoop(f));
-                }
-                Some(ParsingContext::Block(b)) => {
-                    nodes.push(Node::Block(b));
-                }
-                Some(ParsingContext::FilterSection(f)) => {
-                    nodes.push(Node::FilterSection(f));
-                }
-                _ => break,
-            }
-        }
-
-        Err(SpannedParsingError::new(
-            ParsingError::UnexpectedToken(Token::Keyword(keyword), vec![]),
-            self.lexer.span(),
-        ))
-    }
-
-    fn push_node(&mut self, node: Node) {
-        for ctx in self.contexts.iter_mut().rev() {
-            match ctx {
-                ParsingContext::Block(b) => {
-                    b.body.push(node);
-                    return;
-                }
-                ParsingContext::If(i) | ParsingContext::Elif(i) => {
-                    i.conditions.last_mut().unwrap().1.push(node);
-                    return;
-                }
-                ParsingContext::Else(i) => {
-                    i.otherwise.push(node);
-                    return;
-                }
-                ParsingContext::FilterSection(f) => {
-                    f.body.push(node);
-                    return;
-                }
-                ParsingContext::MacroDefinition(m) => {
-                    m.body.push(node);
-                    return;
-                }
-                ParsingContext::ForLoop(f) => {
-                    f.body.push(node);
-                    return;
-                }
-                ParsingContext::ElseForLoop(f) => {
-                    f.otherwise.push(node);
-                    return;
-                }
-                _ => continue,
-            }
-        }
-
-        self.nodes.push(node);
-    }
-
-    /// Appends the text up until the new tag/block with whitespace management taken into account
-    fn parse_text(&mut self) {
+    /// Appends the text up until the new tag/expr with whitespace management taken into account
+    fn parse_text(&mut self) -> Option<Node> {
         let mut previous = self.lexer.slice_before();
         if self.trim_end_previous {
             previous = previous.trim_end();
@@ -409,406 +231,430 @@ impl<'a> Parser<'a> {
         if !previous.is_empty() {
             self.size_hint += previous.len();
             let node = Node::Text(previous.to_string());
-            self.push_node(node);
+            Some(node)
+        } else {
+            None
         }
     }
 
-    fn parse_tags(&mut self) -> ParsingResult<Option<Node>> {
-        match self.next_or_error()? {
-            Token::Keyword(k) => {
-                // Not all keywords are allowed everywhere.
-                // 1. extends and macro definition need to be at the top level
-                // 2. blocks and macro definition not allowed in macro definitions
-                let at_top_level = self.contexts.is_empty();
+    fn parse_raw(&mut self) -> ParsingResult<Node> {
+        self.expect_tag_end()?;
 
-                if !at_top_level && (k == Keyword::Extends || k == Keyword::Macro) {
-                    return Err(SpannedParsingError::new(
-                        ParsingError::TagCannotBeNested(format!("{}", k)),
-                        self.lexer.span(),
-                    ));
+        let start = self.lexer.span().end;
+        let mut end;
+        let trim_end_previous;
+        // We go through the lexer until we find an {% endraw %}
+        loop {
+            if let Token::TagStart(ws) = self.next_or_error()? {
+                end = self.lexer.span().start;
+                if let Token::Keyword(Keyword::EndRaw) = self.peek_or_error()? {
+                    trim_end_previous = ws;
+                    self.lexer.next();
+                    break;
                 }
+            }
+        }
+        let mut slice = self.lexer.slice_at(start..end);
+        if self.trim_start_next {
+            slice = slice.trim_start();
+        }
+        if trim_end_previous {
+            slice = slice.trim_end();
+        }
+        let body = slice.to_owned();
+        self.expect_tag_end()?;
 
-                // some tags can only be used in forloop
-                if k == Keyword::Continue || k == Keyword::Break {
-                    let mut allowed_in_context = false;
-                    for ctx in &self.contexts {
-                        if let ParsingContext::ForLoop(_) = ctx {
-                            allowed_in_context = true
-                        }
-                    }
-                    if !allowed_in_context {
-                        return Err(SpannedParsingError::new(
-                            ParsingError::TagCannotBeNested(format!("{}", k)),
-                            self.lexer.span(),
-                        ));
-                    }
+        Ok(Node::Raw(body))
+    }
+
+    /// This doesn't return a Node as we just keep track of the string value on the parser directly.
+    /// We don't need it in the AST
+    fn parse_extends(&mut self) -> ParsingResult<()> {
+        if !self.contexts.is_empty() {
+            return Err(SpannedParsingError::new(
+                ParsingError::TagNotAllowed("extends".to_string()),
+                self.lexer.span(),
+            ));
+        }
+
+        if let Some(ref existing) = self.parent {
+            return Err(SpannedParsingError::new(
+                ParsingError::DuplicateExtend(existing.clone()),
+                self.lexer.span(),
+            ));
+        }
+        self.lexer.expect(Token::String)?;
+        let val = replace_string_markers(self.lexer.slice());
+        self.parent = Some(val);
+        self.expect_tag_end()?;
+
+        Ok(())
+    }
+
+    fn parse_include(&mut self) -> ParsingResult<Node> {
+        // Files can be a single string or an array of strings
+        let files =
+            match self.expect_one_of(vec![Token::String, Token::Symbol(Symbol::LeftBracket)])? {
+                Token::String => {
+                    let val = replace_string_markers(self.lexer.slice());
+                    vec![val]
                 }
+                Token::Symbol(Symbol::LeftBracket) => {
+                    let start = self.lexer.span().start;
+                    let vals = self.parse_array()?;
+                    let end = self.lexer.span().end;
+                    let mut files = Vec::with_capacity(vals.len());
 
-                match k {
-                    Keyword::Set | Keyword::SetGlobal => {
-                        self.contexts.push(ParsingContext::Set);
-                        let global = k == Keyword::SetGlobal;
-                        self.lexer.expect(Token::Ident)?;
-                        let key = self.lexer.slice().to_owned();
-                        self.lexer.expect(Token::Symbol(Symbol::Assign))?;
-                        let value = self.parse_expression(0)?;
-                        self.contexts.pop();
-                        self.expect_tag_end()?;
-
-                        Ok(Some(Node::Set(Set { key, value, global })))
-                    }
-                    Keyword::Include => {
-                        let files = match self.expect_one_of(vec![
-                            Token::String,
-                            Token::Symbol(Symbol::LeftBracket),
-                        ])? {
-                            Token::String => {
-                                let val = replace_string_markers(self.lexer.slice());
-                                vec![val]
-                            }
-                            Token::Symbol(Symbol::LeftBracket) => {
-                                let start = self.lexer.span().start;
-                                let vals = self.parse_array()?;
-                                let end = self.lexer.span().end;
-                                let mut files = Vec::with_capacity(vals.len());
-
-                                for v in vals {
-                                    match v.node {
-                                        Expression::Str(s) => files.push(s),
-                                        _ => {
-                                            return Err(SpannedParsingError::new(
-                                                ParsingError::InvalidInclude,
-                                                start..end,
-                                            ));
-                                        }
-                                    }
-                                }
-                                files
-                            }
-                            _ => unreachable!(),
-                        };
-
-                        let ignore_missing = match self.peek_or_error()? {
-                            Token::Keyword(Keyword::IgnoreMissing) => {
-                                self.lexer.next();
-                                true
-                            }
-                            Token::TagEnd(_) => false,
-                            t => {
+                    for v in vals {
+                        match v.node {
+                            Expression::Str(s) => files.push(s),
+                            _ => {
                                 return Err(SpannedParsingError::new(
-                                    ParsingError::UnexpectedToken(
-                                        t,
-                                        vec![
-                                            Token::Keyword(Keyword::IgnoreMissing),
-                                            Token::TagEnd(true),
-                                            Token::TagEnd(false),
-                                        ],
-                                    ),
-                                    self.lexer.span(),
-                                ))
-                            }
-                        };
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::Include(Include {
-                            files,
-                            ignore_missing,
-                        })))
-                    }
-                    Keyword::Extends => {
-                        if let Some(ref existing) = self.parent {
-                            return Err(SpannedParsingError::new(
-                                ParsingError::DuplicateExtend(existing.clone()),
-                                self.lexer.span(),
-                            ));
-                        }
-
-                        self.lexer.expect(Token::String)?;
-                        let val = replace_string_markers(self.lexer.slice());
-                        self.parent = Some(val);
-                        self.expect_tag_end()?;
-                        Ok(None)
-                    }
-                    Keyword::Raw => {
-                        self.expect_tag_end()?;
-                        let start = self.lexer.span().end;
-                        let mut end;
-                        let trim_end_previous;
-                        loop {
-                            if let Token::TagStart(ws) = self.next_or_error()? {
-                                end = self.lexer.span().start;
-                                if let Token::Keyword(Keyword::EndRaw) = self.peek_or_error()? {
-                                    trim_end_previous = ws;
-                                    self.lexer.next();
-                                    break;
-                                }
+                                    ParsingError::InvalidInclude,
+                                    start..end,
+                                ));
                             }
                         }
-                        let mut slice = self.lexer.slice_at(start..end);
-                        if self.trim_start_next {
-                            slice = slice.trim_start();
-                        }
-                        if trim_end_previous {
-                            slice = slice.trim_end();
-                        }
-                        let body = slice.to_owned();
-                        self.expect_tag_end()?;
+                    }
+                    files
+                }
+                _ => unreachable!(),
+            };
 
-                        Ok(Some(Node::Raw(body)))
-                    }
-                    Keyword::Block => {
-                        self.lexer.expect(Token::Ident)?;
-                        let name = self.lexer.slice().to_owned();
-                        self.expect_tag_end()?;
-                        self.contexts.push(ParsingContext::Block(Block {
-                            name,
-                            body: Vec::new(),
-                        }));
-                        Ok(None)
-                    }
-                    Keyword::EndBlock => {
-                        let block = self.pop_block()?;
-                        let mut name = String::new();
-                        if let Token::Ident = self.peek_or_error()? {
-                            self.lexer.next();
-                            name = self.lexer.slice().to_owned();
-                        }
+        let ignore_missing = match self.peek_or_error()? {
+            Token::Keyword(Keyword::IgnoreMissing) => {
+                self.lexer.next();
+                true
+            }
+            Token::TagEnd(_) => false,
+            t => {
+                return Err(SpannedParsingError::new(
+                    ParsingError::UnexpectedToken(
+                        t,
+                        vec![
+                            Token::Keyword(Keyword::IgnoreMissing),
+                            Token::TagEnd(true),
+                            Token::TagEnd(false),
+                        ],
+                    ),
+                    self.lexer.span(),
+                ))
+            }
+        };
 
-                        if !name.is_empty() && block.name != name {
-                            return Err(SpannedParsingError::new(
-                                ParsingError::MismatchedBlock(block.name),
-                                self.lexer.span(),
-                            ));
-                        }
+        self.expect_tag_end()?;
+        Ok(Node::Include(Include {
+            files,
+            ignore_missing,
+        }))
+    }
 
-                        self.blocks.insert(block.name.clone(), block.clone());
+    fn parse_set(&mut self, global: bool) -> ParsingResult<Node> {
+        self.lexer.expect(Token::Ident)?;
+        let key = self.lexer.slice().to_owned();
+        self.lexer.expect(Token::Symbol(Symbol::Assign))?;
+        let value = self.parse_expression(0)?;
+        self.expect_tag_end()?;
+        Ok(Node::Set(Set { key, value, global }))
+    }
 
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::Block(block)))
+    fn parse_import(&mut self) -> ParsingResult<()> {
+        self.lexer.expect(Token::String)?;
+        let filename = replace_string_markers(self.lexer.slice());
+        self.lexer.expect(Token::Keyword(Keyword::As))?;
+        self.lexer.expect(Token::Ident)?;
+        let namespace = self.lexer.slice().to_owned();
+        for (existing_filename, existing_namespace) in &self.macro_imports {
+            if existing_namespace == &namespace {
+                return Err(SpannedParsingError::new(
+                    ParsingError::ConflictingMacroImport(format!(
+                        "namespace {} is already imported for the file '{}'",
+                        namespace, existing_filename
+                    )),
+                    self.lexer.span(),
+                ));
+            }
+        }
+        self.expect_tag_end()?;
+        self.macro_imports.push((filename, namespace));
+
+        Ok(())
+    }
+
+    fn parse_for_loop(&mut self) -> ParsingResult<Node> {
+        self.lexer.expect(Token::Ident)?;
+        let var1 = self.lexer.slice().to_owned();
+        let mut var2 = String::new();
+        if self.peek_or_error()? == Token::Symbol(Symbol::Comma) {
+            self.lexer.next();
+            self.lexer.expect(Token::Ident)?;
+            var2 = self.lexer.slice().to_owned();
+        }
+        self.lexer.expect(Token::Op(Operator::In))?;
+        let start = self.lexer.span().end;
+        let container = self.parse_expression(0)?;
+        let end = self.lexer.span().start;
+        if !container.can_be_iterated_on() {
+            return Err(SpannedParsingError::new(
+                ParsingError::CannotIterateOn,
+                start..end,
+            ));
+        }
+        let key = if var2.is_empty() {
+            None
+        } else {
+            Some(var1.clone())
+        };
+        let value = if key.is_none() { var1 } else { var2 };
+        self.expect_tag_end()?;
+        self.contexts.push(ParsingContext::ForLoop);
+        let body = self.parse_until(|tok| {
+            matches!(
+                tok,
+                Token::Keyword(Keyword::EndFor) | Token::Keyword(Keyword::Else)
+            )
+        })?;
+        let current_tok = self.lexer.current();
+        self.next_or_error()?;
+        let otherwise = if current_tok == Token::Keyword(Keyword::Else) {
+            self.expect_tag_end()?;
+            let toks = self.parse_until(|tok| *tok == Token::Keyword(Keyword::EndFor))?;
+            self.lexer.expect(Token::Keyword(Keyword::EndFor))?;
+            toks
+        } else {
+            Vec::new()
+        };
+
+        self.expect_tag_end()?;
+        self.contexts.pop();
+
+        Ok(Node::ForLoop(ForLoop {
+            key,
+            value,
+            container,
+            body,
+            otherwise,
+        }))
+    }
+
+    fn parse_filter_section(&mut self) -> ParsingResult<Node> {
+        self.contexts.push(ParsingContext::FilterSection);
+        self.lexer.expect(Token::Ident)?;
+        let name = self.lexer.slice().to_owned();
+        let kwargs = match self.peek_or_error()? {
+            Token::Symbol(Symbol::LeftParen) => self.parse_kwargs()?,
+            _ => HashMap::new(),
+        };
+        self.expect_tag_end()?;
+        let body = self.parse_until(|tok| *tok == Token::Keyword(Keyword::EndFilter))?;
+        self.lexer.expect(Token::Keyword(Keyword::EndFilter))?;
+        self.expect_tag_end()?;
+        self.contexts.pop();
+
+        Ok(Node::FilterSection(FilterSection { name, kwargs, body }))
+    }
+
+    fn parse_if(&mut self) -> ParsingResult<Node> {
+        let mut conditions = Vec::new();
+        let mut otherwise = Vec::new();
+        let mut has_seen_else = false;
+        self.contexts.push(ParsingContext::If);
+
+        loop {
+            let condition = if has_seen_else {
+                None
+            } else {
+                Some(self.parse_expression(0)?)
+            };
+            self.expect_tag_end()?;
+
+            let body = self.parse_until(|tok| {
+                if has_seen_else {
+                    *tok == Token::Keyword(Keyword::EndIf)
+                } else {
+                    matches!(
+                        tok,
+                        Token::Keyword(Keyword::Elif)
+                            | Token::Keyword(Keyword::Else)
+                            | Token::Keyword(Keyword::EndIf)
+                    )
+                }
+            })?;
+
+            match self.lexer.current() {
+                Token::Keyword(Keyword::Elif) => {
+                    conditions.push((condition.unwrap(), body));
+                    self.lexer.expect(Token::Keyword(Keyword::Elif))?;
+                }
+                Token::Keyword(Keyword::Else) => {
+                    conditions.push((condition.unwrap(), body));
+                    has_seen_else = true;
+                    self.lexer.expect(Token::Keyword(Keyword::Else))?;
+                }
+                Token::Keyword(Keyword::EndIf) => {
+                    if has_seen_else {
+                        otherwise = body;
+                    } else {
+                        conditions.push((condition.unwrap(), body));
                     }
-                    Keyword::If => {
-                        let condition = self.parse_expression(0)?;
-                        self.expect_tag_end()?;
-                        self.contexts.push(ParsingContext::If(If {
-                            conditions: vec![(condition, vec![])],
-                            otherwise: vec![],
-                        }));
-                        Ok(None)
-                    }
-                    Keyword::Elif => {
-                        let mut i = self.pop_if(k)?;
-                        let condition = self.parse_expression(0)?;
-                        self.expect_tag_end()?;
-                        i.conditions.push((condition, vec![]));
-                        self.contexts.push(ParsingContext::Elif(i));
-                        Ok(None)
-                    }
-                    Keyword::Else => {
-                        // else can be found in a if or a for loop
-                        let mut ctx_found = false;
-                        for ctx in self.contexts.iter().rev() {
-                            match ctx {
-                                ParsingContext::If(_) | ParsingContext::Elif(_) => {
-                                    let i = self.pop_if(k)?;
-                                    self.contexts.push(ParsingContext::Else(i));
-                                    ctx_found = true;
-                                    break;
-                                }
-                                ParsingContext::ForLoop(_) => {
-                                    let f = self.pop_forloop()?;
-                                    self.contexts.push(ParsingContext::ElseForLoop(f));
-                                    ctx_found = true;
-                                    break;
-                                }
-                                _ => (),
-                            }
+                    self.lexer.expect(Token::Keyword(Keyword::EndIf))?;
+                    self.expect_tag_end()?;
+                    break;
+                }
+                _ => {
+                    return Err(eof_error(self.lexer.last_idx()));
+                }
+            }
+        }
+
+        self.contexts.pop();
+
+        Ok(Node::If(If {
+            conditions,
+            otherwise,
+        }))
+    }
+
+    fn parse_block(&mut self) -> ParsingResult<Option<Node>> {
+        self.contexts.push(ParsingContext::Block);
+        self.lexer.expect(Token::Ident)?;
+        let name = self.lexer.slice().to_owned();
+        self.expect_tag_end()?;
+        let body = self.parse_until(|tok| *tok == Token::Keyword(Keyword::EndBlock))?;
+        self.lexer.expect(Token::Keyword(Keyword::EndBlock))?;
+        let mut closing_name = String::new();
+        if let Token::Ident = self.peek_or_error()? {
+            self.lexer.next();
+            closing_name = self.lexer.slice().to_owned();
+        }
+        if !closing_name.is_empty() && name != closing_name {
+            return Err(SpannedParsingError::new(
+                ParsingError::MismatchedBlock(name),
+                self.lexer.span(),
+            ));
+        }
+        self.expect_tag_end()?;
+        self.contexts.pop();
+
+        self.blocks.insert(name.clone(), body.clone());
+        // Child templates do not get AST really
+        if self.parent.is_some() {
+            Ok(None)
+        } else {
+            Ok(Some(Node::Block(Block { name, body })))
+        }
+    }
+
+    fn parse_macro(&mut self) -> ParsingResult<()> {
+        self.lexer.expect(Token::Ident)?;
+        let name = self.lexer.slice().to_owned();
+        self.lexer.expect(Token::Symbol(Symbol::LeftParen))?;
+        let mut kwargs = HashMap::new();
+
+        // Not using `parse_kwargs` since it only allows literals as arguments
+        loop {
+            if let Token::Symbol(Symbol::RightParen) = self.peek_or_error()? {
+                break;
+            }
+
+            self.lexer.expect(Token::Ident)?;
+            let arg_name = self.lexer.slice().to_owned();
+            kwargs.insert(arg_name.clone(), None);
+
+            match self.peek_or_error()? {
+                Token::Symbol(Symbol::Assign) => {
+                    self.lexer.next();
+                    let val = match self.next_or_error()? {
+                        Token::Bool(b) => Expression::Bool(b),
+                        Token::String => {
+                            Expression::Str(replace_string_markers(self.lexer.slice()))
                         }
-                        // TODO: better error message
-                        if !ctx_found {
+                        Token::Integer(i) => Expression::Integer(i),
+                        Token::Float(f) => Expression::Float(f),
+                        t => {
                             return Err(SpannedParsingError::new(
                                 ParsingError::UnexpectedToken(
-                                    Token::Keyword(Keyword::Else),
-                                    vec![],
+                                    t,
+                                    vec![
+                                        Token::Bool(true),
+                                        Token::String,
+                                        Token::Integer(0),
+                                        Token::Float(0.0),
+                                    ],
                                 ),
                                 self.lexer.span(),
                             ));
                         }
-                        self.expect_tag_end()?;
-                        Ok(None)
+                    };
+                    kwargs.insert(
+                        arg_name,
+                        Some(SpannedExpression::new(val, self.lexer.span())),
+                    );
+                    if let Token::Symbol(Symbol::Comma) = self.peek_or_error()? {
+                        self.lexer.next();
+                        continue;
                     }
-                    Keyword::EndIf => {
-                        let i = self.pop_if(k)?;
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::If(i)))
-                    }
-                    Keyword::Filter => {
-                        self.lexer.expect(Token::Ident)?;
-                        let name = self.lexer.slice().to_owned();
-                        let kwargs = match self.peek_or_error()? {
-                            Token::Symbol(Symbol::LeftParen) => self.parse_kwargs()?,
-                            _ => HashMap::new(),
-                        };
-                        self.expect_tag_end()?;
-                        self.contexts
-                            .push(ParsingContext::FilterSection(FilterSection {
-                                name,
-                                kwargs,
-                                body: vec![],
-                            }));
-                        Ok(None)
-                    }
-                    Keyword::EndFilter => {
-                        let f = self.pop_filter_section()?;
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::FilterSection(f)))
-                    }
-                    Keyword::Macro => {
-                        self.lexer.expect(Token::Ident)?;
-                        let name = self.lexer.slice().to_owned();
-                        let mut kwargs = HashMap::new();
-
-                        // Not going through parse_kwargs as it has slightly different rules
-                        self.lexer.expect(Token::Symbol(Symbol::LeftParen))?;
-                        loop {
-                            if let Token::Symbol(Symbol::RightParen) = self.peek_or_error()? {
-                                break;
-                            }
-                            self.lexer.expect(Token::Ident)?;
-                            let name = self.lexer.slice().to_owned();
-                            kwargs.insert(name.clone(), None);
-
-                            match self.peek_or_error()? {
-                                Token::Symbol(Symbol::Assign) => {
-                                    self.lexer.next();
-                                    let val = match self.next_or_error()? {
-                                        Token::Bool(b) => Expression::Bool(b),
-                                        Token::String => Expression::Str(replace_string_markers(
-                                            self.lexer.slice(),
-                                        )),
-                                        Token::Integer(i) => Expression::Integer(i),
-                                        Token::Float(f) => Expression::Float(f),
-                                        t => {
-                                            return Err(SpannedParsingError::new(
-                                                ParsingError::UnexpectedToken(
-                                                    t,
-                                                    vec![
-                                                        Token::Bool(true),
-                                                        Token::String,
-                                                        Token::Integer(0),
-                                                        Token::Float(0.0),
-                                                    ],
-                                                ),
-                                                self.lexer.span(),
-                                            ));
-                                        }
-                                    };
-                                    kwargs.insert(
-                                        name,
-                                        Some(SpannedExpression::new(val, self.lexer.span())),
-                                    );
-                                    if let Token::Symbol(Symbol::Comma) = self.peek_or_error()? {
-                                        self.lexer.next();
-                                        continue;
-                                    }
-                                }
-                                Token::Symbol(Symbol::Comma) => {
-                                    self.lexer.next();
-                                    continue;
-                                }
-                                _ => continue,
-                            }
-                        }
-                        self.lexer.expect(Token::Symbol(Symbol::RightParen))?;
-                        self.expect_tag_end()?;
-                        self.contexts
-                            .push(ParsingContext::MacroDefinition(MacroDefinition {
-                                name,
-                                kwargs,
-                                body: Vec::new(),
-                            }));
-                        Ok(None)
-                    }
-                    Keyword::EndMacro => {
-                        let macro_def = self.pop_macro_definition()?;
-                        self.expect_tag_end()?;
-                        self.macros.insert(macro_def.name.clone(), macro_def);
-                        Ok(None)
-                    }
-                    Keyword::Import => {
-                        self.lexer.expect(Token::String)?;
-                        let filename = replace_string_markers(self.lexer.slice());
-                        self.lexer.expect(Token::Keyword(Keyword::As))?;
-                        self.lexer.expect(Token::Ident)?;
-                        let namespace = self.lexer.slice().to_owned();
-                        for (existing_filename, existing_namespace) in &self.macro_imports {
-                            if existing_namespace == &namespace {
-                                return Err(SpannedParsingError::new(
-                                    ParsingError::ConflictingMacroImport(format!(
-                                        "namespace {} is already imported for the file '{}'",
-                                        namespace, existing_filename
-                                    )),
-                                    self.lexer.span(),
-                                ));
-                            }
-                        }
-                        self.expect_tag_end()?;
-                        self.macro_imports.push((filename, namespace));
-
-                        Ok(None)
-                    }
-                    Keyword::For => {
-                        self.lexer.expect(Token::Ident)?;
-                        let name1 = self.lexer.slice().to_owned();
-                        let mut name2 = String::new();
-                        if Token::Symbol(Symbol::Comma) == self.peek_or_error()? {
-                            self.lexer.next();
-                            self.lexer.expect(Token::Ident)?;
-                            name2 = self.lexer.slice().to_owned();
-                        }
-                        self.lexer.expect(Token::Op(Operator::In))?;
-                        let start = self.lexer.span().end;
-                        let expr = self.parse_expression(0)?;
-                        let end = self.lexer.span().start;
-                        if !expr.can_be_iterated_on() {
-                            return Err(SpannedParsingError::new(
-                                ParsingError::CannotIterateOn,
-                                start..end,
-                            ));
-                        }
-                        let key = if name2.is_empty() {
-                            None
-                        } else {
-                            Some(name1.clone())
-                        };
-                        self.contexts.push(ParsingContext::ForLoop(ForLoop {
-                            value: if key.is_none() { name1 } else { name2 },
-                            key,
-                            container: expr,
-                            body: Vec::new(),
-                            otherwise: Vec::new(),
-                        }));
-
-                        self.expect_tag_end()?;
-                        Ok(None)
-                    }
-                    Keyword::EndFor => {
-                        let f = self.pop_forloop()?;
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::ForLoop(f)))
-                    }
-                    Keyword::Continue => {
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::Continue))
-                    }
-                    Keyword::Break => {
-                        self.expect_tag_end()?;
-                        Ok(Some(Node::Break))
-                    }
-                    k => Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(Token::Keyword(k), vec![]),
-                        self.lexer.span(),
-                    )),
                 }
+                Token::Symbol(Symbol::Comma) => {
+                    self.lexer.next();
+                    continue;
+                }
+                _ => continue,
             }
+        }
+
+        self.lexer.expect(Token::Symbol(Symbol::RightParen))?;
+        self.expect_tag_end()?;
+
+        let body = self.parse_until(|tok| *tok == Token::Keyword(Keyword::EndMacro))?;
+        self.lexer.expect(Token::Keyword(Keyword::EndMacro))?;
+
+        let mut closing_name = String::new();
+        if let Token::Ident = self.peek_or_error()? {
+            self.lexer.next();
+            closing_name = self.lexer.slice().to_owned();
+        }
+        if !closing_name.is_empty() && name != closing_name {
+            return Err(SpannedParsingError::new(
+                ParsingError::MismatchedBlock(name),
+                self.lexer.span(),
+            ));
+        }
+        self.expect_tag_end()?;
+        self.macros
+            .insert(name.clone(), MacroDefinition { name, kwargs, body });
+
+        Ok(())
+    }
+
+    fn parse_tag(&mut self) -> ParsingResult<Option<Node>> {
+        match self.next_or_error()? {
+            Token::Keyword(k) => match k {
+                Keyword::Set => Ok(Some(self.parse_set(false)?)),
+                Keyword::SetGlobal => Ok(Some(self.parse_set(true)?)),
+                Keyword::For => Ok(Some(self.parse_for_loop()?)),
+                Keyword::If => Ok(Some(self.parse_if()?)),
+                Keyword::Extends => {
+                    self.parse_extends()?;
+                    Ok(None)
+                }
+                Keyword::Macro => {
+                    self.parse_macro()?;
+                    Ok(None)
+                }
+                Keyword::Block => Ok(self.parse_block()?),
+                Keyword::Include => Ok(Some(self.parse_include()?)),
+                Keyword::Import => {
+                    self.parse_import()?;
+                    Ok(None)
+                }
+                Keyword::Filter => Ok(Some(self.parse_filter_section()?)),
+                Keyword::Raw => Ok(Some(self.parse_raw()?)),
+                _ => Err(SpannedParsingError::new(
+                    ParsingError::UnexpectedToken(Token::Keyword(k), vec![]),
+                    self.lexer.span(),
+                )),
+            },
             t => Err(SpannedParsingError::new(
                 ParsingError::UnexpectedToken(t, vec![]),
                 self.lexer.span(),
@@ -851,6 +697,13 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
+    /// An ident can have multiple forms:
+    /// `hey`
+    /// `hey.ho`
+    /// `hey['ho']`
+    /// `hey[ho]`
+    /// `hey[ho].name`
+    /// `hey[1]`
     fn parse_ident(&mut self) -> ParsingResult<(String, Range<usize>)> {
         // We are already at the ident token when we start
         let start = self.lexer.span().start;
@@ -885,7 +738,7 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
-            // After a left brackets: ident, integer, string
+            // After a left brackets: ident or integer or string
             if !in_brackets.is_empty() {
                 self.lexer.next();
 
@@ -1196,9 +1049,6 @@ impl<'a> Parser<'a> {
                 Some(_) => break,
                 None => {
                     break;
-                    // TODO?
-                    // self.lexer.next();
-                    // return Err(eof_error(self.lexer.last_idx()));
                 }
             };
 
