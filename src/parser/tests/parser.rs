@@ -75,6 +75,7 @@ fn can_parse_expression() {
         ("{{ - a * 2 }}", "(- (* a 2))"),
         ("{{ [1, 1.2, a, 'b', true] }}", "[1, 1.2, a, 'b', true]"),
         ("{{ [1, 1.2, a, 'b', true,] }}", "[1, 1.2, a, 'b', true]"), // Allows trailing `,`
+        ("{{ hello.data[var].hey }}", "(+ a)"),
         // Actual expressions
         ("{{ 1 + 2 + 3 }}", "(+ (+ 1 2) 3)"),
         ("{{ 1 + count }}", "(+ 1 count)"),

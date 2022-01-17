@@ -1,0 +1,16 @@
+---
+source: src/parser/tests/lexer.rs
+assertion_line: 9
+expression: "&tokens"
+input_file: src/parser/tests/lexer_inputs/success/ws.txt
+
+---
+[
+    CONTENT("Hello"),
+    VARIABLE_START(true),
+    INTEGER(1),
+    VARIABLE_END(true),
+    CONTENT("ho"),
+    CONTENT(""),
+    CONTENT(""),
+]

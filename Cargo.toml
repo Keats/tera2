@@ -1,16 +1,17 @@
 [package]
 name = "parser-test"
 version = "0.1.0"
-authors = ["Vincent Prouillet <balthek@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 logos = "0.12.0"
 codespan-reporting = "0.11"
+# TODO: use ariadne instead
 valuable =  { git = "https://github.com/tokio-rs/valuable/", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.3"
+insta = { version = "1", features = ["glob"] }
 
 [[bench]]
 name = "parsing"

@@ -14,6 +14,7 @@ pub enum Literal {
     Bool(bool),
 }
 
+
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]

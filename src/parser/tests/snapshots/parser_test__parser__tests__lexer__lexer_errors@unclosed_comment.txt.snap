@@ -1,0 +1,17 @@
+---
+source: src/parser/tests/lexer.rs
+assertion_line: 19
+expression: res.unwrap_err()
+input_file: src/parser/tests/lexer_inputs/errors/unclosed_comment.txt
+
+---
+Error {
+    kind: SyntaxError,
+    message: "Closing comment tag `#}` not found",
+    filename: None,
+    span: Some(
+         @ 1:0-1:2 (0..2),
+    ),
+    source: None,
+    labels: [],
+}
