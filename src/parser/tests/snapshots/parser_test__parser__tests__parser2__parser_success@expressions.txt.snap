@@ -1,8 +1,14 @@
 ---
 source: src/parser/tests/parser2.rs
-assertion_line: 8
-expression: "&expr_node"
+expression: "&expr_nodes"
 input_file: src/parser/tests/parser_inputs/success/expressions.txt
-
 ---
-1
+[
+    1,
+    1.2,
+    (not true),
+    (- 1),
+    'hello',
+    'hi',
+    'bonjour',
+]

@@ -1,9 +1,7 @@
 ---
 source: src/parser/tests/lexer.rs
-assertion_line: 9
 expression: "&tokens"
 input_file: src/parser/tests/lexer_inputs/success/tags.txt
-
 ---
 [
     TAG_START(false),
@@ -34,6 +32,9 @@ input_file: src/parser/tests/lexer_inputs/success/tags.txt
     TAG_END(false),
     CONTENT("\n"),
     TAG_START(false),
+    IDENT(set),
+    IDENT(txt),
+    ASSIGN,
     IDENT(macro),
     COLON,
     COLON,

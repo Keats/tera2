@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::Formatter;
 use std::ops::{Deref, Range};
 
 #[derive(Clone, PartialEq)]
@@ -18,6 +17,10 @@ impl<T: fmt::Debug> Spanned<T> {
 
     pub fn span(&self) -> &Span {
         &self.span
+    }
+
+    pub fn span_mut(&mut self) -> &mut Span {
+        &mut self.span
     }
 
     pub(crate) fn node(&self) -> &T {

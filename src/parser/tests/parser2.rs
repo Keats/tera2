@@ -1,11 +1,11 @@
 use crate::parser::ast2::Node;
 use crate::parser::parser::Parser;
 
+// TODO: move back to a *.txt glob?
 #[test]
-fn test_parser_success() {
-    insta::glob!("parser_inputs/success/*.txt", |path| {
+fn test_parser_expressions_success() {
+    insta::glob!("parser_inputs/success/idents.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        // TODO: remove nodes that aren't expressions to remove the `\n` in between each expr
         let nodes = &Parser::new(&contents).parse().unwrap();
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
@@ -13,7 +13,7 @@ fn test_parser_success() {
                 Node::Expression(_) => {
                     expr_nodes.push(node);
                 }
-                _ => ()
+                _ => (),
             }
         }
         insta::assert_debug_snapshot!(&expr_nodes);

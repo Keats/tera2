@@ -6,7 +6,7 @@ use crate::utils::Span;
 // handwritten lexer, peekable iterator taken from minijinja
 
 enum State {
-    /// Anything not in
+    /// Anything not in the other two states
     Template,
     /// In `{{ ... }}`
     Variable,

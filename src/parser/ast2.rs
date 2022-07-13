@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::utils::Spanned;
+use crate::utils::{Span, Spanned};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -90,11 +90,58 @@ pub enum Expression {
     Bool(Spanned<bool>),
     Ident(Spanned<String>),
     Array(Spanned<Array>),
+    Var(Spanned<Var>),
+    GetAttr(Spanned<GetAttr>),
+    GetItem(Spanned<GetItem>),
     Test(Spanned<Test>),
     MacroCall(Spanned<MacroCall>),
     FunctionCall(Spanned<FunctionCall>),
     UnaryOperation(Spanned<UnaryOperation>),
     BinaryOperation(Spanned<BinaryOperation>),
+}
+
+impl Expression {
+    pub fn expand_span(&mut self, span: &Span) {
+        match self {
+            Expression::Str(s) => s.span_mut().expand(&span),
+            Expression::Integer(s) => s.span_mut().expand(&span),
+            Expression::Float(s) => s.span_mut().expand(&span),
+            Expression::Bool(s) => s.span_mut().expand(&span),
+            Expression::Ident(s) => s.span_mut().expand(&span),
+            Expression::Array(s) => s.span_mut().expand(&span),
+            Expression::Test(s) => s.span_mut().expand(&span),
+            Expression::MacroCall(s) => s.span_mut().expand(&span),
+            Expression::FunctionCall(s) => s.span_mut().expand(&span),
+            Expression::UnaryOperation(s) => s.span_mut().expand(&span),
+            Expression::BinaryOperation(s) => s.span_mut().expand(&span),
+            Expression::Var(s) => s.span_mut().expand(&span),
+            Expression::GetAttr(s) => s.span_mut().expand(&span),
+            Expression::GetItem(s) => s.span_mut().expand(&span),
+        }
+    }
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Expression::*;
+
+        match self {
+            Str(i) => write!(f, "'{}'", **i),
+            Integer(i) => write!(f, "{}", **i),
+            Float(i) => write!(f, "{}", **i),
+            Ident(i) => write!(f, "{}", **i),
+            Bool(i) => write!(f, "{}", **i),
+            Array(i) => write!(f, "{:?}", **i),
+            Test(i) => write!(f, "{:?}", **i),
+            MacroCall(i) => write!(f, "{:?}", **i),
+            FunctionCall(i) => write!(f, "{:?}", **i),
+            UnaryOperation(i) => write!(f, "{:?}", **i),
+            BinaryOperation(i) => write!(f, "{:?}", **i),
+            Var(i) => write!(f, "{:?}", **i),
+            GetAttr(i) => write!(f, "{:?}", **i),
+            GetItem(i) => write!(f, "{:?}", **i),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -213,23 +260,41 @@ impl fmt::Debug for FunctionCall {
     }
 }
 
-impl fmt::Debug for Expression {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Expression::*;
+/// A variable lookup
+#[derive(Clone, PartialEq)]
+pub struct Var {
+    pub name: String,
+}
 
-        match self {
-            Str(i) => write!(f, "'{}'", **i),
-            Integer(i) => write!(f, "{}", **i),
-            Float(i) => write!(f, "{}", **i),
-            Ident(i) => write!(f, "{}", **i),
-            Bool(i) => write!(f, "{}", **i),
-            Array(i) => write!(f, "{:?}", **i),
-            Test(i) => write!(f, "{:?}", **i),
-            MacroCall(i) => write!(f, "{:?}", **i),
-            FunctionCall(i) => write!(f, "{:?}", **i),
-            UnaryOperation(i) => write!(f, "{:?}", **i),
-            BinaryOperation(i) => write!(f, "{:?}", **i),
-        }
+impl fmt::Debug for Var {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+/// An attribute lookup expression.
+#[derive(Clone, PartialEq)]
+pub struct GetAttr {
+    pub expr: Expression,
+    pub name: String,
+}
+
+impl fmt::Debug for GetAttr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}.{}", self.expr, self.name)
+    }
+}
+
+/// An item lookup expression.
+#[derive(Clone, PartialEq)]
+pub struct GetItem {
+    pub expr: Expression,
+    pub sub_expr: Expression,
+}
+
+impl fmt::Debug for GetItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}[{:?}]", self.expr, self.sub_expr)
     }
 }
 
@@ -331,8 +396,8 @@ impl fmt::Debug for Node {
         use Node::*;
 
         match self {
-            Node::Content(s) =>  write!(f, "{:?}", s),
-            Node::Expression(e) => write!(f, "{:?}", e),
+            Content(s) => write!(f, "{:?}", s),
+            Expression(e) => write!(f, "{:?}", e),
         }
     }
 }
