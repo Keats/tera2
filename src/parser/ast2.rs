@@ -78,8 +78,6 @@ impl fmt::Display for BinaryOperator {
     }
 }
 
-// TODO: handle my_data.blob[val].hey at compile time -> Eg no ident
-
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
@@ -88,7 +86,6 @@ pub enum Expression {
     Integer(Spanned<i64>),
     Float(Spanned<f64>),
     Bool(Spanned<bool>),
-    Ident(Spanned<String>),
     Array(Spanned<Array>),
     Var(Spanned<Var>),
     GetAttr(Spanned<GetAttr>),
@@ -101,13 +98,22 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub(crate) fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            Expression::Str(..)
+                | Expression::Integer(..)
+                | Expression::Float(..)
+                | Expression::Bool(..)
+        )
+    }
+
     pub fn expand_span(&mut self, span: &Span) {
         match self {
             Expression::Str(s) => s.span_mut().expand(&span),
             Expression::Integer(s) => s.span_mut().expand(&span),
             Expression::Float(s) => s.span_mut().expand(&span),
             Expression::Bool(s) => s.span_mut().expand(&span),
-            Expression::Ident(s) => s.span_mut().expand(&span),
             Expression::Array(s) => s.span_mut().expand(&span),
             Expression::Test(s) => s.span_mut().expand(&span),
             Expression::MacroCall(s) => s.span_mut().expand(&span),
@@ -129,7 +135,6 @@ impl fmt::Debug for Expression {
             Str(i) => write!(f, "'{}'", **i),
             Integer(i) => write!(f, "{}", **i),
             Float(i) => write!(f, "{}", **i),
-            Ident(i) => write!(f, "{}", **i),
             Bool(i) => write!(f, "{}", **i),
             Array(i) => write!(f, "{:?}", **i),
             Test(i) => write!(f, "{:?}", **i),
@@ -239,13 +244,13 @@ impl fmt::Debug for MacroCall {
 
 #[derive(Clone, PartialEq)]
 pub struct FunctionCall {
-    pub name: String,
+    pub expr: Expression,
     pub kwargs: HashMap<String, Expression>,
 }
 
 impl fmt::Debug for FunctionCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)?;
+        write!(f, "{:?}", self.expr)?;
         write!(f, "{{",)?;
         let mut keys = self.kwargs.keys().collect::<Vec<_>>();
         keys.sort();
@@ -298,17 +303,30 @@ impl fmt::Debug for GetItem {
     }
 }
 
-// /// Set a variable in the context `{% set val = "hey" %}`
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct Set {
-//     /// The name for that value in the context
-//     pub key: String,
-//     /// The value to assign
-//     pub value: SpannedExpression,
-//     /// Whether we want to set the variable globally or locally
-//     /// global_set is only useful in loops
-//     pub global: bool,
-// }
+/// Set a variable in the context `{% set val = "hey" %}`
+#[derive(Clone, PartialEq)]
+pub struct Set {
+    /// The name for that value in the context
+    pub name: String,
+    /// The value to assign
+    pub value: Expression,
+    /// Whether we want to set the variable globally or locally
+    /// set_global is only useful in loops
+    pub global: bool,
+}
+
+impl fmt::Debug for Set {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} {} = {:?}",
+            if self.global { "set_global" } else { "set" },
+            self.name,
+            self.value
+        )
+    }
+}
+
 //
 // /// A block definition
 // #[derive(Clone, Debug, PartialEq)]
@@ -385,10 +403,12 @@ impl fmt::Debug for GetItem {
 //     FilterSection(FilterSection),
 // }
 
+// TODO: use spanned as well? here?
 #[derive(Clone, PartialEq)]
 pub enum Node {
     Content(String),
     Expression(Expression),
+    Set(Set),
 }
 
 impl fmt::Debug for Node {
@@ -398,6 +418,7 @@ impl fmt::Debug for Node {
         match self {
             Content(s) => write!(f, "{:?}", s),
             Expression(e) => write!(f, "{:?}", e),
+            Set(s) => write!(f, "{:?}", s),
         }
     }
 }

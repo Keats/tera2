@@ -1,0 +1,15 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&expr_nodes"
+input_file: src/parser/tests/parser_inputs/success/set.txt
+---
+[
+    set a = 1,
+    set a = (| (+ b 1) round{}),
+    set a = 'hi',
+    set a = macros::something{},
+    set a = utcnow{},
+    set a = [1, true, 'hello'],
+    set a = [1, true, [1, 2]],
+    set_global a = 1,
+]

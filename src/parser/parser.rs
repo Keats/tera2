@@ -1,7 +1,11 @@
+use std::collections::HashMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parser::ast2::{Array, Expression, GetAttr, GetItem, UnaryOperation, Var};
+use crate::parser::ast2::{
+    Array, BinaryOperation, Expression, FunctionCall, GetAttr, GetItem, MacroCall, Set, Test,
+    UnaryOperation, Var,
+};
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
 use crate::utils::{Span, Spanned};
@@ -42,7 +46,7 @@ macro_rules! expect_token {
             (token, span) if matches!(token, $match) => Ok((token, span)),
             (token, _) => Err(Error::new(
                 ErrorKind::SyntaxError,
-                &format!("todo match expect: {:?} {}", token, $expectation),
+                &format!("todo match got: {:?}, expected {}", token, $expectation),
             )),
         }
     }};
@@ -51,7 +55,7 @@ macro_rules! expect_token {
             ($match, span) => Ok(($target, span)),
             (token, _) => Err(Error::new(
                 ErrorKind::SyntaxError,
-                &format!("todo match expect {:?}, expected {}", token, $expectation),
+                &format!("todo match got {:?}, expected {}", token, $expectation),
             )),
         }
     }};
@@ -63,7 +67,8 @@ const RESERVED_NAMES: [&str; 6] = ["true", "True", "false", "False", "loop", "se
 pub struct Parser<'a> {
     source: &'a str,
     lexer: Peekable<Box<dyn Iterator<Item = Result<(Token<'a>, Span), Error>> + 'a>>,
-    current: Option<Result<(Token<'a>, Span), Error>>,
+    // The next token/span tuple.
+    next: Option<Result<(Token<'a>, Span), Error>>,
     // We keep track of the current span TODO
     current_span: Span,
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
@@ -78,7 +83,7 @@ impl<'a> Parser<'a> {
         Self {
             source,
             lexer: iter.peekable(),
-            current: None,
+            next: None,
             current_span: Span::default(),
             parent: None,
             macro_imports: Vec::new(),
@@ -86,20 +91,20 @@ impl<'a> Parser<'a> {
     }
 
     fn current(&mut self) -> Result<Option<(&Token<'a>, &Span)>, Error> {
-        if self.current.is_none() {
+        if self.next.is_none() {
             self.next()?;
         }
 
-        match self.current {
+        match self.next {
             Some(Ok(ref tok)) => Ok(Some((&tok.0, &tok.1))),
-            Some(Err(_)) => Err(self.current.take().unwrap().unwrap_err()),
+            Some(Err(_)) => Err(self.next.take().unwrap().unwrap_err()),
             None => Ok(None),
         }
     }
 
     fn next(&mut self) -> TeraResult<Option<(Token<'a>, Span)>> {
-        let cur = self.current.take();
-        self.current = self.lexer.next();
+        let cur = self.next.take();
+        self.next = self.lexer.next();
         if let Some(Ok((_, ref span))) = cur {
             self.current_span = span.clone();
         }
@@ -116,27 +121,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect(&mut self, expected_token: Token, message: &str) -> TeraResult<()> {
-        let (current_token, _) = self.next_or_error()?;
-        if current_token != expected_token {
-            return Err(Error::new(
-                ErrorKind::SyntaxError,
-                &format!("Expected {} but got {:?}", message, current_token),
-            ));
-        }
-
-        Ok(())
-    }
-    //
-    // fn peek(&mut self) -> TeraResult<Token<'a>> {
-    //     match self.lexer.peek()? {
-    //
-    //     }
-    // }
-
     /// Can be just an ident or a macro call/fn
     fn parse_ident(&mut self, ident: &str) -> TeraResult<Expression> {
-        // TODO: handle things not allowed in various context (eg hello["hey"](ho))
         let mut start_span = self.current_span.clone();
         // We might not end up using that one if it's a macro or a fn call
         let mut expr = Expression::Var(Spanned::new(
@@ -147,7 +133,7 @@ impl<'a> Parser<'a> {
         ));
 
         loop {
-            match self.current {
+            match self.next {
                 Some(Ok((Token::Dot, _))) => {
                     expect_token!(self, Token::Dot, ".")?;
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
@@ -174,30 +160,104 @@ impl<'a> Parser<'a> {
                 }
                 // Function
                 Some(Ok((Token::LeftParen, _))) => {
-                    expect_token!(self, Token::LeftParen, "(")?;
-                    // TODO: parse kwargs
-                    expect_token!(self, Token::RightParen, ")")?;
+                    let kwargs = self.parse_kwargs()?;
+                    expr = Expression::FunctionCall(Spanned::new(
+                        FunctionCall { expr, kwargs },
+                        start_span.clone(),
+                    ));
+                    break;
                 }
                 // Macro calls
                 Some(Ok((Token::Colon, _))) => {
-                    // we expect 2, eg macros::bla
+                    // we expect 2 colons, eg macros::bla()
                     expect_token!(self, Token::Colon, ":")?;
                     expect_token!(self, Token::Colon, ":")?;
                     // Then the macro name
                     let (macro_name, span) =
                         expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    expect_token!(self, Token::LeftParen, "(")?;
-                    // TODO: parse kwargs
-                    expect_token!(self, Token::RightParen, ")")?;
+                    let kwargs = self.parse_kwargs()?;
+                    expr = Expression::MacroCall(Spanned::new(
+                        MacroCall {
+                            name: macro_name.to_string(),
+                            namespace: ident.to_string(),
+                            kwargs,
+                        },
+                        start_span.clone(),
+                    ));
+                    break;
                 }
                 _ => break,
             }
         }
 
-        println!("Expr: {:?}", expr);
-        println!("current: {:?}", self.current);
-
         Ok(expr)
+    }
+
+    fn parse_kwargs(&mut self) -> TeraResult<HashMap<String, Expression>> {
+        let mut kwargs = HashMap::new();
+        expect_token!(self, Token::LeftParen, "(")?;
+
+        loop {
+            if let Some(Ok((Token::RightParen, _))) = self.next {
+                break;
+            }
+
+            let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            // TODO: make it optional for macro default kwargs
+            expect_token!(self, Token::Assign, "=")?;
+            let value = self.parse_expression(0)?;
+            kwargs.insert(arg_name.to_string(), value);
+
+            if let Some(Ok((Token::Comma, _))) = self.next {
+                self.next_or_error()?;
+            }
+        }
+
+        expect_token!(self, Token::RightParen, ")")?;
+
+        Ok(kwargs)
+    }
+
+    fn parse_test(&mut self) -> TeraResult<Expression> {
+        let (name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let mut args = Vec::new();
+
+        // We have potentially args to handle
+        if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
+            self.next_or_error()?;
+
+            if !matches!(self.next, Some(Ok((Token::RightParen, _)))) {
+                loop {
+                    args.push(self.parse_expression(0)?);
+
+                    // after an arg we have either a `,` or a `)`
+                    match self.next {
+                        Some(Ok((Token::RightParen, _))) => {
+                            break;
+                        }
+                        Some(Ok((Token::Comma, _))) => {
+                            self.next_or_error()?;
+
+                            // trailing comma
+                            if let Some(Ok((Token::RightParen, _))) = self.next {
+                                break;
+                            }
+                        }
+                        _ => todo!("handle unexpected tokens in test"),
+                    };
+                }
+            }
+
+            expect_token!(self, Token::RightParen, ")")?;
+        }
+
+        Ok(Expression::Test(Spanned::new(
+            Test {
+                name: name.to_string(),
+                args,
+            },
+            span,
+        )))
     }
 
     fn parse_array(&mut self) -> TeraResult<Vec<Expression>> {
@@ -209,7 +269,7 @@ impl<'a> Parser<'a> {
             }
 
             if !vals.is_empty() {
-                self.expect(Token::Comma, ",")?;
+                expect_token!(self, Token::Comma, ",")?;
             }
 
             // trailing commas
@@ -226,15 +286,15 @@ impl<'a> Parser<'a> {
     fn parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
         let (token, mut span) = self.next_or_error()?;
 
-        let lhs = match token {
-            Token::Integer(i) => Expression::Integer(Spanned::new(i, span)),
-            Token::Float(f) => Expression::Float(Spanned::new(f, span)),
-            Token::String(s) => Expression::Str(Spanned::new(s.to_owned(), span)),
+        let mut lhs = match token {
+            Token::Integer(i) => Expression::Integer(Spanned::new(i, span.clone())),
+            Token::Float(f) => Expression::Float(Spanned::new(f, span.clone())),
+            Token::String(s) => Expression::Str(Spanned::new(s.to_owned(), span.clone())),
             Token::Ident("true") | Token::Ident("True") => {
-                Expression::Bool(Spanned::new(true, span))
+                Expression::Bool(Spanned::new(true, span.clone()))
             }
             Token::Ident("false") | Token::Ident("False") => {
-                Expression::Bool(Spanned::new(false, span))
+                Expression::Bool(Spanned::new(false, span.clone()))
             }
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
@@ -245,14 +305,14 @@ impl<'a> Parser<'a> {
                 let (_, r_bp) = unary_binding_power(op);
                 let expr = self.parse_expression(r_bp)?;
                 span.expand(&self.current_span);
-                Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span))
+                Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
             Token::LeftBracket => {
                 let items = self.parse_array()?;
                 expect_token!(self, Token::RightBracket, "]")?;
                 span.expand(&self.current_span);
-                Expression::Array(Spanned::new(Array { items }, span))
+                Expression::Array(Spanned::new(Array { items }, span.clone()))
             }
             Token::LeftParen => {
                 let mut lhs = self.parse_expression(0)?;
@@ -263,7 +323,126 @@ impl<'a> Parser<'a> {
             _ => todo!("finish expression: {:?}", token),
         };
 
+        let mut negated = false;
+        loop {
+            let op = match &self.next {
+                Some(Ok((token, _))) => {
+                    match token {
+                        Token::Mul => BinaryOperator::Mul,
+                        Token::Div => BinaryOperator::Div,
+                        Token::FloorDiv => BinaryOperator::FloorDiv,
+                        Token::Mod => BinaryOperator::Mod,
+                        Token::Plus => BinaryOperator::Plus,
+                        Token::Minus => BinaryOperator::Minus,
+                        Token::Power => BinaryOperator::Power,
+                        Token::LessThan => BinaryOperator::LessThan,
+                        Token::LessThanOrEqual => BinaryOperator::LessThanOrEqual,
+                        Token::GreaterThan => BinaryOperator::GreaterThan,
+                        Token::GreaterThanOrEqual => BinaryOperator::GreaterThanOrEqual,
+                        Token::Equal => BinaryOperator::Equal,
+                        Token::NotEqual => BinaryOperator::NotEqual,
+                        Token::Tilde => BinaryOperator::StrConcat,
+                        Token::Pipe => BinaryOperator::Pipe,
+                        Token::Ident("not") => {
+                            negated = true;
+                            // eat it and continue
+                            self.next_or_error()?;
+                            continue;
+                            expect_token!(self, Token::Ident("in"), "in")?;
+                            BinaryOperator::In
+                        }
+                        Token::Ident("in") => BinaryOperator::In,
+                        Token::Ident("and") => BinaryOperator::And,
+                        Token::Ident("or") => BinaryOperator::Or,
+                        Token::Ident("is") => BinaryOperator::Is,
+                        _ => break,
+                    }
+                }
+                _ => break,
+            };
+
+            let (l_bp, r_bp) = binary_binding_power(op);
+            if l_bp < min_bp {
+                break;
+            }
+
+            // Advance past the op
+            self.next_or_error()?;
+
+            if matches!(
+                op,
+                BinaryOperator::Is | BinaryOperator::And | BinaryOperator::Or
+            ) {
+                if matches!(self.next, Some(Ok((Token::Ident("not"), _)))) {
+                    // eat the "not"
+                    self.next_or_error()?;
+                    negated = true;
+                }
+            }
+
+            let mut rhs = match op {
+                BinaryOperator::Is => self.parse_test()?,
+                _ => self.parse_expression(r_bp)?,
+            };
+
+            // We can have filters that look like ident (eg hello | upper) so we need to make sure
+            // we have them as fn in the AST
+            if op == BinaryOperator::Pipe {
+                rhs = match rhs {
+                    Expression::Var(s) => {
+                        let node_span = s.span().clone();
+                        Expression::FunctionCall(Spanned::new(
+                            FunctionCall {
+                                expr: Expression::Var(s),
+                                kwargs: HashMap::new(),
+                            },
+                            node_span,
+                        ))
+                    }
+                    _ => rhs,
+                };
+            }
+
+            // TODO: expand span with rhs
+            lhs = Expression::BinaryOperation(Spanned::new(
+                BinaryOperation {
+                    op,
+                    left: lhs,
+                    right: rhs,
+                },
+                span.clone(),
+            ));
+
+            if negated {
+                lhs = Expression::UnaryOperation(Spanned::new(
+                    UnaryOperation {
+                        op: UnaryOperator::Not,
+                        expr: lhs,
+                    },
+                    span.clone(),
+                ));
+                negated = false;
+            }
+        }
+
         Ok(lhs)
+    }
+
+    fn parse_tag(&mut self) -> TeraResult<Node> {
+        let (tag_token, start_span) = self.next_or_error()?;
+        match tag_token {
+            Token::Ident("set") | Token::Ident("set_global") => {
+                let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+                expect_token!(self, Token::Assign, "=")?;
+                let value = self.parse_expression(0)?;
+                Ok(Node::Set(Set {
+                    name: name.to_string(),
+                    value,
+                    global: tag_token == Token::Ident("set_global"),
+                }))
+            }
+            _ => todo!("handle all cases"),
+        }
     }
 
     fn parse_until<F: Fn(&Token) -> bool>(&mut self, end_check_fn: F) -> TeraResult<Vec<Node>> {
@@ -282,7 +461,12 @@ impl<'a> Parser<'a> {
                     expect_token!(self, Token::VariableEnd(..), "}}")?;
                     nodes.push(Node::Expression(expr));
                 }
-                Token::TagStart(_) => {}
+                Token::TagStart(_) => {
+                    let node = self.parse_tag()?;
+                    println!("{:?}", node);
+                    expect_token!(self, Token::TagEnd(..), "%}")?;
+                    nodes.push(node);
+                }
                 _ => unreachable!("Something wrong happened while lexing/parsing"),
             }
         }

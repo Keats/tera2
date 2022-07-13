@@ -7,3 +7,4 @@ TODO:
 - [ ] Delete logos lexer/tests/parser
 - [ ] Polish lexer + parser until it's perfect (eg, allow `\n` in text to avoid some workarounds when building strings)
 - [ ] Investigate minijinja bytecode approach vs AST (more performant probably but error reporting?)
+- [ ] Handle map literals

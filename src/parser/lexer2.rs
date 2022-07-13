@@ -47,12 +47,14 @@ pub(crate) enum Token<'a> {
     Equal,
     NotEqual,
 
-    // Rest
-    Dot,
-    Comma,
+    // specific to Tera
     Tilde,
     Pipe,
     Assign,
+
+    // Rest
+    Dot,
+    Comma,
     Colon,
     Bang,
     LeftBracket,
