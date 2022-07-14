@@ -1,0 +1,140 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&res_nodes"
+---
+[
+    Set {
+        name: "a",
+        value: Integer(
+            1 @ 2:11-2:12 (18..19),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: BinaryOperation(
+            BinaryOperation {
+                op: Pipe,
+                left: BinaryOperation(
+                    BinaryOperation {
+                        op: Plus,
+                        left: Var(
+                            Var {
+                                name: "b",
+                            } @ 3:12-3:13 (35..36),
+                        ),
+                        right: Integer(
+                            1 @ 3:16-3:17 (39..40),
+                        ),
+                    } @ 3:12-3:18 (35..41),
+                ),
+                right: FunctionCall(
+                    FunctionCall {
+                        expr: Var(
+                            Var {
+                                name: "round",
+                            } @ 3:21-3:26 (44..49),
+                        ),
+                        kwargs: {},
+                    } @ 3:21-3:26 (44..49),
+                ),
+            } @ 3:11-3:12 (34..35),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: Str(
+            "hi" @ 4:11-4:15 (64..68),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: MacroCall(
+            MacroCall {
+                namespace: "macros",
+                name: "something",
+                kwargs: {},
+            } @ 5:11-5:17 (83..89),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: FunctionCall(
+            FunctionCall {
+                expr: Var(
+                    Var {
+                        name: "utcnow",
+                    } @ 6:11-6:17 (117..123),
+                ),
+                kwargs: {},
+            } @ 6:11-6:17 (117..123),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: Array(
+            Array {
+                items: [
+                    Integer(
+                        1 @ 7:12-7:13 (141..142),
+                    ),
+                    Bool(
+                        true @ 7:15-7:19 (144..148),
+                    ),
+                    Str(
+                        "hello" @ 7:21-7:28 (150..157),
+                    ),
+                ],
+            } @ 7:11-7:29 (140..158),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: Array(
+            Array {
+                items: [
+                    Integer(
+                        1 @ 8:12-8:13 (174..175),
+                    ),
+                    Bool(
+                        true @ 8:15-8:19 (177..181),
+                    ),
+                    Array(
+                        Array {
+                            items: [
+                                Integer(
+                                    1 @ 8:22-8:23 (184..185),
+                                ),
+                                Integer(
+                                    2 @ 8:24-8:25 (186..187),
+                                ),
+                            ],
+                        } @ 8:21-8:26 (183..188),
+                    ),
+                ],
+            } @ 8:11-8:27 (173..189),
+        ),
+        global: false,
+    },
+    Set {
+        name: "a",
+        value: Integer(
+            1 @ 9:18-9:19 (211..212),
+        ),
+        global: true,
+    },
+    Include {
+        name: "a.html",
+    },
+    Include {
+        name: "a.html",
+    },
+    Include {
+        name: "a.html",
+    },
+]

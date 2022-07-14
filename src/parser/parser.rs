@@ -3,8 +3,8 @@ use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parser::ast2::{
-    Array, BinaryOperation, Expression, FunctionCall, GetAttr, GetItem, MacroCall, Set, Test,
-    UnaryOperation, Var,
+    Array, BinaryOperation, Expression, FunctionCall, GetAttr, GetItem, Include, MacroCall, Set,
+    Test, UnaryOperation, Var,
 };
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
@@ -62,7 +62,9 @@ macro_rules! expect_token {
 }
 
 // TODO: double check what is actually reserved so we can't re-assign them
-const RESERVED_NAMES: [&str; 6] = ["true", "True", "false", "False", "loop", "self"];
+const RESERVED_NAMES: [&str; 11] = [
+    "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in",
+];
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -428,18 +430,34 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn parse_tag(&mut self) -> TeraResult<Node> {
+    fn parse_tag(&mut self) -> TeraResult<Option<Node>> {
         let (tag_token, start_span) = self.next_or_error()?;
         match tag_token {
             Token::Ident("set") | Token::Ident("set_global") => {
                 let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                 expect_token!(self, Token::Assign, "=")?;
                 let value = self.parse_expression(0)?;
-                Ok(Node::Set(Set {
+                Ok(Some(Node::Set(Set {
                     name: name.to_string(),
                     value,
                     global: tag_token == Token::Ident("set_global"),
-                }))
+                })))
+            }
+            Token::Ident("include") => {
+                let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
+                Ok(Some(Node::Include(Include {
+                    name: name.to_string(),
+                })))
+            }
+            Token::Ident("extends") => {
+                let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
+                if self.parent.is_some() {
+                    todo!("error: can't extend multiple template");
+                }
+                // TODO: make it so extends has to be the first tag, maybe in parse_until if nodes
+                // is not empty?
+                self.parent = Some(name.to_string());
+                Ok(None)
             }
             _ => todo!("handle all cases"),
         }
@@ -463,9 +481,10 @@ impl<'a> Parser<'a> {
                 }
                 Token::TagStart(_) => {
                     let node = self.parse_tag()?;
-                    println!("{:?}", node);
                     expect_token!(self, Token::TagEnd(..), "%}")?;
-                    nodes.push(node);
+                    if let Some(n) = node {
+                        nodes.push(n);
+                    }
                 }
                 _ => unreachable!("Something wrong happened while lexing/parsing"),
             }

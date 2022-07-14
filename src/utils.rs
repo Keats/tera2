@@ -1,4 +1,5 @@
 use std::fmt;
+use std::fmt::write;
 use std::ops::{Deref, Range};
 
 #[derive(Clone, PartialEq)]
@@ -38,7 +39,8 @@ impl<T: fmt::Debug> Deref for Spanned<T> {
 
 impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", &self.node)
+        fmt::Debug::fmt(&self.node, f)?;
+        write!(f, "{:?}", self.span)
     }
 }
 

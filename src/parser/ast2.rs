@@ -79,7 +79,7 @@ impl fmt::Display for BinaryOperator {
 }
 
 /// An expression is the node found in variable block, kwargs and conditions.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
     Str(Spanned<String>),
@@ -127,7 +127,7 @@ impl Expression {
     }
 }
 
-impl fmt::Debug for Expression {
+impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
 
@@ -136,70 +136,70 @@ impl fmt::Debug for Expression {
             Integer(i) => write!(f, "{}", **i),
             Float(i) => write!(f, "{}", **i),
             Bool(i) => write!(f, "{}", **i),
-            Array(i) => write!(f, "{:?}", **i),
-            Test(i) => write!(f, "{:?}", **i),
-            MacroCall(i) => write!(f, "{:?}", **i),
-            FunctionCall(i) => write!(f, "{:?}", **i),
-            UnaryOperation(i) => write!(f, "{:?}", **i),
-            BinaryOperation(i) => write!(f, "{:?}", **i),
-            Var(i) => write!(f, "{:?}", **i),
-            GetAttr(i) => write!(f, "{:?}", **i),
-            GetItem(i) => write!(f, "{:?}", **i),
+            Array(i) => write!(f, "{}", **i),
+            Test(i) => write!(f, "{}", **i),
+            MacroCall(i) => write!(f, "{}", **i),
+            FunctionCall(i) => write!(f, "{}", **i),
+            UnaryOperation(i) => write!(f, "{}", **i),
+            BinaryOperation(i) => write!(f, "{}", **i),
+            Var(i) => write!(f, "{}", **i),
+            GetAttr(i) => write!(f, "{}", **i),
+            GetItem(i) => write!(f, "{}", **i),
         }
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UnaryOperation {
     pub op: UnaryOperator,
     pub expr: Expression,
 }
 
-impl fmt::Debug for UnaryOperation {
+impl fmt::Display for UnaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {:?})", self.op, self.expr)
+        write!(f, "({} {})", self.op, self.expr)
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BinaryOperation {
     pub op: BinaryOperator,
     pub left: Expression,
     pub right: Expression,
 }
 
-impl fmt::Debug for BinaryOperation {
+impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({} {:?} {:?})", self.op, self.left, self.right)
+        write!(f, "({} {} {})", self.op, self.left, self.right)
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Array {
     pub items: Vec<Expression>,
 }
 
-impl fmt::Debug for Array {
+impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         for (i, s) in self.items.iter().enumerate() {
             if i == self.items.len() - 1 {
-                write!(f, "{:?}", s)?
+                write!(f, "{}", s)?
             } else {
-                write!(f, "{:?}, ", s)?
+                write!(f, "{}, ", s)?
             }
         }
         write!(f, "]")
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Test {
     pub name: String,
     pub args: Vec<Expression>,
 }
 
-impl fmt::Debug for Test {
+impl fmt::Display for Test {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
 
@@ -207,9 +207,9 @@ impl fmt::Debug for Test {
             write!(f, "{{",)?;
             for (i, s) in self.args.iter().enumerate() {
                 if i == self.args.len() - 1 {
-                    write!(f, "{:?}", s)?
+                    write!(f, "{}", s)?
                 } else {
-                    write!(f, "{:?}, ", s)?
+                    write!(f, "{}, ", s)?
                 }
             }
             write!(f, "}}",)?;
@@ -218,14 +218,14 @@ impl fmt::Debug for Test {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MacroCall {
     pub namespace: String,
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
 }
 
-impl fmt::Debug for MacroCall {
+impl fmt::Display for MacroCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}::{}", self.namespace, self.name)?;
         write!(f, "{{",)?;
@@ -233,32 +233,32 @@ impl fmt::Debug for MacroCall {
         keys.sort();
         for (i, k) in keys.iter().enumerate() {
             if i == self.kwargs.len() - 1 {
-                write!(f, "{}={:?}", k, self.kwargs[*k])?
+                write!(f, "{}={}", k, self.kwargs[*k])?
             } else {
-                write!(f, "{}={:?}, ", k, self.kwargs[*k])?
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
             }
         }
         write!(f, "}}",)
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub expr: Expression,
     pub kwargs: HashMap<String, Expression>,
 }
 
-impl fmt::Debug for FunctionCall {
+impl fmt::Display for FunctionCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.expr)?;
+        write!(f, "{}", self.expr)?;
         write!(f, "{{",)?;
         let mut keys = self.kwargs.keys().collect::<Vec<_>>();
         keys.sort();
         for (i, k) in keys.iter().enumerate() {
             if i == self.kwargs.len() - 1 {
-                write!(f, "{}={:?}", k, self.kwargs[*k])?
+                write!(f, "{}={}", k, self.kwargs[*k])?
             } else {
-                write!(f, "{}={:?}, ", k, self.kwargs[*k])?
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
             }
         }
         write!(f, "}}",)
@@ -266,45 +266,45 @@ impl fmt::Debug for FunctionCall {
 }
 
 /// A variable lookup
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Var {
     pub name: String,
 }
 
-impl fmt::Debug for Var {
+impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
 /// An attribute lookup expression.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GetAttr {
     pub expr: Expression,
     pub name: String,
 }
 
-impl fmt::Debug for GetAttr {
+impl fmt::Display for GetAttr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}.{}", self.expr, self.name)
+        write!(f, "{}.{}", self.expr, self.name)
     }
 }
 
 /// An item lookup expression.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GetItem {
     pub expr: Expression,
     pub sub_expr: Expression,
 }
 
-impl fmt::Debug for GetItem {
+impl fmt::Display for GetItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}[{:?}]", self.expr, self.sub_expr)
+        write!(f, "{}[{}]", self.expr, self.sub_expr)
     }
 }
 
 /// Set a variable in the context `{% set val = "hey" %}`
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Set {
     /// The name for that value in the context
     pub name: String,
@@ -315,16 +315,10 @@ pub struct Set {
     pub global: bool,
 }
 
-impl fmt::Debug for Set {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} {} = {:?}",
-            if self.global { "set_global" } else { "set" },
-            self.name,
-            self.value
-        )
-    }
+/// A template to include
+#[derive(Clone, Debug, PartialEq)]
+pub struct Include {
+    pub name: String,
 }
 
 //
@@ -379,11 +373,7 @@ impl fmt::Debug for Set {
 //     pub otherwise: Vec<Node>,
 // }
 //
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct Include {
-//     pub files: Vec<String>,
-//     pub ignore_missing: bool,
-// }
+
 //
 // /// All Tera nodes that can be encountered
 // #[derive(Clone, Debug, PartialEq)]
@@ -409,6 +399,7 @@ pub enum Node {
     Content(String),
     Expression(Expression),
     Set(Set),
+    Include(Include),
 }
 
 impl fmt::Debug for Node {
@@ -416,9 +407,10 @@ impl fmt::Debug for Node {
         use Node::*;
 
         match self {
-            Content(s) => write!(f, "{:?}", s),
-            Expression(e) => write!(f, "{:?}", e),
-            Set(s) => write!(f, "{:?}", s),
+            Content(s) => fmt::Debug::fmt(s, f),
+            Expression(s) => fmt::Debug::fmt(s, f),
+            Set(s) => fmt::Debug::fmt(s, f),
+            Include(s) => fmt::Debug::fmt(s, f),
         }
     }
 }
