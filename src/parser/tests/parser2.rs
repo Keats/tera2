@@ -59,6 +59,15 @@ fn test_parser_tags_success() {
 }
 
 #[test]
+fn test_parser_macro_def_success() {
+    let contents =
+        std::fs::read_to_string("src/parser/tests/parser_inputs/success/macro_def.txt").unwrap();
+    let mut parser = Parser::new(&contents);
+    parser.parse().unwrap();
+    insta::assert_debug_snapshot!(&parser.macros);
+}
+
+#[test]
 fn test_parser_extends_success() {
     let mut parser = Parser::new("{% extends 'a.html' %}");
     parser.parse().unwrap();

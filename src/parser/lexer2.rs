@@ -79,6 +79,7 @@ pub(crate) enum Token<'a> {
     String(&'a str),
     Integer(i64),
     Float(f64),
+    Bool(bool),
 
     // math
     Mul,
@@ -131,6 +132,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::String(s) => write!(f, "STRING({:?})", s),
             Token::Integer(i) => write!(f, "INTEGER({:?})", i),
             Token::Float(v) => write!(f, "FLOAT({:?})", v),
+            Token::Bool(v) => write!(f, "BOOL({:?})", v),
             Token::Plus => write!(f, "PLUS"),
             Token::Minus => write!(f, "MINUS"),
             Token::Mul => write!(f, "MUL"),
@@ -486,6 +488,14 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     .count();
                 if ident_len > 0 {
                     let ident = advance!(ident_len);
+
+                    if ident == "true" || ident == "True" {
+                        return Some(Ok((Token::Bool(true), make_span!(start_loc))));
+                    }
+                    if ident == "false" || ident == "False" {
+                        return Some(Ok((Token::Bool(false), make_span!(start_loc))));
+                    }
+
                     return Some(Ok((Token::Ident(ident), make_span!(start_loc))));
                 }
 

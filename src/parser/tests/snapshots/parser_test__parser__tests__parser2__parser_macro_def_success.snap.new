@@ -1,0 +1,26 @@
+---
+source: src/parser/tests/parser2.rs
+assertion_line: 67
+expression: "&parser.macros"
+---
+{
+    "popup": MacroDefinition {
+        name: "popup",
+        kwargs: {},
+        body: [
+            "hello",
+        ],
+    },
+    "another": MacroDefinition {
+        name: "another",
+        kwargs: {
+            "hey": Some(
+                'ho',
+            ),
+            "optional": None,
+        },
+        body: [
+            "hello",
+        ],
+    },
+}

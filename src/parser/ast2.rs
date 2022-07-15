@@ -383,15 +383,16 @@ pub struct FilterSection {
     pub body: Vec<Node>,
 }
 
-// /// A Macro definition `{% macro hello() %}...{% endmacro %}`
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct MacroDefinition {
-//     pub name: String,
-//     /// The args for that macro: name -> optional default value
-//     pub kwargs: HashMap<String, Option<SpannedExpression>>,
-//     pub body: Vec<Node>,
-// }
-//
+/// A Macro definition `{% macro hello() %}...{% endmacro %}`
+/// Not present in the AST, we extract them during parsing
+#[derive(Clone, Debug, PartialEq)]
+pub struct MacroDefinition {
+    pub name: String,
+    /// The args for that macro: name -> optional default value
+    /// Expression for default args can only be literals
+    pub kwargs: HashMap<String, Option<Expression>>,
+    pub body: Vec<Node>,
+}
 
 /// A forloop: can be over values or key/values
 #[derive(Clone, Debug, PartialEq)]
@@ -408,7 +409,7 @@ pub struct ForLoop {
     pub else_body: Vec<Node>,
 }
 
-// TODO: use spanned as well? here?
+// TODO: use spanned as well here?
 #[derive(Clone, PartialEq)]
 pub enum Node {
     Content(String),

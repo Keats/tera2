@@ -4,7 +4,7 @@ use std::iter::Peekable;
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parser::ast2::{
     Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
-    GetItem, If, Include, MacroCall, Set, Test, UnaryOperation, Var,
+    GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
 };
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
@@ -79,6 +79,8 @@ pub struct Parser<'a> {
     // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
     // while parsing
     pub blocks: HashMap<String, Vec<Node>>,
+    // (name, def)
+    pub macros: HashMap<String, MacroDefinition>,
     // (file, namespace)
     pub macro_imports: Vec<(String, String)>,
 }
@@ -93,6 +95,7 @@ impl<'a> Parser<'a> {
             current_span: Span::default(),
             parent: None,
             blocks: HashMap::new(),
+            macros: HashMap::new(),
             macro_imports: Vec::new(),
         }
     }
@@ -285,12 +288,7 @@ impl<'a> Parser<'a> {
             Token::Integer(i) => Expression::Integer(Spanned::new(i, span.clone())),
             Token::Float(f) => Expression::Float(Spanned::new(f, span.clone())),
             Token::String(s) => Expression::Str(Spanned::new(s.to_owned(), span.clone())),
-            Token::Ident("true") | Token::Ident("True") => {
-                Expression::Bool(Spanned::new(true, span.clone()))
-            }
-            Token::Ident("false") | Token::Ident("False") => {
-                Expression::Bool(Spanned::new(false, span.clone()))
-            }
+            Token::Bool(b) => Expression::Bool(Spanned::new(b, span.clone())),
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -501,6 +499,76 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        expect_token!(self, Token::LeftParen, "(")?;
+        let mut kwargs = HashMap::new();
+
+        loop {
+            if matches!(self.next, Some(Ok((Token::RightParen, _)))) {
+                self.next_or_error()?;
+                break;
+            }
+
+            let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            kwargs.insert(arg_name.to_string(), None);
+            match self.next {
+                Some(Ok((Token::Assign, _))) => {
+                    self.next_or_error()?;
+
+                    let val = match &self.next {
+                        Some(Ok((Token::Bool(b), span))) => {
+                            Expression::Bool(Spanned::new(*b, span.clone()))
+                        }
+                        Some(Ok((Token::String(b), span))) => {
+                            Expression::Str(Spanned::new(b.to_string(), span.clone()))
+                        }
+                        Some(Ok((Token::Integer(b), span))) => {
+                            Expression::Integer(Spanned::new(*b, span.clone()))
+                        }
+                        Some(Ok((Token::Float(b), span))) => {
+                            Expression::Float(Spanned::new(*b, span.clone()))
+                        }
+                        t => todo!("Unexpected token {:?} while looking macro def kwargs", t),
+                    };
+                    self.next_or_error()?;
+
+                    kwargs.insert(arg_name.to_string(), Some(val));
+
+                    if matches!(self.next, Some(Ok((Token::Comma, _)))) {
+                        self.next_or_error()?;
+                        continue;
+                    }
+                }
+                Some(Ok((Token::Comma, _))) => {
+                    self.next_or_error()?;
+                }
+                _ => continue,
+            }
+        }
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+        let body = self.parse_until(|tok| matches!(tok, Token::Ident("endmacro")))?;
+        self.next_or_error()?;
+
+        if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
+            let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            if name != end_name {
+                todo!(
+                    "Invalid name to end the macro def, got {} expected {}",
+                    end_name,
+                    name
+                );
+            }
+        }
+        println!("Defined macro");
+
+        Ok(MacroDefinition {
+            name: name.to_string(),
+            kwargs,
+            body,
+        })
+    }
+
     fn parse_tag(&mut self) -> TeraResult<Option<Node>> {
         let (tag_token, start_span) = self.next_or_error()?;
         match tag_token {
@@ -586,9 +654,13 @@ impl<'a> Parser<'a> {
                     span,
                 ));
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
-                println!("here");
                 self.next_or_error()?;
                 Ok(Some(Node::FilterSection(FilterSection { filter, body })))
+            }
+            Token::Ident("macro") => {
+                let macro_def = self.parse_macro_definition()?;
+                self.macros.insert(macro_def.name.clone(), macro_def);
+                Ok(None)
             }
 
             _ => todo!("handle all cases"),
