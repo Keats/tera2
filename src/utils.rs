@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fmt::write;
 use std::ops::{Deref, Range};
 
 #[derive(Clone, PartialEq)]

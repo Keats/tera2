@@ -5,6 +5,52 @@ use crate::utils::Span;
 
 // handwritten lexer, peekable iterator taken from minijinja
 
+fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+/// Will try to go over `-? {name} -?%}`.
+/// Returns None if the name doesn't match the tag or the (offset, ws) tuple for the end of the tag
+fn skip_tag(block_str: &str, name: &str) -> Option<(usize, bool)> {
+    let mut ptr = block_str;
+
+    if let Some(rest) = ptr.strip_prefix('-') {
+        ptr = rest;
+    }
+    while let Some(rest) = ptr.strip_prefix(|x: char| x.is_ascii_whitespace()) {
+        ptr = rest;
+    }
+
+    ptr = ptr.strip_prefix(name)?;
+
+    while let Some(rest) = ptr.strip_prefix(|x: char| x.is_ascii_whitespace()) {
+        ptr = rest;
+    }
+    let mut outer_ws = false;
+    if let Some(rest) = ptr.strip_prefix('-') {
+        ptr = rest;
+        outer_ws = true;
+    }
+    ptr = ptr.strip_prefix("%}")?;
+
+    Some((block_str.len() - ptr.len(), outer_ws))
+}
+
+/// We want to find the next time we see `{{`, `{%` or `{#`
+fn find_start_marker(tpl: &str) -> Option<usize> {
+    let bytes = tpl.as_bytes();
+    let mut offset = 0;
+    loop {
+        let idx = &bytes[offset..].iter().position(|&x| x == b'{')?;
+        if let Some(b'{') | Some(b'%') | Some(b'#') = bytes.get(offset + idx + 1) {
+            return Some(offset + idx);
+        }
+        offset += idx + 1;
+    }
+}
+
 enum State {
     /// Anything not in the other two states
     Template,
@@ -17,6 +63,10 @@ enum State {
 #[derive(PartialEq)]
 pub(crate) enum Token<'a> {
     Content(&'a str),
+    // We handle the raw tag in the lexer but we have to emit a single token for it
+    // so this is equivalent to `TagStart(bool), Content(&'a str), TagEnd(bool)`
+    // This token will never appear in the parser
+    RawContent(bool, &'a str, bool),
 
     VariableStart(bool),
     VariableEnd(bool),
@@ -69,6 +119,9 @@ impl<'a> fmt::Debug for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Token::Content(s) => write!(f, "CONTENT({:?})", s),
+            Token::RawContent(ws_start, s, ws_end) => {
+                write!(f, "RAW_CONTENT({}, {:?}, {})", ws_start, s, ws_end)
+            }
             Token::VariableStart(ws) => write!(f, "VARIABLE_START({})", ws),
             Token::VariableEnd(ws) => write!(f, "VARIABLE_END({})", ws),
             Token::TagStart(ws) => write!(f, "TAG_START({})", ws),
@@ -105,21 +158,6 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::LeftBrace => write!(f, "LEFT_BRACE"),
             Token::RightBrace => write!(f, "RIGHT_BRACE"),
         }
-    }
-}
-
-// TODO: derive stuff for Token
-
-/// We want to find the next time we see `{{`, `{%` or `{#`
-fn find_start_marker(tpl: &str) -> Option<usize> {
-    let bytes = tpl.as_bytes();
-    let mut offset = 0;
-    loop {
-        let idx = &bytes[offset..].iter().position(|&x| x == b'{')?;
-        if let Some(b'{') | Some(b'%') | Some(b'#') = bytes.get(offset + idx + 1) {
-            return Some(offset + idx);
-        }
-        offset += idx + 1;
     }
 }
 
@@ -268,15 +306,45 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                         return Some(Ok((Token::VariableStart(ws), make_span!(start_loc))));
                     }
                     Some("{%") => {
+                        // If we have a `{% raw %}` block, we ignore everything until we see a `{% endraw %}`
+                        // while still respecting whitespace
                         let ws = check_ws_start!();
+
+                        if let Some((mut offset, end_ws_start_tag)) = skip_tag(&rest, "raw") {
+                            let body_start_offset = offset;
+                            // Then we see whether we find the start of the tag
+                            while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {
+                                let body_end_offset = offset;
+                                offset += block + 2;
+                                // Check if the tag starts with a {%- so we know we need to end trim the body
+                                let start_ws_end_tag =
+                                    rest.as_bytes().get(offset + 1) == Some(&b'-');
+                                if let Some((endraw, ws_end)) = skip_tag(&rest[offset..], "endraw")
+                                {
+                                    let mut result = &rest[body_start_offset..body_end_offset];
+                                    // Then we trim the inner body of the raw tag as needed directly here
+                                    if end_ws_start_tag {
+                                        result = result.trim_start();
+                                    }
+                                    if start_ws_end_tag {
+                                        result = result.trim_end();
+                                    }
+                                    advance!(offset + endraw);
+                                    return Some(Ok((
+                                        Token::RawContent(ws, result, ws_end),
+                                        make_span!(start_loc),
+                                    )));
+                                }
+                            }
+                            syntax_error!("unexpected end of raw block", make_span!(start_loc));
+                        }
+
                         stack.push(State::Tag);
                         return Some(Ok((Token::TagStart(ws), make_span!(start_loc))));
                     }
                     Some("{#") => {
                         let ws_start = check_ws_start!();
-                        if let Some(comment_end) =
-                            rest.as_bytes().windows(2).position(|s| s == b"#}")
-                        {
+                        if let Some(comment_end) = memstr(rest.as_bytes(), b"#}") {
                             let ws_end = rest.as_bytes().get(comment_end - 1) == Some(&b'-');
                             advance!(comment_end + 2);
                             return Some(Ok((
@@ -428,35 +496,42 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
     })
 }
 
-/// Automatically removes whitespace around blocks.
+/// Automatically removes whitespace around blocks when asked.
 fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
     iter: I,
 ) -> impl Iterator<Item = Result<(Token<'a>, Span), Error>> {
     let mut iter = iter.peekable();
     let mut remove_leading_ws = false;
 
-    std::iter::from_fn(move || match iter.next() {
-        Some(Ok((Token::Content(mut data), span))) => {
+    macro_rules! handle_content_tokens {
+        ($data:expr, $span:expr, $remove_leading_ws: expr) => {{
             if remove_leading_ws {
                 remove_leading_ws = false;
-                data = data.trim_start();
+                $data = $data.trim_start();
+            }
+            if $remove_leading_ws {
+                remove_leading_ws = $remove_leading_ws;
             }
 
-            match iter.peek() {
+            if matches!(
+                iter.peek(),
                 Some(Ok((Token::VariableStart(true), _)))
-                | Some(Ok((Token::TagStart(true), _))) => {
-                    data = data.trim_end();
-                }
-                Some(Ok((Token::Comment(ws_start, ws_end), _))) => {
-                    if *ws_start {
-                        data = data.trim_end();
-                    }
-                    remove_leading_ws = *ws_end;
-                }
-                _ => {}
+                    | Some(Ok((Token::TagStart(true), _)))
+                    | Some(Ok((Token::RawContent(true, _, _), _)))
+            ) {
+                $data = $data.trim_end();
             }
 
-            Some(Ok((Token::Content(data), span)))
+            Some(Ok((Token::Content($data), $span)))
+        }};
+    };
+
+    std::iter::from_fn(move || match iter.next() {
+        Some(Ok((Token::Content(mut data), span))) => {
+            handle_content_tokens!(data, span, false)
+        }
+        Some(Ok((Token::RawContent(_, mut data, ws_end), span))) => {
+            handle_content_tokens!(data, span, ws_end)
         }
         rv @ Some(Ok((Token::VariableEnd(true), _)))
         | rv @ Some(Ok((Token::TagStart(true), _))) => {
