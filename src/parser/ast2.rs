@@ -146,19 +146,19 @@ impl fmt::Debug for Expression {
         use Expression::*;
 
         match self {
-            Str(i) => write!(f, "'{}'", **i),
-            Integer(i) => write!(f, "{:?}", **i),
-            Float(i) => write!(f, "{:?}", **i),
-            Bool(i) => write!(f, "{:?}", **i),
-            Array(i) => write!(f, "{:?}", **i),
-            Test(i) => write!(f, "{:?}", **i),
-            MacroCall(i) => write!(f, "{:?}", **i),
-            FunctionCall(i) => write!(f, "{:?}", **i),
-            UnaryOperation(i) => write!(f, "{:?}", **i),
-            BinaryOperation(i) => write!(f, "{:?}", **i),
-            Var(i) => write!(f, "{:?}", **i),
-            GetAttr(i) => write!(f, "{:?}", **i),
-            GetItem(i) => write!(f, "{:?}", **i),
+            Str(i) => fmt::Debug::fmt(i, f),
+            Integer(i) => fmt::Debug::fmt(i, f),
+            Float(i) => fmt::Debug::fmt(i, f),
+            Bool(i) => fmt::Debug::fmt(i, f),
+            Array(i) => fmt::Debug::fmt(i, f),
+            Test(i) => fmt::Debug::fmt(i, f),
+            MacroCall(i) => fmt::Debug::fmt(i, f),
+            FunctionCall(i) => fmt::Debug::fmt(i, f),
+            UnaryOperation(i) => fmt::Debug::fmt(i, f),
+            BinaryOperation(i) => fmt::Debug::fmt(i, f),
+            Var(i) => fmt::Debug::fmt(i, f),
+            GetAttr(i) => fmt::Debug::fmt(i, f),
+            GetItem(i) => fmt::Debug::fmt(i, f),
         }
     }
 }

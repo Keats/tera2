@@ -8,14 +8,21 @@ input_file: src/parser/tests/parser_inputs/success/blocks.txt
         name: "start",
         body: [
             "Hello ",
-            Var { name: "world" },
+            Var {
+                name: "world",
+            } @ 2:8-2:13 (27..32),
             "!",
         ],
     },
     Block {
         name: "second",
         body: [
-            FunctionCall { expr: Var { name: "super" }, kwargs: {} },
+            FunctionCall {
+                expr: Var {
+                    name: "super",
+                } @ 5:31-5:36 (84..89),
+                kwargs: {},
+            } @ 5:31-5:36 (84..89),
         ],
     },
 ]

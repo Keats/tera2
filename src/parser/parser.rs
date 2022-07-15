@@ -35,12 +35,6 @@ fn binary_binding_power(op: BinaryOperator) -> (u8, u8) {
 }
 
 macro_rules! expect_token {
-    ($parser:expr, $expectation:expr) => {{
-        match $parser.next_or_error()? {
-            Some(rv) => Ok(rv),
-            None => Err(Error::new(ErrorKind::SyntaxError, "todo simple expect")),
-        }
-    }};
     ($parser:expr, $match:pat, $expectation:expr) => {{
         match $parser.next_or_error()? {
             (token, span) if matches!(token, $match) => Ok((token, span)),
@@ -560,7 +554,6 @@ impl<'a> Parser<'a> {
                 );
             }
         }
-        println!("Defined macro");
 
         Ok(MacroDefinition {
             name: name.to_string(),
@@ -662,8 +655,17 @@ impl<'a> Parser<'a> {
                 self.macros.insert(macro_def.name.clone(), macro_def);
                 Ok(None)
             }
+            Token::Ident("import") => {
+                // {% import 'macros.html' as macros %}
+                let (filename, _) = expect_token!(self, Token::String(s) => s, "string")?;
+                expect_token!(self, Token::Ident("as"), "as")?;
+                let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                self.macro_imports
+                    .push((filename.to_string(), namespace.to_string()));
 
-            _ => todo!("handle all cases"),
+                Ok(None)
+            }
+            _ => todo!("all cases handled?"),
         }
     }
 

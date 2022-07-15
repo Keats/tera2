@@ -7,32 +7,38 @@ input_file: src/parser/tests/parser_inputs/success/if.txt
     If {
         conditions: [
             (
-                true,
+                true @ 1:6-1:10 (6..10),
                 [
                     "Hello",
                 ],
             ),
             (
-                false,
+                false @ 1:30-1:35 (30..35),
                 [
                     "otherwise",
                 ],
             ),
             (
-                Var { name: "b" },
+                Var {
+                    name: "b",
+                } @ 1:57-1:58 (57..58),
                 [
                     "ELIF",
                 ],
             ),
         ],
         else_body: [
-            Var { name: "world" },
+            Var {
+                name: "world",
+            } @ 1:79-1:84 (79..84),
         ],
     },
     If {
         conditions: [
             (
-                Var { name: "something" },
+                Var {
+                    name: "something",
+                } @ 2:6-2:15 (106..115),
                 [
                     "hello",
                 ],
@@ -43,7 +49,9 @@ input_file: src/parser/tests/parser_inputs/success/if.txt
     If {
         conditions: [
             (
-                Var { name: "something" },
+                Var {
+                    name: "something",
+                } @ 3:6-3:15 (141..150),
                 [
                     "hello",
                 ],

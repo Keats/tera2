@@ -1,6 +1,9 @@
-use crate::parser::ast2::{Expression, Node};
-use crate::parser::parser::Parser;
+use std::collections::HashMap;
 use std::fmt;
+
+use crate::parser::ast2::{Expression, MacroDefinition, Node};
+use crate::parser::parser::Parser;
+use crate::utils::{Span, Spanned};
 
 struct Expressions(pub Vec<Expression>);
 
@@ -60,11 +63,44 @@ fn test_parser_tags_success() {
 
 #[test]
 fn test_parser_macro_def_success() {
-    let contents =
-        std::fs::read_to_string("src/parser/tests/parser_inputs/success/macro_def.txt").unwrap();
-    let mut parser = Parser::new(&contents);
-    parser.parse().unwrap();
-    insta::assert_debug_snapshot!(&parser.macros);
+    let tests = vec![
+        (
+            "{% macro popup() -%} hello {%- endmacro %}",
+            MacroDefinition {
+                name: "popup".to_string(),
+                kwargs: HashMap::new(),
+                body: vec![Node::Content("hello".to_owned())],
+            },
+        ),
+        (
+            "{% macro another(hey='ho', optional) -%} hello {%- endmacro another %}",
+            MacroDefinition {
+                name: "another".to_owned(),
+                kwargs: {
+                    let mut kwargs = HashMap::new();
+                    let mut span = Span::default();
+                    span.start_line = 1;
+                    span.start_col = 21;
+                    span.end_line = 1;
+                    span.end_col = 25;
+                    span.range = 21..25;
+                    kwargs.insert(
+                        "hey".to_owned(),
+                        Some(Expression::Str(Spanned::new("ho".to_string(), span))),
+                    );
+                    kwargs.insert("optional".to_owned(), None);
+                    kwargs
+                },
+                body: vec![Node::Content("hello".to_owned())],
+            },
+        ),
+    ];
+
+    for (t, expected) in tests {
+        let mut parser = Parser::new(t);
+        parser.parse().unwrap();
+        assert_eq!(parser.macros[&expected.name], expected);
+    }
 }
 
 #[test]
@@ -72,6 +108,16 @@ fn test_parser_extends_success() {
     let mut parser = Parser::new("{% extends 'a.html' %}");
     parser.parse().unwrap();
     assert_eq!(parser.parent, Some("a.html".to_string()));
+}
+
+#[test]
+fn test_parser_macro_import_success() {
+    let mut parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
+    parser.parse().unwrap();
+    assert_eq!(
+        parser.macro_imports,
+        vec![("macros.html".to_string(), "macros".to_string())]
+    );
 }
 
 // #[test]

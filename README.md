@@ -8,8 +8,8 @@ TODO:
   - [x] for loop
   - [x] if/elif/else
   - [x] filter section
-  - [ ] macro definition
-  - [ ] macro imports
+  - [x] macro definition
+  - [x] macro imports
 - [ ] Delete logos lexer/tests/parser
 - [ ] Adds lots of tests, some with insta some without + including error reporting
   - [ ] Handle extends not being the first tag as error
