@@ -1,0 +1,5 @@
+{% for v in my_array -%} {{ v }}{%- endfor %}
+{% for v in [1, 2,] -%} {{ v }}{%- endfor %}
+{% for v in 'hello' -%} {{ v }}{%- endfor %}
+{% for v in my_array | sort -%} {{ v }}{% else %}Empty{%- endfor %}
+{% for k, v in obj -%} {{ v }}{% else %}Empty{%- endfor %}

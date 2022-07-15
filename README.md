@@ -5,7 +5,7 @@ TODO:
 - [ ] Start writing parser, copying most of parser.rs probably
   - [x] raw
   - [x] block
-  - [ ] for loop
+  - [x] for loop
   - [ ] if/elif/else
   - [ ] macro definition
 - [ ] Adds lots of tests, some with insta some without -> including error reporting

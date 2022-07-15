@@ -39,7 +39,10 @@ fn test_parser_tags_success() {
         let nodes = &Parser::new(&contents).parse().unwrap();
         let mut res_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
-            if matches!(node, Node::Set(..) | Node::Include(..) | Node::Block(..)) {
+            if matches!(
+                node,
+                Node::Set(..) | Node::Include(..) | Node::Block(..) | Node::ForLoop(..)
+            ) {
                 res_nodes.push(node);
             }
         }
@@ -53,7 +56,6 @@ fn test_parser_extends_success() {
     parser.parse().unwrap();
     assert_eq!(parser.parent, Some("a.html".to_string()));
 }
-
 
 // #[test]
 // fn test_lexer_errors() {

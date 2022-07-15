@@ -3,4 +3,56 @@ source: src/parser/tests/parser2.rs
 expression: "&res_nodes"
 input_file: src/parser/tests/parser_inputs/success/for.txt
 ---
-[]
+[
+    ForLoop {
+        key: None,
+        value: "v",
+        target: Var { name: "my_array" },
+        body: [
+            Var { name: "v" },
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: Array { items: [1, 2] },
+        body: [
+            Var { name: "v" },
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: 'hello',
+        body: [
+            Var { name: "v" },
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: BinaryOperation { op: Pipe, left: Var { name: "my_array" }, right: FunctionCall { expr: Var { name: "sort" }, kwargs: {} } },
+        body: [
+            Var { name: "v" },
+        ],
+        else_body: [
+            "Empty",
+        ],
+    },
+    ForLoop {
+        key: Some(
+            "v",
+        ),
+        value: "k",
+        target: Var { name: "obj" },
+        body: [
+            Var { name: "v" },
+        ],
+        else_body: [
+            "Empty",
+        ],
+    },
+]

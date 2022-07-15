@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parser::ast2::{Array, BinaryOperation, Block, Expression, FunctionCall, GetAttr, GetItem, Include, MacroCall, Set, Test, UnaryOperation, Var};
+use crate::parser::ast2::{
+    Array, BinaryOperation, Block, Expression, ForLoop, FunctionCall, GetAttr, GetItem, Include,
+    MacroCall, Set, Test, UnaryOperation, Var,
+};
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
 use crate::utils::{Span, Spanned};
@@ -60,7 +63,8 @@ macro_rules! expect_token {
 
 // TODO: double check what is actually reserved so we can't re-assign them
 const RESERVED_NAMES: [&str; 13] = [
-    "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in", "continue", "break",
+    "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in", "continue",
+    "break",
 ];
 
 pub struct Parser<'a> {
@@ -90,18 +94,6 @@ impl<'a> Parser<'a> {
             parent: None,
             blocks: HashMap::new(),
             macro_imports: Vec::new(),
-        }
-    }
-
-    fn current(&mut self) -> Result<Option<(&Token<'a>, &Span)>, Error> {
-        if self.next.is_none() {
-            self.next()?;
-        }
-
-        match self.next {
-            Some(Ok(ref tok)) => Ok(Some((&tok.0, &tok.1))),
-            Some(Err(_)) => Err(self.next.take().unwrap().unwrap_err()),
-            None => Ok(None),
         }
     }
 
@@ -267,7 +259,7 @@ impl<'a> Parser<'a> {
         let mut vals = Vec::new();
 
         loop {
-            if matches!(self.current()?, Some((Token::RightBracket, _))) {
+            if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
             }
 
@@ -276,7 +268,7 @@ impl<'a> Parser<'a> {
             }
 
             // trailing commas
-            if matches!(self.current()?, Some((Token::RightBracket, _))) {
+            if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
             }
 
@@ -351,8 +343,6 @@ impl<'a> Parser<'a> {
                             // eat it and continue
                             self.next_or_error()?;
                             continue;
-                            expect_token!(self, Token::Ident("in"), "in")?;
-                            BinaryOperator::In
                         }
                         Token::Ident("in") => BinaryOperator::In,
                         Token::Ident("and") => BinaryOperator::And,
@@ -431,6 +421,41 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    fn parse_for_loop(&mut self) -> TeraResult<ForLoop> {
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        // Do we have a key?
+        let mut key = None;
+        if matches!(self.next, Some(Ok((Token::Comma, _)))) {
+            self.next_or_error()?;
+            let (val, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            key = Some(val.to_string());
+        }
+        expect_token!(self, Token::Ident("in"), "in")?;
+        let target = self.parse_expression(0)?;
+        if !target.can_be_iterated_on() {
+            todo!("Handle invalid target in for loops");
+        }
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+        let body =
+            self.parse_until(|tok| matches!(tok, Token::Ident("endfor") | Token::Ident("else")))?;
+        let mut else_body = Vec::new();
+        if matches!(self.next, Some(Ok((Token::Ident("else"), _)))) {
+            self.next_or_error()?;
+            expect_token!(self, Token::TagEnd(..), "%}")?;
+            else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endfor")))?;
+        }
+        // eat the endfor
+        self.next_or_error()?;
+
+        Ok(ForLoop {
+            key,
+            value: name.to_string(),
+            target,
+            body,
+            else_body,
+        })
+    }
+
     fn parse_tag(&mut self) -> TeraResult<Option<Node>> {
         let (tag_token, start_span) = self.next_or_error()?;
         match tag_token {
@@ -481,11 +506,13 @@ impl<'a> Parser<'a> {
                 } else {
                     Ok(Some(Node::Block(Block {
                         name: name.to_string(),
-                        body
+                        body,
                     })))
                 }
-
-
+            }
+            Token::Ident("for") => {
+                let node = self.parse_for_loop()?;
+                Ok(Some(Node::ForLoop(node)))
             }
             _ => todo!("handle all cases"),
         }
@@ -511,7 +538,7 @@ impl<'a> Parser<'a> {
                     let tok = match &self.next {
                         None => todo!("unexpected eof"),
                         Some(Ok((tok, _))) => tok,
-                        e => panic!("got {:?}", e)
+                        e => panic!("got {:?}", e),
                     };
                     if end_check_fn(tok) {
                         return Ok(nodes);

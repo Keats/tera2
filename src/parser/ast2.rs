@@ -108,6 +108,20 @@ impl Expression {
         )
     }
 
+    /// Whether those nodes can be used in for loops
+    pub(crate) fn can_be_iterated_on(&self) -> bool {
+        matches!(
+            self,
+            Expression::Str(..)
+                | Expression::Var(..)
+                | Expression::GetItem(..)
+                | Expression::GetAttr(..)
+                | Expression::Array(..)
+                | Expression::FunctionCall(..)
+                | Expression::BinaryOperation(..)
+        )
+    }
+
     pub fn expand_span(&mut self, span: &Span) {
         match self {
             Expression::Str(s) => s.span_mut().expand(&span),
@@ -343,7 +357,6 @@ pub struct Include {
     pub name: String,
 }
 
-
 /// A block definition
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
@@ -380,22 +393,21 @@ pub struct Block {
 //     pub body: Vec<Node>,
 // }
 //
-// /// A forloop: can be over values or key/values
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct ForLoop {
-//     /// Name of the key in the loop (only when iterating on map-like objects)
-//     pub key: Option<String>,
-//     /// Name of the local variable for the value in the loop
-//     pub value: String,
-//     /// Expression being iterated on
-//     pub container: SpannedExpression,
-//     /// What's in the forloop itself
-//     pub body: Vec<Node>,
-//     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
-//     pub otherwise: Vec<Node>,
-// }
-//
 
+/// A forloop: can be over values or key/values
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForLoop {
+    /// Name of the key in the loop (only when iterating on map-like objects)
+    pub key: Option<String>,
+    /// Name of the local variable for the value in the loop
+    pub value: String,
+    /// Expression being iterated on
+    pub target: Expression,
+    /// What's in the forloop itself
+    pub body: Vec<Node>,
+    /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
+    pub else_body: Vec<Node>,
+}
 
 // TODO: use spanned as well? here?
 #[derive(Clone, PartialEq)]
@@ -405,6 +417,7 @@ pub enum Node {
     Set(Set),
     Include(Include),
     Block(Block),
+    ForLoop(ForLoop),
 }
 
 impl fmt::Debug for Node {
@@ -417,6 +430,7 @@ impl fmt::Debug for Node {
             Set(s) => fmt::Debug::fmt(s, f),
             Include(s) => fmt::Debug::fmt(s, f),
             Block(s) => fmt::Debug::fmt(s, f),
+            ForLoop(s) => fmt::Debug::fmt(s, f),
         }
     }
 }

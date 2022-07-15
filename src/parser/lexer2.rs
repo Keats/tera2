@@ -534,8 +534,7 @@ fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
         Some(Ok((Token::RawContent(_, mut data, ws_end), span))) => {
             handle_content_tokens!(data, span, ws_end)
         }
-        rv @ Some(Ok((Token::VariableEnd(true), _)))
-        | rv @ Some(Ok((Token::TagEnd(true), _))) => {
+        rv @ Some(Ok((Token::VariableEnd(true), _))) | rv @ Some(Ok((Token::TagEnd(true), _))) => {
             remove_leading_ws = true;
             rv
         }
