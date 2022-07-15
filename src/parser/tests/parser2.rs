@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::parser::ast2::{Expression, MacroDefinition, Node};
+use crate::parser::ast::{Expression, MacroDefinition, Node};
 use crate::parser::parser::Parser;
 use crate::utils::{Span, Spanned};
 
@@ -120,6 +120,14 @@ fn test_parser_macro_import_success() {
     );
 }
 
+#[test]
+fn test_parser_templates_success() {
+    insta::glob!("parser_inputs/success/tpl_*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap();
+        insta::assert_debug_snapshot!(&nodes);
+    });
+}
 // #[test]
 // fn test_lexer_errors() {
 //     insta::glob!("parser_inputs/errors/*.txt", |path| {

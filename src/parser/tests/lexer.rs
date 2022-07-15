@@ -1,4 +1,4 @@
-use crate::parser::lexer2::tokenize;
+use crate::parser::lexer::tokenize;
 
 #[test]
 fn test_lexer_ok() {

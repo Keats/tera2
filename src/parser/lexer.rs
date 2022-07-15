@@ -1,20 +1,96 @@
 use std::fmt;
-use std::ops::Range;
 
-use logos::{Lexer, Logos};
+use crate::errors::{Error, ErrorKind};
+use crate::utils::Span;
 
-use crate::parser::errors::{ParsingError, ParsingResult, SpannedParsingError};
+// handwritten lexer, peekable iterator taken from minijinja
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Operator {
+fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+/// Will try to go over `-? {name} -?%}`.
+/// Returns None if the name doesn't match the tag or the (offset, ws) tuple for the end of the tag
+fn skip_tag(block_str: &str, name: &str) -> Option<(usize, bool)> {
+    let mut ptr = block_str;
+
+    if let Some(rest) = ptr.strip_prefix('-') {
+        ptr = rest;
+    }
+    while let Some(rest) = ptr.strip_prefix(|x: char| x.is_ascii_whitespace()) {
+        ptr = rest;
+    }
+
+    ptr = ptr.strip_prefix(name)?;
+
+    while let Some(rest) = ptr.strip_prefix(|x: char| x.is_ascii_whitespace()) {
+        ptr = rest;
+    }
+    let mut outer_ws = false;
+    if let Some(rest) = ptr.strip_prefix('-') {
+        ptr = rest;
+        outer_ws = true;
+    }
+    ptr = ptr.strip_prefix("%}")?;
+
+    Some((block_str.len() - ptr.len(), outer_ws))
+}
+
+/// We want to find the next time we see `{{`, `{%` or `{#`
+fn find_start_marker(tpl: &str) -> Option<usize> {
+    let bytes = tpl.as_bytes();
+    let mut offset = 0;
+    loop {
+        let idx = &bytes[offset..].iter().position(|&x| x == b'{')?;
+        if let Some(b'{') | Some(b'%') | Some(b'#') = bytes.get(offset + idx + 1) {
+            return Some(offset + idx);
+        }
+        offset += idx + 1;
+    }
+}
+
+enum State {
+    /// Anything not in the other two states
+    Template,
+    /// In `{{ ... }}`
+    Variable,
+    /// In `{% ... %}`
+    Tag,
+}
+
+#[derive(PartialEq)]
+pub(crate) enum Token<'a> {
+    Content(&'a str),
+    // We handle the raw tag in the lexer but we have to emit a single token for it
+    // so this is equivalent to `TagStart(bool), Content(&'a str), TagEnd(bool)`
+    // This token will never appear in the parser
+    RawContent(bool, &'a str, bool),
+
+    VariableStart(bool),
+    VariableEnd(bool),
+    TagStart(bool),
+    TagEnd(bool),
+    // (start, end) of ws - never exposed to the parser
+    Comment(bool, bool),
+    Ident(&'a str),
+
+    String(&'a str),
+    Integer(i64),
+    Float(f64),
+    Bool(bool),
+
     // math
     Mul,
     Div,
+    FloorDiv,
     Mod,
-    Add,
-    Sub,
+    Plus,
+    Minus,
+    Power,
 
-    // comparison
+    // logic
     LessThan,
     GreaterThan,
     LessThanOrEqual,
@@ -22,646 +98,468 @@ pub enum Operator {
     Equal,
     NotEqual,
 
-    // rest
-    Not,
-    And,
-    Or,
-    StrConcat,
-    In,
-    Is,
+    // specific to Tera
+    Tilde,
     Pipe,
-}
+    Assign,
 
-impl fmt::Display for Operator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Operator::*;
-
-        let val = match self {
-            Mul => "*",
-            Div => "/",
-            Mod => "%",
-            Add => "+",
-            Sub => "-",
-            LessThan => "<",
-            GreaterThan => ">",
-            LessThanOrEqual => "<=",
-            GreaterThanOrEqual => ">=",
-            Equal => "==",
-            NotEqual => "!=",
-            And => "and",
-            Or => "or",
-            Not => "not",
-            In => "in",
-            Is => "is",
-            StrConcat => "~",
-            Pipe => "|",
-        };
-        write!(f, "{}", val)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Keyword {
-    For,
-    Break,
-    Continue,
-    EndFor,
-    If,
-    Elif,
-    Else,
-    EndIf,
-    Block,
-    Super,
-    EndBlock,
-    Macro,
-    EndMacro,
-    Raw,
-    EndRaw,
-    Include,
-    Filter,
-    EndFilter,
-    Set,
-    SetGlobal,
-    Extends,
-    Import,
-
-    IgnoreMissing,
-    As,
-}
-
-impl fmt::Display for Keyword {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Keyword::*;
-        let val = match self {
-            For => "for",
-            Break => "break",
-            Continue => "continue",
-            EndFor => "endfor",
-            If => "if",
-            Elif => "elif",
-            Else => "else",
-            EndIf => "endif",
-            Block => "block",
-            Super => "super()",
-            EndBlock => "endblock",
-            Macro => "macro",
-            EndMacro => "endmacro",
-            Raw => "raw",
-            EndRaw => "endraw",
-            Include => "include",
-            Filter => "filter",
-            EndFilter => "endfilter",
-            Set => "set",
-            SetGlobal => "set_global",
-            IgnoreMissing => "ignore missing",
-            Extends => "extends",
-            Import => "import",
-            As => "as",
-        };
-        write!(f, "{}", val)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Symbol {
+    // Rest
+    Dot,
+    Comma,
+    Colon,
+    Bang,
     LeftBracket,
     RightBracket,
-    Comma,
-    Dot,
     LeftParen,
     RightParen,
-    Assign,
-    DoubleColumn,
+    LeftBrace,
+    RightBrace,
 }
 
-impl fmt::Display for Symbol {
+impl<'a> fmt::Debug for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Symbol::*;
-        let val = match self {
-            LeftBracket => "[",
-            RightBracket => "]",
-            Comma => ",",
-            Dot => ".",
-            LeftParen => "(",
-            RightParen => ")",
-            Assign => "=",
-            DoubleColumn => "::",
-        };
-        write!(f, "{}", val)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Token {
-    VariableStart(bool),
-    VariableEnd(bool),
-    TagStart(bool),
-    TagEnd(bool),
-    Comment,
-
-    String,
-    Ident,
-    Bool(bool),
-    Integer(i64),
-    Float(f64),
-    Keyword(Keyword),
-    Symbol(Symbol),
-    Op(Operator),
-
-    Error,
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Token::*;
         match self {
-            VariableStart(b) => {
-                if *b {
-                    write!(f, "{{{{-")
-                } else {
-                    write!(f, "{{{{")
-                }
+            Token::Content(s) => write!(f, "CONTENT({:?})", s),
+            Token::RawContent(ws_start, s, ws_end) => {
+                write!(f, "RAW_CONTENT({}, {:?}, {})", ws_start, s, ws_end)
             }
-            VariableEnd(b) => {
-                if *b {
-                    write!(f, "-}}")
-                } else {
-                    write!(f, "}}")
-                }
-            }
-            TagStart(b) => {
-                if *b {
-                    write!(f, "{{%-")
-                } else {
-                    write!(f, "{{%")
-                }
-            }
-            TagEnd(b) => {
-                if *b {
-                    write!(f, "-%}}")
-                } else {
-                    write!(f, "%}}")
-                }
-            }
-            Comment => write!(f, "a comment {{# ... #}}"),
-            Bool(b) => b.fmt(f),
-            Op(op) => op.fmt(f),
-            Symbol(s) => s.fmt(f),
-            Keyword(s) => s.fmt(f),
-            Integer(s) => s.fmt(f),
-            Float(s) => s.fmt(f),
-            String => write!(f, "a string"),
-            Ident => write!(f, "an ident"),
-            Error => write!(f, "an error"),
+            Token::VariableStart(ws) => write!(f, "VARIABLE_START({})", ws),
+            Token::VariableEnd(ws) => write!(f, "VARIABLE_END({})", ws),
+            Token::TagStart(ws) => write!(f, "TAG_START({})", ws),
+            Token::TagEnd(ws) => write!(f, "TAG_END({})", ws),
+            Token::Comment(start, end) => write!(f, "COMMENT({}, {})", start, end),
+            Token::Ident(i) => write!(f, "IDENT({})", i),
+            Token::String(s) => write!(f, "STRING({:?})", s),
+            Token::Integer(i) => write!(f, "INTEGER({:?})", i),
+            Token::Float(v) => write!(f, "FLOAT({:?})", v),
+            Token::Bool(v) => write!(f, "BOOL({:?})", v),
+            Token::Plus => write!(f, "PLUS"),
+            Token::Minus => write!(f, "MINUS"),
+            Token::Mul => write!(f, "MUL"),
+            Token::Div => write!(f, "DIV"),
+            Token::FloorDiv => write!(f, "FLOORDIV"),
+            Token::Power => write!(f, "POWER"),
+            Token::Mod => write!(f, "MOD"),
+            Token::Bang => write!(f, "BANG"),
+            Token::Dot => write!(f, "DOT"),
+            Token::Comma => write!(f, "COMMA"),
+            Token::Colon => write!(f, "COLON"),
+            Token::Tilde => write!(f, "TILDE"),
+            Token::Assign => write!(f, "ASSIGN"),
+            Token::Pipe => write!(f, "PIPE"),
+            Token::Equal => write!(f, "EQ"),
+            Token::NotEqual => write!(f, "NE"),
+            Token::GreaterThan => write!(f, "GT"),
+            Token::GreaterThanOrEqual => write!(f, "GTE"),
+            Token::LessThan => write!(f, "LT"),
+            Token::LessThanOrEqual => write!(f, "LTE"),
+            Token::LeftBracket => write!(f, "LEFT_BRACKET"),
+            Token::RightBracket => write!(f, "RIGHT_BRACKET"),
+            Token::LeftParen => write!(f, "LEFT_PAREN"),
+            Token::RightParen => write!(f, "RIGHT_PAREN"),
+            Token::LeftBrace => write!(f, "LEFT_BRACE"),
+            Token::RightBrace => write!(f, "RIGHT_BRACE"),
         }
     }
 }
 
-impl Token {
-    fn from_content(tok: Content) -> Self {
-        match tok {
-            Content::VariableStart(b) => Self::VariableStart(b),
-            Content::TagStart(b) => Self::TagStart(b),
-            Content::Comment => Self::Comment,
-            Content::Error => Self::Error,
-        }
+fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
+    let mut rest = input;
+    let mut stack = vec![State::Template];
+    let mut current_line = 1;
+    let mut current_col = 0;
+    let mut current_byte = 0;
+    let mut errored = false;
+
+    macro_rules! syntax_error {
+        ($message:expr, $span:expr) => {{
+            errored = true;
+            let mut err = Error::new(ErrorKind::SyntaxError, $message);
+            err.set_span($span);
+            return Some(Err(err));
+        }};
     }
 
-    fn from_in_tag(tok: InTag) -> Self {
-        match tok {
-            InTag::Symbol(s) => Self::Symbol(s),
-            InTag::Keyword(k) => Self::Keyword(k),
-            InTag::Op(op) => Self::Op(op),
-            InTag::Integer(i) => Self::Integer(i),
-            InTag::Float(f) => Self::Float(f),
-            InTag::Bool(b) => Self::Bool(b),
-            InTag::Ident => Self::Ident,
-            InTag::String => Self::String,
-            InTag::Error => Self::Error,
-            InTag::VariableEnd(b) => Self::VariableEnd(b),
-            InTag::TagEnd(b) => Self::TagEnd(b),
-        }
-    }
-}
-
-#[derive(Logos, Debug, PartialEq, Copy, Clone)]
-pub(crate) enum Content {
-    #[token("{{", |_| false)]
-    #[token("{{-", |_| true)]
-    VariableStart(bool),
-    #[token("{%", |_| false)]
-    #[token("{%-", |_| true)]
-    TagStart(bool),
-
-    #[token("{#", |lex| {
-        let len = lex.remainder().find("#}")?;
-        lex.bump(len + 2); // include len of `#}`
-
-        Some(())
-    })]
-    Comment,
-
-    #[regex(r"[^{]+", logos::skip)]
-    #[token("{", logos::skip)]
-    #[error]
-    Error,
-}
-
-impl Content {
-    fn is_tag_start(&self) -> bool {
-        matches!(self, Self::TagStart(_) | Self::VariableStart(_))
-    }
-}
-
-#[derive(Logos, Debug, PartialEq, Copy, Clone)]
-pub(crate) enum InTag {
-    #[token("}}", |_| false)]
-    #[token("-}}", |_| true)]
-    VariableEnd(bool),
-    #[token("%}", |_| false)]
-    #[token("-%}", |_| true)]
-    TagEnd(bool),
-
-    #[token("true", |_| true)]
-    #[token("True", |_| true)]
-    #[token("false", |_| false)]
-    #[token("False", |_| false)]
-    Bool(bool),
-
-    // maths
-    #[token("+", |_| Operator::Add)]
-    #[token("-", |_| Operator::Sub)]
-    #[token("/", |_| Operator::Div)]
-    #[token("*", |_| Operator::Mul)]
-    #[token("%", |_| Operator::Mod)]
-    // comparison
-    #[token("==", |_| Operator::Equal)]
-    #[token("!=", |_| Operator::NotEqual)]
-    #[token(">=", |_| Operator::GreaterThanOrEqual)]
-    #[token("<=", |_| Operator::LessThanOrEqual)]
-    #[token(">", |_| Operator::GreaterThan)]
-    #[token("<", |_| Operator::LessThan)]
-    // and the rest
-    #[token("or", |_| Operator::Or)]
-    #[token("and", |_| Operator::And)]
-    #[token("not", |_| Operator::Not)]
-    #[token("in", |_| Operator::In)]
-    #[token("is", |_| Operator::Is)]
-    #[token("~", |_| Operator::StrConcat)]
-    #[token("|", |_| Operator::Pipe)]
-    Op(Operator),
-
-    #[token("=", |_| Symbol::Assign)]
-    #[token("[", |_| Symbol::LeftBracket)]
-    #[token("]", |_| Symbol::RightBracket)]
-    #[token(",", |_| Symbol::Comma)]
-    #[token(".", |_| Symbol::Dot)]
-    #[token("(", |_| Symbol::LeftParen)]
-    #[token(")", |_| Symbol::RightParen)]
-    #[token("::", |_| Symbol::DoubleColumn)]
-    Symbol(Symbol),
-
-    #[regex("\"(?s:[^\"\\\\]|\\\\.)*\"")]
-    #[regex("'(?s:[^'\\\\]|\\\\.)*'")]
-    #[regex("`(?s:[^`\\\\]|\\\\.)*`")]
-    String,
-    #[regex(r"[_a-zA-Z][_a-zA-Z0-9]*")]
-    Ident,
-    #[regex("-?[0-9]+", |lex| lex.slice().parse())]
-    Integer(i64),
-    #[regex("-?[0-9]+\\.[0-9]+", |lex| lex.slice().parse())]
-    Float(f64),
-
-    #[token("for", |_| Keyword::For)]
-    #[token("break", |_| Keyword::Break)]
-    #[token("continue", |_| Keyword::Continue)]
-    #[token("endfor", |_| Keyword::EndFor)]
-    #[token("if", |_| Keyword::If)]
-    #[token("elif", |_| Keyword::Elif)]
-    #[token("else", |_| Keyword::Else)]
-    #[token("endif", |_| Keyword::EndIf)]
-    #[token("block", |_| Keyword::Block)]
-    #[token("super()", |_| Keyword::Super)]
-    #[token("endblock", |_| Keyword::EndBlock)]
-    #[token("macro", |_| Keyword::Macro)]
-    #[token("endmacro", |_| Keyword::EndMacro)]
-    #[token("raw", |_| Keyword::Raw)]
-    #[token("endraw", |_| Keyword::EndRaw)]
-    #[token("include", |_| Keyword::Include)]
-    #[token("filter", |_| Keyword::Filter)]
-    #[token("endfilter", |_| Keyword::EndFilter)]
-    #[token("set", |_| Keyword::Set)]
-    #[token("set_global", |_| Keyword::SetGlobal)]
-    #[token("ignore missing", |_| Keyword::IgnoreMissing)]
-    #[token("extends", |_| Keyword::Extends)]
-    #[token("import", |_| Keyword::Import)]
-    #[token("as", |_| Keyword::As)]
-    Keyword(Keyword),
-
-    #[regex(r"[ \t\r\n\f]+", logos::skip)]
-    #[error]
-    Error,
-}
-
-impl InTag {
-    fn is_tag_end(&self) -> bool {
-        matches!(self, Self::TagEnd(_) | Self::VariableEnd(_))
-    }
-}
-
-pub(crate) enum LexerKind<'source> {
-    Content(logos::Lexer<'source, Content>),
-    InTag(logos::Lexer<'source, InTag>),
-    Done,
-}
-
-impl<'source> Default for LexerKind<'source> {
-    fn default() -> Self {
-        Self::Done
-    }
-}
-
-pub(crate) struct PeekableLexer<'source> {
-    source: &'source str,
-    lexer: LexerKind<'source>,
-    last: usize,
-    peeked: Option<Option<Token>>,
-    current: Option<Token>,
-}
-
-/// Common error when lexing: we expected something but got nothing
-fn eof_error(last_idx: usize) -> SpannedParsingError {
-    SpannedParsingError::new(ParsingError::UnexpectedEof, last_idx..last_idx)
-}
-
-impl<'source> PeekableLexer<'source> {
-    pub(crate) fn new(source: &'source str) -> Self {
-        Self {
-            source,
-            lexer: LexerKind::Content(Lexer::new(source)),
-            last: 0,
-            peeked: None,
-            current: None,
-        }
-    }
-
-    /// Only used in tests
-    pub(crate) fn new_in_tag(source: &'source str) -> Self {
-        Self {
-            source,
-            lexer: LexerKind::InTag(Lexer::new(source)),
-            last: 0,
-            peeked: None,
-            current: None,
-        }
-    }
-
-    pub(crate) fn peek(&mut self) -> Option<Token> {
-        if self.peeked.is_none() {
-            self.peeked = Some(self.next());
-        }
-        self.peeked.unwrap()
-    }
-
-    /// Drops the next token, meant to be used after peeking
-    pub(crate) fn drop(&mut self) {
-        self.next();
-    }
-
-    pub(crate) fn expect(&mut self, token: Token) -> ParsingResult<()> {
-        match self.next() {
-            Some(t) => {
-                if t != token {
-                    Err(SpannedParsingError::new(
-                        ParsingError::UnexpectedToken(t, vec![token]),
-                        self.span(),
-                    ))
-                } else {
-                    Ok(())
-                }
-            }
-            None => Err(eof_error(self.last_idx())),
-        }
-    }
-
-    pub(crate) fn last_idx(&self) -> usize {
-        self.last
-    }
-
-    pub(crate) fn span(&self) -> Range<usize> {
-        match &self.lexer {
-            LexerKind::Content(l) => l.span(),
-            LexerKind::InTag(l) => l.span(),
-            LexerKind::Done => self.source.len()..self.source.len(),
-        }
-    }
-
-    /// Only called after a `next` call so we know we have something
-    pub(crate) fn current(&self) -> Token {
-        self.current.unwrap()
-    }
-
-    pub(crate) fn slice(&self) -> &str {
-        match &self.lexer {
-            LexerKind::Content(l) => l.slice(),
-            LexerKind::InTag(l) => l.slice(),
-            LexerKind::Done => unreachable!(),
-        }
-    }
-
-    pub(crate) fn slice_before(&self) -> &str {
-        let start = self.span().start;
-        &self.source[self.last..start]
-    }
-
-    pub(crate) fn slice_at(&self, span: Range<usize>) -> &str {
-        &self.source[span.start..span.end]
-    }
-}
-
-impl<'source> Iterator for PeekableLexer<'source> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(peeked) = self.peeked.take() {
-            self.current = peeked;
-            peeked
-        } else {
-            match std::mem::take(&mut self.lexer) {
-                LexerKind::Content(mut lexer) => {
-                    self.last = lexer.span().end;
-                    let tok = lexer.next()?;
-                    if tok.is_tag_start() {
-                        self.lexer = LexerKind::InTag(lexer.morph());
-                    } else {
-                        self.lexer = LexerKind::Content(lexer);
-                    }
-                    let token = Token::from_content(tok);
-                    self.current = Some(token);
-                    Some(token)
-                }
-                LexerKind::InTag(mut lexer) => {
-                    self.last = lexer.span().end;
-                    let tok = lexer.next()?;
-                    if tok.is_tag_end() {
-                        self.lexer = LexerKind::Content(lexer.morph());
-                    } else {
-                        self.lexer = LexerKind::InTag(lexer);
-                    }
-                    let token = Token::from_in_tag(tok);
-                    self.current = Some(token);
-                    Some(token)
-                }
-                LexerKind::Done => None,
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::ops::Range;
-
-    fn assert_lex(source: &str, tokens: &[(Token, &str, Range<usize>)], in_tag: bool) {
-        let mut lex = if in_tag {
-            PeekableLexer::new_in_tag(source)
-        } else {
-            PeekableLexer::new(source)
+    macro_rules! loc {
+        () => {
+            (current_line, current_col, current_byte)
         };
+    }
 
-        for tuple in tokens {
-            assert_eq!(
-                &(lex.next().expect("Unexpected end"), lex.slice(), lex.span()),
-                tuple
-            );
+    macro_rules! make_span {
+        ($start:expr) => {{
+            let (start_line, start_col, start_byte) = $start;
+            Span {
+                start_line,
+                start_col,
+                end_line: current_line,
+                end_col: current_col,
+                range: start_byte..current_byte,
+            }
+        }};
+    }
+
+    macro_rules! advance {
+        ($num_bytes:expr) => {{
+            let (skipped, new_rest) = rest.split_at($num_bytes);
+            for c in skipped.chars() {
+                current_byte += 1;
+                match c {
+                    '\n' => {
+                        current_line += 1;
+                        current_col = 0;
+                    }
+                    _ => current_col += 1,
+                }
+            }
+            rest = new_rest;
+            skipped
+        }};
+    }
+
+    macro_rules! check_ws_start {
+        () => {{
+            if rest.as_bytes().get(2) == Some(&b'-') {
+                advance!(3);
+                true
+            } else {
+                advance!(2);
+                false
+            }
+        }};
+    }
+
+    macro_rules! lex_number {
+        ($is_negative:expr) => {{
+            let start_loc = loc!();
+            let mut is_float = false;
+            let num_len = rest
+                .as_bytes()
+                .iter()
+                .take_while(|&&c| {
+                    if !is_float && c == b'.' {
+                        is_float = true;
+                        true
+                    } else {
+                        c.is_ascii_digit()
+                    }
+                })
+                .count();
+            let num = advance!(num_len);
+            if is_float {
+                return Some(Ok((
+                    Token::Float(match num.parse::<f64>() {
+                        Ok(val) => val * if $is_negative { -1.0 } else { 1.0 },
+                        Err(_) => syntax_error!("Invalid float", make_span!(start_loc)),
+                    }),
+                    make_span!(start_loc),
+                )));
+            } else {
+                return Some(Ok((
+                    Token::Integer(match num.parse::<i64>() {
+                        Ok(val) => val * if $is_negative { -1 } else { 1 },
+                        Err(_) => syntax_error!("Invalid Integer", make_span!(start_loc)),
+                    }),
+                    make_span!(start_loc),
+                )));
+            }
+        }};
+    }
+
+    macro_rules! lex_string {
+        ($delim:expr) => {{
+            let start_loc = loc!();
+            let str_len = rest
+                .as_bytes()
+                .iter()
+                .skip(1)
+                .take_while(|&&c| c != $delim)
+                .count();
+            if rest.as_bytes().get(str_len + 1) != Some(&$delim) {
+                syntax_error!(
+                    &format!(
+                        "String opened with `{0}` is missing its closing `{0}`",
+                        $delim as char
+                    ),
+                    make_span!(start_loc)
+                )
+            }
+            let s = advance!(str_len + 2);
+            return Some(Ok((
+                Token::String(&s[1..s.len() - 1]),
+                make_span!(start_loc),
+            )));
+        }};
+    }
+
+    std::iter::from_fn(move || loop {
+        if rest.is_empty() | errored {
+            return None;
         }
 
-        assert_eq!(lex.next(), None);
-    }
+        let start_loc = loc!();
 
-    #[test]
-    fn can_lex_int() {
-        let tests = vec![
-            ("0", 0),
-            ("10", 10),
-            ("10000", 10000),
-            ("010000", 10000),
-            ("-100", -100),
-        ];
-        for (t, val) in tests {
-            let mut lex = PeekableLexer::new_in_tag(t);
-            assert_eq!(lex.next().unwrap(), Token::Integer(val));
-            assert!(lex.next().is_none());
+        match stack.last() {
+            Some(State::Template) => {
+                match rest.get(..2) {
+                    Some("{{") => {
+                        let ws = check_ws_start!();
+                        stack.push(State::Variable);
+                        return Some(Ok((Token::VariableStart(ws), make_span!(start_loc))));
+                    }
+                    Some("{%") => {
+                        // If we have a `{% raw %}` block, we ignore everything until we see a `{% endraw %}`
+                        // while still respecting whitespace
+                        let ws = check_ws_start!();
+
+                        if let Some((mut offset, end_ws_start_tag)) = skip_tag(&rest, "raw") {
+                            let body_start_offset = offset;
+                            // Then we see whether we find the start of the tag
+                            while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {
+                                let body_end_offset = offset;
+                                offset += block + 2;
+                                // Check if the tag starts with a {%- so we know we need to end trim the body
+                                let start_ws_end_tag =
+                                    rest.as_bytes().get(offset + 1) == Some(&b'-');
+                                if let Some((endraw, ws_end)) = skip_tag(&rest[offset..], "endraw")
+                                {
+                                    let mut result = &rest[body_start_offset..body_end_offset];
+                                    // Then we trim the inner body of the raw tag as needed directly here
+                                    if end_ws_start_tag {
+                                        result = result.trim_start();
+                                    }
+                                    if start_ws_end_tag {
+                                        result = result.trim_end();
+                                    }
+                                    advance!(offset + endraw);
+                                    return Some(Ok((
+                                        Token::RawContent(ws, result, ws_end),
+                                        make_span!(start_loc),
+                                    )));
+                                }
+                            }
+                            syntax_error!("unexpected end of raw block", make_span!(start_loc));
+                        }
+
+                        stack.push(State::Tag);
+                        return Some(Ok((Token::TagStart(ws), make_span!(start_loc))));
+                    }
+                    Some("{#") => {
+                        let ws_start = check_ws_start!();
+                        if let Some(comment_end) = memstr(rest.as_bytes(), b"#}") {
+                            let ws_end = rest.as_bytes().get(comment_end - 1) == Some(&b'-');
+                            advance!(comment_end + 2);
+                            return Some(Ok((
+                                Token::Comment(ws_start, ws_end),
+                                make_span!(start_loc),
+                            )));
+                        } else {
+                            syntax_error!(
+                                "Closing comment tag `#}` not found",
+                                make_span!(start_loc)
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+
+                let text = match find_start_marker(rest) {
+                    Some(start) => advance!(start),
+                    None => advance!(rest.len()),
+                };
+                return Some(Ok((Token::Content(text), make_span!(start_loc))));
+            }
+            Some(State::Variable) | Some(State::Tag) => {
+                // Whitespaces are ignored in there
+                match rest
+                    .as_bytes()
+                    .iter()
+                    .position(|&x| !x.is_ascii_whitespace())
+                {
+                    Some(0) => {} // we got something to parse
+                    Some(offset) => {
+                        advance!(offset); // ignoring some ws
+                        continue;
+                    }
+                    None => {
+                        advance!(rest.len());
+                        continue;
+                    }
+                }
+
+                // First we check if we are the end of a tag/variable, safe unwrap
+                match stack.last().unwrap() {
+                    State::Tag => {
+                        if let Some("-%}") = rest.get(..3) {
+                            stack.pop();
+                            advance!(3);
+                            return Some(Ok((Token::TagEnd(true), make_span!(start_loc))));
+                        }
+                        if let Some("%}") = rest.get(..2) {
+                            stack.pop();
+                            advance!(2);
+                            return Some(Ok((Token::TagEnd(false), make_span!(start_loc))));
+                        }
+                    }
+                    State::Variable => {
+                        if let Some("-}}") = rest.get(..3) {
+                            stack.pop();
+                            advance!(3);
+                            return Some(Ok((Token::VariableEnd(true), make_span!(start_loc))));
+                        }
+                        if let Some("}}") = rest.get(..2) {
+                            stack.pop();
+                            advance!(2);
+                            return Some(Ok((Token::VariableEnd(false), make_span!(start_loc))));
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+
+                // Then the longer operators
+                let op = match rest.as_bytes().get(..2) {
+                    Some(b"//") => Some(Token::FloorDiv),
+                    Some(b"**") => Some(Token::Power),
+                    Some(b"==") => Some(Token::Equal),
+                    Some(b"!=") => Some(Token::NotEqual),
+                    Some(b">=") => Some(Token::GreaterThanOrEqual),
+                    Some(b"<=") => Some(Token::LessThanOrEqual),
+                    _ => None,
+                };
+                if let Some(op) = op {
+                    advance!(2);
+                    return Some(Ok((op, make_span!(start_loc))));
+                }
+
+                // Then the rest of the ops, strings and numbers
+                // strings and numbers will get returned inside the match so only operators are returned
+                let op = match rest.as_bytes().get(0) {
+                    Some(b'+') => Some(Token::Plus),
+                    Some(b'-') => {
+                        if rest.as_bytes().get(1).map_or(false, |x| x.is_ascii_digit()) {
+                            advance!(1);
+                            lex_number!(true);
+                        }
+                        Some(Token::Minus)
+                    }
+                    Some(b'*') => Some(Token::Mul),
+                    Some(b'/') => Some(Token::Div),
+                    Some(b'%') => Some(Token::Mod),
+                    Some(b'!') => Some(Token::Bang),
+                    Some(b'.') => Some(Token::Dot),
+                    Some(b',') => Some(Token::Comma),
+                    Some(b':') => Some(Token::Colon),
+                    Some(b'~') => Some(Token::Tilde),
+                    Some(b'|') => Some(Token::Pipe),
+                    Some(b'=') => Some(Token::Assign),
+                    Some(b'>') => Some(Token::GreaterThan),
+                    Some(b'<') => Some(Token::LessThan),
+                    Some(b'(') => Some(Token::LeftParen),
+                    Some(b')') => Some(Token::RightParen),
+                    Some(b'[') => Some(Token::LeftBracket),
+                    Some(b']') => Some(Token::RightBracket),
+                    Some(b'{') => Some(Token::LeftBrace),
+                    Some(b'}') => Some(Token::RightBrace),
+                    Some(b'\'') => lex_string!(b'\''),
+                    Some(b'"') => lex_string!(b'"'),
+                    Some(b'`') => lex_string!(b'`'),
+                    Some(c) if c.is_ascii_digit() => lex_number!(false),
+                    _ => None,
+                };
+                if let Some(op) = op {
+                    advance!(1);
+                    return Some(Ok((op, make_span!(start_loc))));
+                }
+
+                // Lastly, idents
+                let ident_len = rest
+                    .as_bytes()
+                    .iter()
+                    .enumerate()
+                    .take_while(|&(idx, &c)| {
+                        if c == b'_' {
+                            true
+                        } else if idx == 0 {
+                            c.is_ascii_alphabetic()
+                        } else {
+                            c.is_ascii_alphanumeric()
+                        }
+                    })
+                    .count();
+                if ident_len > 0 {
+                    let ident = advance!(ident_len);
+
+                    if ident == "true" || ident == "True" {
+                        return Some(Ok((Token::Bool(true), make_span!(start_loc))));
+                    }
+                    if ident == "false" || ident == "False" {
+                        return Some(Ok((Token::Bool(false), make_span!(start_loc))));
+                    }
+
+                    return Some(Ok((Token::Ident(ident), make_span!(start_loc))));
+                }
+
+                syntax_error!("Unexpected character", make_span!(start_loc));
+            }
+            None => unreachable!("Lexer should never be in that state"),
         }
+    })
+}
+
+/// Automatically removes whitespace around blocks when asked.
+fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
+    iter: I,
+) -> impl Iterator<Item = Result<(Token<'a>, Span), Error>> {
+    let mut iter = iter.peekable();
+    let mut remove_leading_ws = false;
+
+    macro_rules! handle_content_tokens {
+        ($data:expr, $span:expr, $remove_leading_ws: expr) => {{
+            if remove_leading_ws {
+                remove_leading_ws = false;
+                $data = $data.trim_start();
+            }
+            if $remove_leading_ws {
+                remove_leading_ws = $remove_leading_ws;
+            }
+
+            if matches!(
+                iter.peek(),
+                Some(Ok((Token::VariableStart(true), _)))
+                    | Some(Ok((Token::TagStart(true), _)))
+                    | Some(Ok((Token::Comment(true, _), _)))
+                    | Some(Ok((Token::RawContent(true, _, _), _)))
+            ) {
+                $data = $data.trim_end();
+            }
+
+            Some(Ok((Token::Content($data), $span)))
+        }};
     }
 
-    #[test]
-    fn can_lex_float() {
-        let tests = vec![
-            ("0.0", 0.0),
-            ("10.1", 10.1),
-            ("10000.09", 10000.09),
-            ("010000.12", 10000.12),
-            ("-100.200", -100.2),
-        ];
-        for (t, val) in tests {
-            let mut lex = PeekableLexer::new_in_tag(t);
-            assert_eq!(lex.next().unwrap(), Token::Float(val));
-            assert!(lex.next().is_none());
+    std::iter::from_fn(move || match iter.next() {
+        Some(Ok((Token::Content(mut data), span))) => {
+            handle_content_tokens!(data, span, false)
         }
-    }
-
-    #[test]
-    fn can_lex_ident() {
-        let tests = vec!["hello", "hello_", "hello_1", "HELLO", "_1"];
-        for t in tests {
-            let mut lex = PeekableLexer::new_in_tag(t);
-            assert_eq!(lex.next().unwrap(), Token::Ident);
-            assert!(lex.next().is_none());
+        Some(Ok((Token::RawContent(_, mut data, ws_end), span))) => {
+            handle_content_tokens!(data, span, ws_end)
         }
-    }
-
-    #[test]
-    fn can_lex_all_types_of_strings() {
-        let tests = vec![
-            r#""a string12345""#,
-            r#""a 'string""#,
-            r#""a `string""#,
-            r#""a \"string""#,
-            r#"`a string12345`"#,
-            r#"`a 'string`"#,
-            r#"`a \`string`"#,
-            r#"`a "string`"#,
-            r#"'a string12345'"#,
-            r#"'a \'string'"#,
-            r#"'a `string'"#,
-            r#"'a "string'"#,
-        ];
-        for t in tests {
-            let mut lex = PeekableLexer::new_in_tag(t);
-            assert_eq!(lex.next().unwrap(), Token::String);
-            assert!(lex.next().is_none());
+        rv @ Some(Ok((Token::VariableEnd(true), _))) | rv @ Some(Ok((Token::TagEnd(true), _))) => {
+            remove_leading_ws = true;
+            rv
         }
-    }
-
-    #[test]
-    fn can_lex_comments() {
-        let tests = vec![
-            "{# basic #}",
-            "{# line1 \n line2 #}",
-            "{# #}",
-            "{# 'hey' 1 true +=*/% hello() #}",
-            "{##}",
-            "{###}",
-            "{# some ### comments #}",
-            "{# {# #}",
-        ];
-        for t in tests {
-            let mut lex = PeekableLexer::new(t);
-            assert_eq!(lex.next().unwrap(), Token::Comment);
-            assert!(lex.next().is_none());
+        Some(Ok((Token::Comment(_, true), span))) => {
+            remove_leading_ws = true;
+            // Empty content nodes will get removed by the parser
+            Some(Ok((Token::Content(""), span)))
         }
-    }
+        other => {
+            remove_leading_ws = false;
+            other
+        }
+    })
+}
 
-    #[test]
-    fn can_lex_an_expression() {
-        assert_lex(
-            "name*10+1.0 }}",
-            &[
-                (Token::Ident, "name", 0..4),
-                (Token::Op(Operator::Mul), "*", 4..5),
-                (Token::Integer(10), "10", 5..7),
-                (Token::Op(Operator::Add), "+", 7..8),
-                (Token::Float(1.0), "1.0", 8..11),
-                (Token::VariableEnd(false), "}}", 12..14),
-            ],
-            true,
-        );
-    }
-
-    #[test]
-    fn can_lex_something_like_a_template() {
-        let mut lex =
-            PeekableLexer::new("hello {b} {{-1+1}} {# hey -#} {% if true %} hey{} {%- endif%}");
-        assert_eq!(lex.next().unwrap(), Token::VariableStart(true));
-        assert_eq!(lex.slice_before(), "hello {b} ");
-        assert_eq!(lex.next().unwrap(), Token::Integer(1));
-        assert_eq!(lex.next().unwrap(), Token::Op(Operator::Add));
-        assert_eq!(lex.next().unwrap(), Token::Integer(1));
-        assert_eq!(lex.next().unwrap(), Token::VariableEnd(false));
-        assert_eq!(lex.next().unwrap(), Token::Comment);
-        assert!(lex.slice().starts_with("{#"));
-        assert!(lex.slice().ends_with("-#}"));
-        assert_eq!(lex.next().unwrap(), Token::TagStart(false));
-        assert_eq!(lex.next().unwrap(), Token::Keyword(Keyword::If));
-        assert_eq!(lex.next().unwrap(), Token::Bool(true));
-        assert_eq!(lex.next().unwrap(), Token::TagEnd(false));
-        assert_eq!(lex.next().unwrap(), Token::TagStart(true));
-        assert_eq!(lex.slice_before(), " hey{} ");
-        assert_eq!(lex.next().unwrap(), Token::Keyword(Keyword::EndIf));
-        assert_eq!(lex.next().unwrap(), Token::TagEnd(false));
-
-        assert!(lex.next().is_none());
-    }
+pub(crate) fn tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
+    whitespace_filter(basic_tokenize(input))
 }

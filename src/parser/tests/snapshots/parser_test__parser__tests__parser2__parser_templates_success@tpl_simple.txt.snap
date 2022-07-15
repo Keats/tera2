@@ -1,0 +1,60 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&nodes"
+input_file: src/parser/tests/parser_inputs/success/tpl_simple.txt
+---
+[
+    "<html>\n  <head>\n    <title>",
+    GetAttr {
+        expr: Var {
+            name: "product",
+        } @ 3:14-3:21 (30..37),
+        name: "name",
+    } @ 3:14-3:26 (30..42),
+    "</title>\n  </head>\n  <body>\n    <h1>",
+    GetAttr {
+        expr: Var {
+            name: "product",
+        } @ 6:11-6:18 (84..91),
+        name: "name",
+    } @ 6:11-6:23 (84..96),
+    " - ",
+    BinaryOperation {
+        op: Pipe,
+        left: GetAttr {
+            expr: Var {
+                name: "product",
+            } @ 6:32-6:39 (105..112),
+            name: "manufacturer",
+        } @ 6:32-6:52 (105..125),
+        right: FunctionCall {
+            expr: Var {
+                name: "upper",
+            } @ 6:55-6:60 (128..133),
+            kwargs: {},
+        } @ 6:55-6:60 (128..133),
+    } @ 6:32-6:39 (105..112),
+    "</h1>\n    <p>",
+    GetAttr {
+        expr: Var {
+            name: "product",
+        } @ 7:10-7:17 (152..159),
+        name: "summary",
+    } @ 7:10-7:25 (152..167),
+    "</p>\n    <p>£",
+    BinaryOperation {
+        op: Mul,
+        left: GetAttr {
+            expr: Var {
+                name: "product",
+            } @ 8:11-8:18 (186..193),
+            name: "price",
+        } @ 8:11-8:24 (186..199),
+        right: 1.2 @ 8:27-8:31 (202..206),
+    } @ 8:11-8:18 (186..193),
+    " (VAT inc.)</p>\n    <p>Look at reviews from your friends ",
+    Var {
+        name: "username",
+    } @ 9:44-9:52 (269..277),
+    "</p>\n    <button>Buy!</button>\n  </body>\n</html>",
+]

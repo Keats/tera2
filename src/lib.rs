@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-pub mod parser;
-// pub use parser::Parser;
-mod context;
+
+// mod context;
+mod parser;
 mod errors;
 mod utils;
+pub use parser::Parser;

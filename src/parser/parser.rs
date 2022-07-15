@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parser::ast2::{
+use crate::parser::ast::{
     Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
     GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
 };
-use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
-use crate::parser::lexer2::{tokenize, Token};
+use crate::parser::ast::{BinaryOperator, Node, UnaryOperator};
+use crate::parser::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html

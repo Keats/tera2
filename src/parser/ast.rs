@@ -1,142 +1,341 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::parser::lexer::Operator;
-use crate::utils::Spanned;
+use crate::utils::{Span, Spanned};
 
-/// The various possible literals in variable blocks/squared brackets
-#[derive(Clone, Debug, PartialEq)]
-#[allow(missing_docs)]
-pub enum Literal {
-    Str(String),
-    Integer(i64),
-    Float(f64),
-    Bool(bool),
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnaryOperator {
+    Not,
+    Minus,
 }
 
+impl fmt::Display for UnaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use UnaryOperator::*;
+
+        let val = match self {
+            Minus => "-",
+            Not => "not",
+        };
+        write!(f, "{}", val)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BinaryOperator {
+    // math
+    Mul,
+    Div,
+    Mod,
+    Plus,
+    Minus,
+    FloorDiv,
+    Power,
+
+    // comparison
+    LessThan,
+    GreaterThan,
+    LessThanOrEqual,
+    GreaterThanOrEqual,
+    Equal,
+    NotEqual,
+
+    // rest
+    And,
+    Or,
+    StrConcat,
+    In,
+    Is,
+    Pipe,
+}
+
+impl fmt::Display for BinaryOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use BinaryOperator::*;
+
+        let val = match self {
+            Mul => "*",
+            Power => "**",
+            Div => "/",
+            FloorDiv => "//",
+            Mod => "%",
+            Plus => "+",
+            Minus => "-",
+            LessThan => "<",
+            GreaterThan => ">",
+            LessThanOrEqual => "<=",
+            GreaterThanOrEqual => ">=",
+            Equal => "==",
+            NotEqual => "!=",
+            And => "and",
+            Or => "or",
+            In => "in",
+            Is => "is",
+            StrConcat => "~",
+            Pipe => "|",
+        };
+        write!(f, "{}", val)
+    }
+}
 
 /// An expression is the node found in variable block, kwargs and conditions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
-    Str(String),
-    Integer(i64),
-    Float(f64),
-    Bool(bool),
-    Ident(String),
-    Array(Vec<SpannedExpression>),
-    Test(Test),
-    MacroCall(MacroCall),
-    FunctionCall(FunctionCall),
-    Expr(Operator, Vec<SpannedExpression>),
+    Str(Spanned<String>),
+    Integer(Spanned<i64>),
+    Float(Spanned<f64>),
+    Bool(Spanned<bool>),
+    Array(Spanned<Array>),
+    Var(Spanned<Var>),
+    GetAttr(Spanned<GetAttr>),
+    GetItem(Spanned<GetItem>),
+    Test(Spanned<Test>),
+    MacroCall(Spanned<MacroCall>),
+    FunctionCall(Spanned<FunctionCall>),
+    UnaryOperation(Spanned<UnaryOperation>),
+    BinaryOperation(Spanned<BinaryOperation>),
 }
 
-pub type SpannedExpression = Spanned<Expression>;
+impl Expression {
+    pub(crate) fn is_literal(&self) -> bool {
+        matches!(
+            self,
+            Expression::Str(..)
+                | Expression::Integer(..)
+                | Expression::Float(..)
+                | Expression::Bool(..)
+        )
+    }
+
+    /// Whether those nodes can be used in for loops
+    pub(crate) fn can_be_iterated_on(&self) -> bool {
+        matches!(
+            self,
+            Expression::Str(..)
+                | Expression::Var(..)
+                | Expression::GetItem(..)
+                | Expression::GetAttr(..)
+                | Expression::Array(..)
+                | Expression::FunctionCall(..)
+                | Expression::BinaryOperation(..)
+        )
+    }
+
+    pub fn expand_span(&mut self, span: &Span) {
+        match self {
+            Expression::Str(s) => s.span_mut().expand(&span),
+            Expression::Integer(s) => s.span_mut().expand(&span),
+            Expression::Float(s) => s.span_mut().expand(&span),
+            Expression::Bool(s) => s.span_mut().expand(&span),
+            Expression::Array(s) => s.span_mut().expand(&span),
+            Expression::Test(s) => s.span_mut().expand(&span),
+            Expression::MacroCall(s) => s.span_mut().expand(&span),
+            Expression::FunctionCall(s) => s.span_mut().expand(&span),
+            Expression::UnaryOperation(s) => s.span_mut().expand(&span),
+            Expression::BinaryOperation(s) => s.span_mut().expand(&span),
+            Expression::Var(s) => s.span_mut().expand(&span),
+            Expression::GetAttr(s) => s.span_mut().expand(&span),
+            Expression::GetItem(s) => s.span_mut().expand(&span),
+        }
+    }
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Expression::*;
+
+        match self {
+            Str(i) => fmt::Debug::fmt(i, f),
+            Integer(i) => fmt::Debug::fmt(i, f),
+            Float(i) => fmt::Debug::fmt(i, f),
+            Bool(i) => fmt::Debug::fmt(i, f),
+            Array(i) => fmt::Debug::fmt(i, f),
+            Test(i) => fmt::Debug::fmt(i, f),
+            MacroCall(i) => fmt::Debug::fmt(i, f),
+            FunctionCall(i) => fmt::Debug::fmt(i, f),
+            UnaryOperation(i) => fmt::Debug::fmt(i, f),
+            BinaryOperation(i) => fmt::Debug::fmt(i, f),
+            Var(i) => fmt::Debug::fmt(i, f),
+            GetAttr(i) => fmt::Debug::fmt(i, f),
+            GetItem(i) => fmt::Debug::fmt(i, f),
+        }
+    }
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Expression::*;
+
+        match self {
+            Str(i) => write!(f, "'{}'", **i),
+            Integer(i) => write!(f, "{}", **i),
+            Float(i) => write!(f, "{}", **i),
+            Bool(i) => write!(f, "{}", **i),
+            Array(i) => write!(f, "{}", **i),
+            Test(i) => write!(f, "{}", **i),
+            MacroCall(i) => write!(f, "{}", **i),
+            FunctionCall(i) => write!(f, "{}", **i),
+            UnaryOperation(i) => write!(f, "{}", **i),
+            BinaryOperation(i) => write!(f, "{}", **i),
+            Var(i) => write!(f, "{}", **i),
+            GetAttr(i) => write!(f, "{}", **i),
+            GetItem(i) => write!(f, "{}", **i),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct UnaryOperation {
+    pub op: UnaryOperator,
+    pub expr: Expression,
+}
+
+impl fmt::Display for UnaryOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {})", self.op, self.expr)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BinaryOperation {
+    pub op: BinaryOperator,
+    pub left: Expression,
+    pub right: Expression,
+}
+
+impl fmt::Display for BinaryOperation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({} {} {})", self.op, self.left, self.right)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Array {
+    pub items: Vec<Expression>,
+}
+
+impl fmt::Display for Array {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        for (i, s) in self.items.iter().enumerate() {
+            if i == self.items.len() - 1 {
+                write!(f, "{}", s)?
+            } else {
+                write!(f, "{}, ", s)?
+            }
+        }
+        write!(f, "]")
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Test {
     pub name: String,
-    pub args: Vec<SpannedExpression>,
+    pub args: Vec<Expression>,
+}
+
+impl fmt::Display for Test {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)?;
+
+        if !self.args.is_empty() {
+            write!(f, "{{",)?;
+            for (i, s) in self.args.iter().enumerate() {
+                if i == self.args.len() - 1 {
+                    write!(f, "{}", s)?
+                } else {
+                    write!(f, "{}, ", s)?
+                }
+            }
+            write!(f, "}}",)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MacroCall {
     pub namespace: String,
     pub name: String,
-    pub kwargs: HashMap<String, SpannedExpression>,
+    pub kwargs: HashMap<String, Expression>,
+}
+
+impl fmt::Display for MacroCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.namespace, self.name)?;
+        write!(f, "{{",)?;
+        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
+        keys.sort();
+        for (i, k) in keys.iter().enumerate() {
+            if i == self.kwargs.len() - 1 {
+                write!(f, "{}={}", k, self.kwargs[*k])?
+            } else {
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
+            }
+        }
+        write!(f, "}}",)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
-    pub name: String,
-    pub kwargs: HashMap<String, SpannedExpression>,
+    pub expr: Expression,
+    pub kwargs: HashMap<String, Expression>,
 }
 
-impl SpannedExpression {
-    pub(crate) fn can_be_iterated_on(&self) -> bool {
-        use Expression::*;
-        matches!(
-            self.node,
-            Str(_) | Ident(_) | Array(_) | FunctionCall(_) | Expr(_, _)
-        )
+impl fmt::Display for FunctionCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.expr)?;
+        write!(f, "{{",)?;
+        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
+        keys.sort();
+        for (i, k) in keys.iter().enumerate() {
+            if i == self.kwargs.len() - 1 {
+                write!(f, "{}={}", k, self.kwargs[*k])?
+            } else {
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
+            }
+        }
+        write!(f, "}}",)
     }
 }
 
-impl fmt::Display for SpannedExpression {
+/// A variable lookup
+#[derive(Clone, Debug, PartialEq)]
+pub struct Var {
+    pub name: String,
+}
+
+impl fmt::Display for Var {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Expression::*;
+        write!(f, "{}", self.name)
+    }
+}
 
-        match &self.node {
-            Str(i) => write!(f, "'{}'", i),
-            Integer(i) => write!(f, "{}", i),
-            Float(i) => write!(f, "{}", i),
-            Ident(i) => write!(f, "{}", i),
-            Bool(i) => write!(f, "{}", i),
-            Array(vals) => {
-                write!(f, "[")?;
-                for (i, s) in vals.iter().enumerate() {
-                    if i == vals.len() - 1 {
-                        write!(f, "{}", s)?
-                    } else {
-                        write!(f, "{}, ", s)?
-                    }
-                }
-                write!(f, "]")
-            }
-            Test(t) => {
-                write!(f, "{}", t.name)?;
+/// An attribute lookup expression.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GetAttr {
+    pub expr: Expression,
+    pub name: String,
+}
 
-                if !t.args.is_empty() {
-                    write!(f, "{{",)?;
-                    for (i, s) in t.args.iter().enumerate() {
-                        if i == t.args.len() - 1 {
-                            write!(f, "{}", s)?
-                        } else {
-                            write!(f, "{}, ", s)?
-                        }
-                    }
-                    write!(f, "}}",)?;
-                }
-                Ok(())
-            }
-            MacroCall(mc) => {
-                write!(f, "{}::{}", mc.namespace, mc.name)?;
-                write!(f, "{{",)?;
-                let mut keys = mc.kwargs.keys().collect::<Vec<_>>();
-                keys.sort();
-                for (i, k) in keys.iter().enumerate() {
-                    if i == mc.kwargs.len() - 1 {
-                        write!(f, "{}={}", k, mc.kwargs[*k])?
-                    } else {
-                        write!(f, "{}={}, ", k, mc.kwargs[*k])?
-                    }
-                }
-                write!(f, "}}",)?;
-                Ok(())
-            }
-            FunctionCall(fc) => {
-                write!(f, "{}", fc.name)?;
-                write!(f, "{{",)?;
-                let mut keys = fc.kwargs.keys().collect::<Vec<_>>();
-                keys.sort();
-                for (i, k) in keys.iter().enumerate() {
-                    if i == fc.kwargs.len() - 1 {
-                        write!(f, "{}={}", k, fc.kwargs[*k])?
-                    } else {
-                        write!(f, "{}={}, ", k, fc.kwargs[*k])?
-                    }
-                }
-                write!(f, "}}",)?;
-                Ok(())
-            }
-            Expr(op, rest) => {
-                write!(f, "({}", op)?;
-                for s in rest {
-                    write!(f, " {}", s)?
-                }
-                write!(f, ")")
-            }
-        }
+impl fmt::Display for GetAttr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.expr, self.name)
+    }
+}
+
+/// An item lookup expression.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GetItem {
+    pub expr: Expression,
+    pub sub_expr: Expression,
+}
+
+impl fmt::Display for GetItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[{}]", self.expr, self.sub_expr)
     }
 }
 
@@ -144,12 +343,18 @@ impl fmt::Display for SpannedExpression {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Set {
     /// The name for that value in the context
-    pub key: String,
+    pub name: String,
     /// The value to assign
-    pub value: SpannedExpression,
+    pub value: Expression,
     /// Whether we want to set the variable globally or locally
-    /// global_set is only useful in loops
+    /// set_global is only useful in loops
     pub global: bool,
+}
+
+/// A template to include
+#[derive(Clone, Debug, PartialEq)]
+pub struct Include {
+    pub name: String,
 }
 
 /// A block definition
@@ -165,26 +370,27 @@ pub struct Block {
 #[derive(Clone, Debug, PartialEq)]
 pub struct If {
     /// First item if the if, all the ones after are elif
-    pub conditions: Vec<(SpannedExpression, Vec<Node>)>,
+    pub conditions: Vec<(Expression, Vec<Node>)>,
     /// The optional `else` block
-    pub otherwise: Vec<Node>,
+    pub else_body: Vec<Node>,
 }
 
 /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterSection {
-    pub name: String,
-    pub kwargs: HashMap<String, SpannedExpression>,
+    pub filter: Expression,
     /// The filter body
     pub body: Vec<Node>,
 }
 
 /// A Macro definition `{% macro hello() %}...{% endmacro %}`
+/// Not present in the AST, we extract them during parsing
 #[derive(Clone, Debug, PartialEq)]
 pub struct MacroDefinition {
     pub name: String,
     /// The args for that macro: name -> optional default value
-    pub kwargs: HashMap<String, Option<SpannedExpression>>,
+    /// Expression for default args can only be literals
+    pub kwargs: HashMap<String, Option<Expression>>,
     pub body: Vec<Node>,
 }
 
@@ -196,32 +402,39 @@ pub struct ForLoop {
     /// Name of the local variable for the value in the loop
     pub value: String,
     /// Expression being iterated on
-    pub container: SpannedExpression,
+    pub target: Expression,
     /// What's in the forloop itself
     pub body: Vec<Node>,
     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
-    pub otherwise: Vec<Node>,
+    pub else_body: Vec<Node>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Include {
-    pub files: Vec<String>,
-    pub ignore_missing: bool,
-}
-
-/// All Tera nodes that can be encountered
-#[derive(Clone, Debug, PartialEq)]
+// TODO: use spanned as well here?
+#[derive(Clone, PartialEq)]
 pub enum Node {
-    Text(String),
-    VariableBlock(SpannedExpression),
+    Content(String),
+    Expression(Expression),
     Set(Set),
-    Raw(String),
     Include(Include),
     Block(Block),
-    Super,
-    If(If),
     ForLoop(ForLoop),
-    Continue,
-    Break,
+    If(If),
     FilterSection(FilterSection),
+}
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Node::*;
+
+        match self {
+            Content(s) => fmt::Debug::fmt(s, f),
+            Expression(s) => fmt::Debug::fmt(s, f),
+            Set(s) => fmt::Debug::fmt(s, f),
+            Include(s) => fmt::Debug::fmt(s, f),
+            Block(s) => fmt::Debug::fmt(s, f),
+            ForLoop(s) => fmt::Debug::fmt(s, f),
+            If(s) => fmt::Debug::fmt(s, f),
+            FilterSection(s) => fmt::Debug::fmt(s, f),
+        }
+    }
 }

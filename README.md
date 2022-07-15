@@ -10,7 +10,7 @@ TODO:
   - [x] filter section
   - [x] macro definition
   - [x] macro imports
-- [ ] Delete logos lexer/tests/parser
+- [x] Delete logos lexer/tests/parser
 - [ ] Adds lots of tests, some with insta some without + including error reporting
   - [ ] Handle extends not being the first tag as error
   - [ ] Handle nodes not allowed in certain places (eg macro def inside a macro def)
