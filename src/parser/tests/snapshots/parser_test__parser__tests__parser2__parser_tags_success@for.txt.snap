@@ -1,0 +1,6 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&res_nodes"
+input_file: src/parser/tests/parser_inputs/success/for.txt
+---
+[]

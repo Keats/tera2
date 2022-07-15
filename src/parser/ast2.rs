@@ -79,7 +79,7 @@ impl fmt::Display for BinaryOperator {
 }
 
 /// An expression is the node found in variable block, kwargs and conditions.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
     Str(Spanned<String>),
@@ -123,6 +123,28 @@ impl Expression {
             Expression::Var(s) => s.span_mut().expand(&span),
             Expression::GetAttr(s) => s.span_mut().expand(&span),
             Expression::GetItem(s) => s.span_mut().expand(&span),
+        }
+    }
+}
+
+impl fmt::Debug for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Expression::*;
+
+        match self {
+            Str(i) => write!(f, "'{}'", **i),
+            Integer(i) => write!(f, "{:?}", **i),
+            Float(i) => write!(f, "{:?}", **i),
+            Bool(i) => write!(f, "{:?}", **i),
+            Array(i) => write!(f, "{:?}", **i),
+            Test(i) => write!(f, "{:?}", **i),
+            MacroCall(i) => write!(f, "{:?}", **i),
+            FunctionCall(i) => write!(f, "{:?}", **i),
+            UnaryOperation(i) => write!(f, "{:?}", **i),
+            BinaryOperation(i) => write!(f, "{:?}", **i),
+            Var(i) => write!(f, "{:?}", **i),
+            GetAttr(i) => write!(f, "{:?}", **i),
+            GetItem(i) => write!(f, "{:?}", **i),
         }
     }
 }
@@ -321,16 +343,16 @@ pub struct Include {
     pub name: String,
 }
 
-//
-// /// A block definition
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct Block {
-//     /// The block name
-//     pub name: String,
-//     /// The block content
-//     pub body: Vec<Node>,
-// }
-//
+
+/// A block definition
+#[derive(Clone, Debug, PartialEq)]
+pub struct Block {
+    /// The block name
+    pub name: String,
+    /// The block content
+    pub body: Vec<Node>,
+}
+
 // /// An if/elif/else condition with their respective body
 // #[derive(Clone, Debug, PartialEq)]
 // pub struct If {
@@ -374,24 +396,6 @@ pub struct Include {
 // }
 //
 
-//
-// /// All Tera nodes that can be encountered
-// #[derive(Clone, Debug, PartialEq)]
-// pub enum Node {
-//     Content(String),
-//     VariableBlock(SpannedExpression),
-//     Set(Set),
-//     Raw(String),
-//     Include(Include),
-//     Block(Block),
-//     Super,
-//     If(If),
-//     ForLoop(ForLoop),
-//     // Do those need to be in the AST?
-//     Continue,
-//     Break,
-//     FilterSection(FilterSection),
-// }
 
 // TODO: use spanned as well? here?
 #[derive(Clone, PartialEq)]
@@ -400,6 +404,7 @@ pub enum Node {
     Expression(Expression),
     Set(Set),
     Include(Include),
+    Block(Block),
 }
 
 impl fmt::Debug for Node {
@@ -411,6 +416,7 @@ impl fmt::Debug for Node {
             Expression(s) => fmt::Debug::fmt(s, f),
             Set(s) => fmt::Debug::fmt(s, f),
             Include(s) => fmt::Debug::fmt(s, f),
+            Block(s) => fmt::Debug::fmt(s, f),
         }
     }
 }

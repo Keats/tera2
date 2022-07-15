@@ -1,0 +1,21 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&res_nodes"
+input_file: src/parser/tests/parser_inputs/success/blocks.txt
+---
+[
+    Block {
+        name: "start",
+        body: [
+            "Hello ",
+            Var { name: "world" },
+            "!",
+        ],
+    },
+    Block {
+        name: "second",
+        body: [
+            FunctionCall { expr: Var { name: "super" }, kwargs: {} },
+        ],
+    },
+]

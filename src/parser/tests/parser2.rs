@@ -14,7 +14,7 @@ impl fmt::Display for Expressions {
 
 #[test]
 fn test_parser_expressions_success() {
-    insta::glob!("parser_inputs/success/*.txt", |path| {
+    insta::glob!("parser_inputs/success/{expressions,idents}.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap();
         let mut expr_nodes = Vec::with_capacity(nodes.len());
@@ -34,16 +34,17 @@ fn test_parser_expressions_success() {
 
 #[test]
 fn test_parser_tags_success() {
-    let contents =
-        std::fs::read_to_string("src/parser/tests/parser_inputs/success/tags.txt").unwrap();
-    let nodes = &Parser::new(&contents).parse().unwrap();
-    let mut res_nodes = Vec::with_capacity(nodes.len());
-    for node in nodes {
-        if matches!(node, Node::Set(..) | Node::Include(..)) {
-            res_nodes.push(node);
+    insta::glob!("parser_inputs/success/{tags,blocks,for}.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap();
+        let mut res_nodes = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            if matches!(node, Node::Set(..) | Node::Include(..) | Node::Block(..)) {
+                res_nodes.push(node);
+            }
         }
-    }
-    insta::assert_debug_snapshot!(&res_nodes);
+        insta::assert_debug_snapshot!(&res_nodes);
+    });
 }
 
 #[test]
@@ -52,6 +53,7 @@ fn test_parser_extends_success() {
     parser.parse().unwrap();
     assert_eq!(parser.parent, Some("a.html".to_string()));
 }
+
 
 // #[test]
 // fn test_lexer_errors() {

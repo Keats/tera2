@@ -2,10 +2,7 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parser::ast2::{
-    Array, BinaryOperation, Expression, FunctionCall, GetAttr, GetItem, Include, MacroCall, Set,
-    Test, UnaryOperation, Var,
-};
+use crate::parser::ast2::{Array, BinaryOperation, Block, Expression, FunctionCall, GetAttr, GetItem, Include, MacroCall, Set, Test, UnaryOperation, Var};
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
 use crate::utils::{Span, Spanned};
@@ -62,8 +59,8 @@ macro_rules! expect_token {
 }
 
 // TODO: double check what is actually reserved so we can't re-assign them
-const RESERVED_NAMES: [&str; 11] = [
-    "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in",
+const RESERVED_NAMES: [&str; 13] = [
+    "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in", "continue", "break",
 ];
 
 pub struct Parser<'a> {
@@ -75,6 +72,9 @@ pub struct Parser<'a> {
     current_span: Span,
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
+    // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
+    // while parsing
+    pub blocks: HashMap<String, Vec<Node>>,
     // (file, namespace)
     pub macro_imports: Vec<(String, String)>,
 }
@@ -88,6 +88,7 @@ impl<'a> Parser<'a> {
             next: None,
             current_span: Span::default(),
             parent: None,
+            blocks: HashMap::new(),
             macro_imports: Vec::new(),
         }
     }
@@ -459,6 +460,33 @@ impl<'a> Parser<'a> {
                 self.parent = Some(name.to_string());
                 Ok(None)
             }
+            Token::Ident("block") => {
+                let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+                // TODO: would it matches {{ endblock }}
+                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endblock")))?;
+                self.next_or_error()?;
+                if let Some(Ok((Token::Ident(end_name), _))) = self.next {
+                    self.next_or_error()?;
+                    if end_name != name {
+                        todo!("not matching block names");
+                    }
+                }
+
+                if self.parent.is_some() {
+                    // TODO: error on duplicate blocks, maybe insert an empty vec to keep
+                    // track of which ones has been inserted in all cases?
+                    self.blocks.insert(name.to_string(), body);
+                    Ok(None)
+                } else {
+                    Ok(Some(Node::Block(Block {
+                        name: name.to_string(),
+                        body
+                    })))
+                }
+
+
+            }
             _ => todo!("handle all cases"),
         }
     }
@@ -480,6 +508,14 @@ impl<'a> Parser<'a> {
                     nodes.push(Node::Expression(expr));
                 }
                 Token::TagStart(_) => {
+                    let tok = match &self.next {
+                        None => todo!("unexpected eof"),
+                        Some(Ok((tok, _))) => tok,
+                        e => panic!("got {:?}", e)
+                    };
+                    if end_check_fn(tok) {
+                        return Ok(nodes);
+                    }
                     let node = self.parse_tag()?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
                     if let Some(n) = node {
