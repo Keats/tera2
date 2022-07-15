@@ -312,7 +312,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                         // while still respecting whitespace
                         let ws = check_ws_start!();
 
-                        if let Some((mut offset, end_ws_start_tag)) = skip_tag(&rest, "raw") {
+                        if let Some((mut offset, end_ws_start_tag)) = skip_tag(rest, "raw") {
                             let body_start_offset = offset;
                             // Then we see whether we find the start of the tag
                             while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {

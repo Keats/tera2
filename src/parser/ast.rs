@@ -124,19 +124,19 @@ impl Expression {
 
     pub fn expand_span(&mut self, span: &Span) {
         match self {
-            Expression::Str(s) => s.span_mut().expand(&span),
-            Expression::Integer(s) => s.span_mut().expand(&span),
-            Expression::Float(s) => s.span_mut().expand(&span),
-            Expression::Bool(s) => s.span_mut().expand(&span),
-            Expression::Array(s) => s.span_mut().expand(&span),
-            Expression::Test(s) => s.span_mut().expand(&span),
-            Expression::MacroCall(s) => s.span_mut().expand(&span),
-            Expression::FunctionCall(s) => s.span_mut().expand(&span),
-            Expression::UnaryOperation(s) => s.span_mut().expand(&span),
-            Expression::BinaryOperation(s) => s.span_mut().expand(&span),
-            Expression::Var(s) => s.span_mut().expand(&span),
-            Expression::GetAttr(s) => s.span_mut().expand(&span),
-            Expression::GetItem(s) => s.span_mut().expand(&span),
+            Expression::Str(s) => s.span_mut().expand(span),
+            Expression::Integer(s) => s.span_mut().expand(span),
+            Expression::Float(s) => s.span_mut().expand(span),
+            Expression::Bool(s) => s.span_mut().expand(span),
+            Expression::Array(s) => s.span_mut().expand(span),
+            Expression::Test(s) => s.span_mut().expand(span),
+            Expression::MacroCall(s) => s.span_mut().expand(span),
+            Expression::FunctionCall(s) => s.span_mut().expand(span),
+            Expression::UnaryOperation(s) => s.span_mut().expand(span),
+            Expression::BinaryOperation(s) => s.span_mut().expand(span),
+            Expression::Var(s) => s.span_mut().expand(span),
+            Expression::GetAttr(s) => s.span_mut().expand(span),
+            Expression::GetItem(s) => s.span_mut().expand(span),
         }
     }
 }

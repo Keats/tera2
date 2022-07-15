@@ -1,2 +1,2 @@
 mod lexer;
-mod parser2;
+mod parser;

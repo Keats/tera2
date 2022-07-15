@@ -311,38 +311,34 @@ impl<'a> Parser<'a> {
         };
 
         let mut negated = false;
-        loop {
-            let op = match &self.next {
-                Some(Ok((token, _))) => {
-                    match token {
-                        Token::Mul => BinaryOperator::Mul,
-                        Token::Div => BinaryOperator::Div,
-                        Token::FloorDiv => BinaryOperator::FloorDiv,
-                        Token::Mod => BinaryOperator::Mod,
-                        Token::Plus => BinaryOperator::Plus,
-                        Token::Minus => BinaryOperator::Minus,
-                        Token::Power => BinaryOperator::Power,
-                        Token::LessThan => BinaryOperator::LessThan,
-                        Token::LessThanOrEqual => BinaryOperator::LessThanOrEqual,
-                        Token::GreaterThan => BinaryOperator::GreaterThan,
-                        Token::GreaterThanOrEqual => BinaryOperator::GreaterThanOrEqual,
-                        Token::Equal => BinaryOperator::Equal,
-                        Token::NotEqual => BinaryOperator::NotEqual,
-                        Token::Tilde => BinaryOperator::StrConcat,
-                        Token::Pipe => BinaryOperator::Pipe,
-                        Token::Ident("not") => {
-                            negated = true;
-                            // eat it and continue
-                            self.next_or_error()?;
-                            continue;
-                        }
-                        Token::Ident("in") => BinaryOperator::In,
-                        Token::Ident("and") => BinaryOperator::And,
-                        Token::Ident("or") => BinaryOperator::Or,
-                        Token::Ident("is") => BinaryOperator::Is,
-                        _ => break,
-                    }
+
+        while let Some(Ok((ref token, _))) = self.next {
+            let op = match token {
+                Token::Mul => BinaryOperator::Mul,
+                Token::Div => BinaryOperator::Div,
+                Token::FloorDiv => BinaryOperator::FloorDiv,
+                Token::Mod => BinaryOperator::Mod,
+                Token::Plus => BinaryOperator::Plus,
+                Token::Minus => BinaryOperator::Minus,
+                Token::Power => BinaryOperator::Power,
+                Token::LessThan => BinaryOperator::LessThan,
+                Token::LessThanOrEqual => BinaryOperator::LessThanOrEqual,
+                Token::GreaterThan => BinaryOperator::GreaterThan,
+                Token::GreaterThanOrEqual => BinaryOperator::GreaterThanOrEqual,
+                Token::Equal => BinaryOperator::Equal,
+                Token::NotEqual => BinaryOperator::NotEqual,
+                Token::Tilde => BinaryOperator::StrConcat,
+                Token::Pipe => BinaryOperator::Pipe,
+                Token::Ident("not") => {
+                    negated = true;
+                    // eat it and continue
+                    self.next_or_error()?;
+                    continue;
                 }
+                Token::Ident("in") => BinaryOperator::In,
+                Token::Ident("and") => BinaryOperator::And,
+                Token::Ident("or") => BinaryOperator::Or,
+                Token::Ident("is") => BinaryOperator::Is,
                 _ => break,
             };
 
@@ -354,15 +350,15 @@ impl<'a> Parser<'a> {
             // Advance past the op
             self.next_or_error()?;
 
+            // Whether we get is not/and not/or not
             if matches!(
                 op,
                 BinaryOperator::Is | BinaryOperator::And | BinaryOperator::Or
-            ) {
-                if matches!(self.next, Some(Ok((Token::Ident("not"), _)))) {
-                    // eat the "not"
-                    self.next_or_error()?;
-                    negated = true;
-                }
+            ) && matches!(self.next, Some(Ok((Token::Ident("not"), _))))
+            {
+                // eat the "not"
+                self.next_or_error()?;
+                negated = true;
             }
 
             let mut rhs = match op {
@@ -700,7 +696,7 @@ impl<'a> Parser<'a> {
                         nodes.push(n);
                     }
                 }
-                t @ _ => unreachable!("Unexpected token when parsing: {:?}", t),
+                t => unreachable!("Unexpected token when parsing: {:?}", t),
             }
         }
 
