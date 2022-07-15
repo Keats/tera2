@@ -6,11 +6,13 @@ TODO:
   - [x] raw
   - [x] block
   - [x] for loop
-  - [ ] if/elif/else
+  - [x] if/elif/else
+  - [ ] filter section
   - [ ] macro definition
-- [ ] Adds lots of tests, some with insta some without -> including error reporting
-  - Handle extends not being the first tag as error
-  - Make sure the spans are correct
+- [ ] Adds lots of tests, some with insta some without + including error reporting
+  - [ ] Handle extends not being the first tag as error
+  - [ ] Handle nodes not allowed in certain places
+  - [ ] Make sure the spans are always correct
 - [ ] Delete logos lexer/tests/parser
 - [ ] Polish lexer + parser until it's perfect (eg, allow `\n` in text to avoid some workarounds when building strings)
 - [ ] Investigate minijinja bytecode approach vs AST (more performant probably but error reporting?)

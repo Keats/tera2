@@ -1,0 +1,35 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&res_nodes"
+input_file: src/parser/tests/parser_inputs/success/filter_section.txt
+---
+[
+    FilterSection {
+        filter: FunctionCall { expr: Var { name: "safe" }, kwargs: {} },
+        body: [
+            " hello ",
+        ],
+    },
+    FilterSection {
+        filter: FunctionCall { expr: Var { name: "upper" }, kwargs: {"hey": 1} },
+        body: [
+            "hello",
+        ],
+    },
+    FilterSection {
+        filter: FunctionCall { expr: Var { name: "upper" }, kwargs: {"hey": 1} },
+        body: [
+            If {
+                conditions: [
+                    (
+                        true,
+                        [
+                            "a",
+                        ],
+                    ),
+                ],
+                else_body: [],
+            },
+        ],
+    },
+]

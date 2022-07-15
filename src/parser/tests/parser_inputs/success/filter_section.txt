@@ -1,0 +1,3 @@
+{% filter safe %} hello {% endfilter %}
+{% filter upper(hey=1) -%} hello {%- endfilter %}
+{% filter upper(hey=1) -%}{% if true %}a{%endif %}{%- endfilter %}

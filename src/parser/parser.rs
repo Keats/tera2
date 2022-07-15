@@ -3,8 +3,8 @@ use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parser::ast2::{
-    Array, BinaryOperation, Block, Expression, ForLoop, FunctionCall, GetAttr, GetItem, If,
-    Include, MacroCall, Set, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
+    GetItem, If, Include, MacroCall, Set, Test, UnaryOperation, Var,
 };
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
@@ -562,6 +562,35 @@ impl<'a> Parser<'a> {
                 let node = self.parse_if()?;
                 Ok(Some(Node::If(node)))
             }
+            Token::Ident("filter") => {
+                let (name, span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+
+                let kwargs = if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
+                    self.parse_kwargs()?
+                } else {
+                    HashMap::new()
+                };
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+
+                // TODO: fix span
+                let filter = Expression::FunctionCall(Spanned::new(
+                    FunctionCall {
+                        expr: Expression::Var(Spanned::new(
+                            Var {
+                                name: name.to_string(),
+                            },
+                            span.clone(),
+                        )),
+                        kwargs,
+                    },
+                    span,
+                ));
+                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
+                println!("here");
+                self.next_or_error()?;
+                Ok(Some(Node::FilterSection(FilterSection { filter, body })))
+            }
+
             _ => todo!("handle all cases"),
         }
     }

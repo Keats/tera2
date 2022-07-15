@@ -374,16 +374,15 @@ pub struct If {
     /// The optional `else` block
     pub else_body: Vec<Node>,
 }
-//
-// /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct FilterSection {
-//     pub name: String,
-//     pub kwargs: HashMap<String, SpannedExpression>,
-//     /// The filter body
-//     pub body: Vec<Node>,
-// }
-//
+
+/// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
+#[derive(Clone, Debug, PartialEq)]
+pub struct FilterSection {
+    pub filter: Expression,
+    /// The filter body
+    pub body: Vec<Node>,
+}
+
 // /// A Macro definition `{% macro hello() %}...{% endmacro %}`
 // #[derive(Clone, Debug, PartialEq)]
 // pub struct MacroDefinition {
@@ -419,6 +418,7 @@ pub enum Node {
     Block(Block),
     ForLoop(ForLoop),
     If(If),
+    FilterSection(FilterSection),
 }
 
 impl fmt::Debug for Node {
@@ -433,6 +433,7 @@ impl fmt::Debug for Node {
             Block(s) => fmt::Debug::fmt(s, f),
             ForLoop(s) => fmt::Debug::fmt(s, f),
             If(s) => fmt::Debug::fmt(s, f),
+            FilterSection(s) => fmt::Debug::fmt(s, f),
         }
     }
 }

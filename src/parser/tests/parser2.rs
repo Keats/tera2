@@ -34,24 +34,28 @@ fn test_parser_expressions_success() {
 
 #[test]
 fn test_parser_tags_success() {
-    insta::glob!("parser_inputs/success/{tags,blocks,for,if}.txt", |path| {
-        let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = &Parser::new(&contents).parse().unwrap();
-        let mut res_nodes = Vec::with_capacity(nodes.len());
-        for node in nodes {
-            if matches!(
-                node,
-                Node::Set(..)
-                    | Node::Include(..)
-                    | Node::Block(..)
-                    | Node::ForLoop(..)
-                    | Node::If(..)
-            ) {
-                res_nodes.push(node);
+    insta::glob!(
+        "parser_inputs/success/{tags,blocks,for,if,filter_section}.txt",
+        |path| {
+            let contents = std::fs::read_to_string(path).unwrap();
+            let nodes = &Parser::new(&contents).parse().unwrap();
+            let mut res_nodes = Vec::with_capacity(nodes.len());
+            for node in nodes {
+                if matches!(
+                    node,
+                    Node::Set(..)
+                        | Node::Include(..)
+                        | Node::Block(..)
+                        | Node::ForLoop(..)
+                        | Node::If(..)
+                        | Node::FilterSection(..)
+                ) {
+                    res_nodes.push(node);
+                }
             }
+            insta::assert_debug_snapshot!(&res_nodes);
         }
-        insta::assert_debug_snapshot!(&res_nodes);
-    });
+    );
 }
 
 #[test]
