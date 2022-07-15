@@ -1,0 +1,56 @@
+---
+source: src/parser/tests/parser2.rs
+expression: "&res_nodes"
+input_file: src/parser/tests/parser_inputs/success/if.txt
+---
+[
+    If {
+        conditions: [
+            (
+                true,
+                [
+                    "Hello",
+                ],
+            ),
+            (
+                false,
+                [
+                    "otherwise",
+                ],
+            ),
+            (
+                Var { name: "b" },
+                [
+                    "ELIF",
+                ],
+            ),
+        ],
+        else_body: [
+            Var { name: "world" },
+        ],
+    },
+    If {
+        conditions: [
+            (
+                Var { name: "something" },
+                [
+                    "hello",
+                ],
+            ),
+        ],
+        else_body: [],
+    },
+    If {
+        conditions: [
+            (
+                Var { name: "something" },
+                [
+                    "hello",
+                ],
+            ),
+        ],
+        else_body: [
+            "arr",
+        ],
+    },
+]

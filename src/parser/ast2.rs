@@ -366,14 +366,14 @@ pub struct Block {
     pub body: Vec<Node>,
 }
 
-// /// An if/elif/else condition with their respective body
-// #[derive(Clone, Debug, PartialEq)]
-// pub struct If {
-//     /// First item if the if, all the ones after are elif
-//     pub conditions: Vec<(SpannedExpression, Vec<Node>)>,
-//     /// The optional `else` block
-//     pub otherwise: Vec<Node>,
-// }
+/// An if/elif/else condition with their respective body
+#[derive(Clone, Debug, PartialEq)]
+pub struct If {
+    /// First item if the if, all the ones after are elif
+    pub conditions: Vec<(Expression, Vec<Node>)>,
+    /// The optional `else` block
+    pub else_body: Vec<Node>,
+}
 //
 // /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
 // #[derive(Clone, Debug, PartialEq)]
@@ -418,6 +418,7 @@ pub enum Node {
     Include(Include),
     Block(Block),
     ForLoop(ForLoop),
+    If(If),
 }
 
 impl fmt::Debug for Node {
@@ -431,6 +432,7 @@ impl fmt::Debug for Node {
             Include(s) => fmt::Debug::fmt(s, f),
             Block(s) => fmt::Debug::fmt(s, f),
             ForLoop(s) => fmt::Debug::fmt(s, f),
+            If(s) => fmt::Debug::fmt(s, f),
         }
     }
 }

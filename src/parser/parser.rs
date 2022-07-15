@@ -3,8 +3,8 @@ use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parser::ast2::{
-    Array, BinaryOperation, Block, Expression, ForLoop, FunctionCall, GetAttr, GetItem, Include,
-    MacroCall, Set, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, Expression, ForLoop, FunctionCall, GetAttr, GetItem, If,
+    Include, MacroCall, Set, Test, UnaryOperation, Var,
 };
 use crate::parser::ast2::{BinaryOperator, Node, UnaryOperator};
 use crate::parser::lexer2::{tokenize, Token};
@@ -456,6 +456,51 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_if(&mut self) -> TeraResult<If> {
+        let mut conditions = Vec::new();
+        let mut else_body = Vec::new();
+        let expr = self.parse_expression(0)?;
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+        let if_body = self.parse_until(|tok| {
+            matches!(
+                tok,
+                Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
+            )
+        })?;
+        conditions.push((expr, if_body));
+
+        loop {
+            if matches!(self.next, Some(Ok((Token::Ident("elif"), _)))) {
+                self.next_or_error()?;
+                let expr = self.parse_expression(0)?;
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+                let elif_body = self.parse_until(|tok| {
+                    matches!(
+                        tok,
+                        Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
+                    )
+                })?;
+                conditions.push((expr, elif_body));
+            }
+
+            if matches!(self.next, Some(Ok((Token::Ident("else"), _)))) {
+                self.next_or_error()?;
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+                else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+            }
+
+            if matches!(self.next, Some(Ok((Token::Ident("endif"), _)))) {
+                self.next_or_error()?;
+                break;
+            }
+        }
+
+        Ok(If {
+            conditions,
+            else_body,
+        })
+    }
+
     fn parse_tag(&mut self) -> TeraResult<Option<Node>> {
         let (tag_token, start_span) = self.next_or_error()?;
         match tag_token {
@@ -488,7 +533,6 @@ impl<'a> Parser<'a> {
             Token::Ident("block") => {
                 let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
                 expect_token!(self, Token::TagEnd(..), "%}")?;
-                // TODO: would it matches {{ endblock }}
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endblock")))?;
                 self.next_or_error()?;
                 if let Some(Ok((Token::Ident(end_name), _))) = self.next {
@@ -513,6 +557,10 @@ impl<'a> Parser<'a> {
             Token::Ident("for") => {
                 let node = self.parse_for_loop()?;
                 Ok(Some(Node::ForLoop(node)))
+            }
+            Token::Ident("if") => {
+                let node = self.parse_if()?;
+                Ok(Some(Node::If(node)))
             }
             _ => todo!("handle all cases"),
         }
@@ -549,7 +597,7 @@ impl<'a> Parser<'a> {
                         nodes.push(n);
                     }
                 }
-                _ => unreachable!("Something wrong happened while lexing/parsing"),
+                t @ _ => unreachable!("Unexpected token when parsing: {:?}", t),
             }
         }
 
