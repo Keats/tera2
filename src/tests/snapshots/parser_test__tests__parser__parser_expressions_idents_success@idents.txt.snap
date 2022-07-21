@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: Expressions(expr_nodes)
-input_file: src/parser/tests/parser_inputs/success/idents.txt
+input_file: src/tests/parser_inputs/success/idents.txt
 ---
 hello
 hello_

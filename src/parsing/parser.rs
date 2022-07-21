@@ -2,12 +2,12 @@ use std::collections::HashMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parser::ast::{
+use crate::parsing::ast::{
     Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
     GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
 };
-use crate::parser::ast::{BinaryOperator, Node, UnaryOperator};
-use crate::parser::lexer::{tokenize, Token};
+use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
+use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
@@ -66,7 +66,7 @@ pub struct Parser<'a> {
     lexer: Peekable<Box<dyn Iterator<Item = Result<(Token<'a>, Span), Error>> + 'a>>,
     // The next token/span tuple.
     next: Option<Result<(Token<'a>, Span), Error>>,
-    // We keep track of the current span TODO
+    // We keep track of the current span
     current_span: Span,
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
@@ -153,6 +153,7 @@ impl<'a> Parser<'a> {
                 // Function
                 Some(Ok((Token::LeftParen, _))) => {
                     let kwargs = self.parse_kwargs()?;
+                    start_span.expand(&self.current_span);
                     expr = Expression::FunctionCall(Spanned::new(
                         FunctionCall { expr, kwargs },
                         start_span.clone(),
@@ -195,7 +196,6 @@ impl<'a> Parser<'a> {
             }
 
             let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            // TODO: make it optional for macro default kwargs
             expect_token!(self, Token::Assign, "=")?;
             let value = self.parse_expression(0)?;
             kwargs.insert(arg_name.to_string(), value);
@@ -384,7 +384,8 @@ impl<'a> Parser<'a> {
                 };
             }
 
-            // TODO: expand span with rhs
+            span.expand(&self.current_span);
+
             lhs = Expression::BinaryOperation(Spanned::new(
                 BinaryOperation {
                     op,
@@ -620,27 +621,28 @@ impl<'a> Parser<'a> {
                 Ok(Some(Node::If(node)))
             }
             Token::Ident("filter") => {
-                let (name, span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                let (name, ident_span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
 
                 let kwargs = if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
                     self.parse_kwargs()?
                 } else {
                     HashMap::new()
                 };
+                let mut fn_span = ident_span.clone();
+                fn_span.expand(&self.current_span);
                 expect_token!(self, Token::TagEnd(..), "%}")?;
 
-                // TODO: fix span
                 let filter = Expression::FunctionCall(Spanned::new(
                     FunctionCall {
                         expr: Expression::Var(Spanned::new(
                             Var {
                                 name: name.to_string(),
                             },
-                            span.clone(),
+                            ident_span,
                         )),
                         kwargs,
                     },
-                    span,
+                    fn_span,
                 ));
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
                 self.next_or_error()?;

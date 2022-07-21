@@ -12,10 +12,13 @@ TODO:
   - [x] macro imports
 - [x] Delete logos lexer/tests/parser
 - [ ] Adds lots of tests, some with insta some without + including error reporting
-  - [ ] Make sure the spans are always correct
+  - [x] Make sure the spans are always correct
+  - [ ] Create an error type that can do nice reporting with Ariadne (make it optional)
+  - [ ] Handle all custom errors from previous parser
   - [ ] Handle extends not being the first tag as error
   - [ ] Handle nodes not allowed in certain places (eg macro def inside a macro def)
 - [ ] Polish lexer + parser until it's perfect (eg, allow `\n` in text to avoid some workarounds when building strings - find Zola related issue)
+- [ ] Fuzz like there's no tomorrow
 - [ ] Generate bytecode
 - [ ] Implement VM
 - [ ] Handle map literals (only allow string as keys for now?)

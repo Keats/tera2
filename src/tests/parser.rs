@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::parser::ast::{Expression, MacroDefinition, Node};
-use crate::parser::parser::Parser;
+use crate::parsing::ast::{Expression, MacroDefinition, Node};
+use crate::parsing::parser::Parser;
 use crate::utils::{Span, Spanned};
 
 struct Expressions(pub Vec<Expression>);
@@ -16,7 +16,7 @@ impl fmt::Display for Expressions {
 }
 
 #[test]
-fn test_parser_expressions_success() {
+fn parser_expressions_idents_success() {
     insta::glob!("parser_inputs/success/{expressions,idents}.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap();
@@ -36,7 +36,7 @@ fn test_parser_expressions_success() {
 }
 
 #[test]
-fn test_parser_tags_success() {
+fn parser_tags_success() {
     insta::glob!(
         "parser_inputs/success/{tags,blocks,for,if,filter_section}.txt",
         |path| {
@@ -62,7 +62,7 @@ fn test_parser_tags_success() {
 }
 
 #[test]
-fn test_parser_macro_def_success() {
+fn parser_macro_def_success() {
     let tests = vec![
         (
             "{% macro popup() -%} hello {%- endmacro %}",
@@ -104,14 +104,14 @@ fn test_parser_macro_def_success() {
 }
 
 #[test]
-fn test_parser_extends_success() {
+fn parser_extends_success() {
     let mut parser = Parser::new("{% extends 'a.html' %}");
     parser.parse().unwrap();
     assert_eq!(parser.parent, Some("a.html".to_string()));
 }
 
 #[test]
-fn test_parser_macro_import_success() {
+fn parser_macro_import_success() {
     let mut parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
     parser.parse().unwrap();
     assert_eq!(
@@ -121,13 +121,14 @@ fn test_parser_macro_import_success() {
 }
 
 #[test]
-fn test_parser_templates_success() {
+fn parser_templates_success() {
     insta::glob!("parser_inputs/success/tpl_*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap();
         insta::assert_debug_snapshot!(&nodes);
     });
 }
+
 // #[test]
 // fn test_lexer_errors() {
 //     insta::glob!("parser_inputs/errors/*.txt", |path| {

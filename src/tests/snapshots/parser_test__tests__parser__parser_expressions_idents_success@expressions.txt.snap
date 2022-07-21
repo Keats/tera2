@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: Expressions(expr_nodes)
-input_file: src/parser/tests/parser_inputs/success/expressions.txt
+input_file: src/tests/parser_inputs/success/expressions.txt
 ---
 -1
 1

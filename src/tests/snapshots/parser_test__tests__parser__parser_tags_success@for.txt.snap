@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: "&res_nodes"
-input_file: src/parser/tests/parser_inputs/success/for.txt
+input_file: src/tests/parser_inputs/success/for.txt
 ---
 [
     ForLoop {
@@ -58,7 +58,7 @@ input_file: src/parser/tests/parser_inputs/success/for.txt
                 } @ 4:23-4:27 (159..163),
                 kwargs: {},
             } @ 4:23-4:27 (159..163),
-        } @ 4:12-4:20 (148..156),
+        } @ 4:12-4:27 (148..163),
         body: [
             Var {
                 name: "v",

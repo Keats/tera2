@@ -1,7 +1,7 @@
-use crate::parser::lexer::tokenize;
+use crate::parsing::lexer::tokenize;
 
 #[test]
-fn test_lexer_ok() {
+fn lexer_ok() {
     insta::glob!("lexer_inputs/success/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let tokens: Result<Vec<_>, _> = tokenize(&contents).collect();
@@ -11,7 +11,7 @@ fn test_lexer_ok() {
 }
 
 #[test]
-fn test_lexer_errors() {
+fn lexer_errors() {
     insta::glob!("lexer_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res: Result<Vec<_>, _> = tokenize(&contents).collect();

@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: "&nodes"
-input_file: src/parser/tests/parser_inputs/success/tpl_slightly_complex.txt
+input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
 ---
 [
     "\n\n<html>\n  <head>\n    <title>",
@@ -66,7 +66,7 @@ input_file: src/parser/tests/parser_inputs/success/tpl_slightly_complex.txt
                                 right: Var {
                                     name: "vat",
                                 } @ 11:36-11:39 (316..319),
-                            } @ 11:23-11:27 (303..307),
+                            } @ 11:23-11:39 (303..319),
                             right: BinaryOperation {
                                 op: Mul,
                                 left: GetAttr {
@@ -79,14 +79,14 @@ input_file: src/parser/tests/parser_inputs/success/tpl_slightly_complex.txt
                                     name: "discount",
                                 } @ 11:56-11:64 (336..344),
                             } @ 11:43-11:65 (323..345),
-                        } @ 11:23-11:27 (303..307),
+                        } @ 11:23-11:65 (303..345),
                         right: FunctionCall {
                             expr: Var {
                                 name: "integer",
                             } @ 11:68-11:75 (348..355),
                             kwargs: {},
                         } @ 11:68-11:75 (348..355),
-                    } @ 11:23-11:27 (303..307),
+                    } @ 11:23-11:75 (303..355),
                     "\n\n            ",
                     FilterSection {
                         filter: FunctionCall {
@@ -111,7 +111,7 @@ input_file: src/parser/tests/parser_inputs/success/tpl_slightly_complex.txt
                                     } @ 16:34-16:38 (456..460),
                                     kwargs: {},
                                 } @ 16:34-16:38 (456..460),
-                            } @ 16:15-16:19 (437..441),
+                            } @ 16:15-16:38 (437..460),
                             "\n            ",
                         ],
                     },
@@ -131,7 +131,7 @@ input_file: src/parser/tests/parser_inputs/success/tpl_slightly_complex.txt
                             } @ 19:46-19:50 (539..543),
                             kwargs: {},
                         } @ 19:46-19:50 (539..543),
-                    } @ 19:15-19:21 (508..514),
+                    } @ 19:15-19:50 (508..543),
                     "\n\n            ",
                     Include {
                         name: "sales.html",

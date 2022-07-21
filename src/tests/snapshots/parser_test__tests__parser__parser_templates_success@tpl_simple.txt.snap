@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: "&nodes"
-input_file: src/parser/tests/parser_inputs/success/tpl_simple.txt
+input_file: src/tests/parser_inputs/success/tpl_simple.txt
 ---
 [
     "<html>\n  <head>\n    <title>",
@@ -33,7 +33,7 @@ input_file: src/parser/tests/parser_inputs/success/tpl_simple.txt
             } @ 6:55-6:60 (128..133),
             kwargs: {},
         } @ 6:55-6:60 (128..133),
-    } @ 6:32-6:39 (105..112),
+    } @ 6:32-6:60 (105..133),
     "</h1>\n    <p>",
     GetAttr {
         expr: Var {
@@ -51,7 +51,7 @@ input_file: src/parser/tests/parser_inputs/success/tpl_simple.txt
             name: "price",
         } @ 8:11-8:24 (186..199),
         right: 1.2 @ 8:27-8:31 (202..206),
-    } @ 8:11-8:18 (186..193),
+    } @ 8:11-8:31 (186..206),
     " (VAT inc.)</p>\n    <p>Look at reviews from your friends ",
     Var {
         name: "username",

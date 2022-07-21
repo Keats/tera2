@@ -1,5 +1,4 @@
 //! The Tera error type, with optional nice terminal error reporting.
-
 use std::fmt::{self};
 use std::ops::Range;
 
@@ -28,6 +27,7 @@ impl fmt::Display for Error {
         todo!("Display for error")
     }
 }
+
 impl Error {
     pub fn new(kind: ErrorKind, message: &str) -> Self {
         Self {

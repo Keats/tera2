@@ -98,7 +98,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub(crate) fn is_literal(&self) -> bool {
+    pub fn is_literal(&self) -> bool {
         matches!(
             self,
             Expression::Str(..)
@@ -109,7 +109,7 @@ impl Expression {
     }
 
     /// Whether those nodes can be used in for loops
-    pub(crate) fn can_be_iterated_on(&self) -> bool {
+    pub fn can_be_iterated_on(&self) -> bool {
         matches!(
             self,
             Expression::Str(..)
@@ -409,7 +409,7 @@ pub struct ForLoop {
     pub else_body: Vec<Node>,
 }
 
-// TODO: use spanned as well here?
+// TODO: is it worth using spanned as well here?
 #[derive(Clone, PartialEq)]
 pub enum Node {
     Content(String),

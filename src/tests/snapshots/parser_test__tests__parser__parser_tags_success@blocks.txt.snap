@@ -1,7 +1,7 @@
 ---
-source: src/parser/tests/parser2.rs
+source: src/tests/parser.rs
 expression: "&res_nodes"
-input_file: src/parser/tests/parser_inputs/success/blocks.txt
+input_file: src/tests/parser_inputs/success/blocks.txt
 ---
 [
     Block {
@@ -22,7 +22,7 @@ input_file: src/parser/tests/parser_inputs/success/blocks.txt
                     name: "super",
                 } @ 5:31-5:36 (84..89),
                 kwargs: {},
-            } @ 5:31-5:36 (84..89),
+            } @ 5:31-5:38 (84..91),
         ],
     },
 ]

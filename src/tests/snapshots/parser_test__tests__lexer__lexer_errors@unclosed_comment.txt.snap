@@ -1,9 +1,7 @@
 ---
-source: src/parser/tests/lexer.rs
-assertion_line: 19
+source: src/tests/lexer.rs
 expression: res.unwrap_err()
-input_file: src/parser/tests/lexer_inputs/errors/unclosed_comment.txt
-
+input_file: src/tests/lexer_inputs/errors/unclosed_comment.txt
 ---
 Error {
     kind: SyntaxError,

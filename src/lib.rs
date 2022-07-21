@@ -2,6 +2,9 @@
 
 // mod context;
 mod errors;
-mod parser;
+mod parsing;
 mod utils;
-pub use parser::Parser;
+pub use parsing::parser::Parser;
+
+#[cfg(test)]
+mod tests;

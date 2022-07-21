@@ -61,7 +61,7 @@ enum State {
 }
 
 #[derive(PartialEq)]
-pub(crate) enum Token<'a> {
+pub enum Token<'a> {
     Content(&'a str),
     // We handle the raw tag in the lexer but we have to emit a single token for it
     // so this is equivalent to `TagStart(bool), Content(&'a str), TagEnd(bool)`
@@ -560,6 +560,6 @@ fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
     })
 }
 
-pub(crate) fn tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
+pub fn tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
     whitespace_filter(basic_tokenize(input))
 }
