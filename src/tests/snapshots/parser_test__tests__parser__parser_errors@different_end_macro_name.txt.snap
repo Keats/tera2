@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/different_end_macro_name.txt
+---
+error: Opening block was named `hello`, found `hi` for the end block name
+  -->   @ 1:31-1:33

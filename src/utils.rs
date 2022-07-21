@@ -43,7 +43,7 @@ impl<T: fmt::Debug> fmt::Debug for Spanned<T> {
     }
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Span {
     pub start_line: usize,
     pub start_col: usize,
@@ -62,6 +62,15 @@ impl fmt::Debug for Span {
     }
 }
 
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            " @ {}:{}-{}:{}",
+            self.start_line, self.start_col, self.end_line, self.end_col,
+        )
+    }
+}
 impl Span {
     pub fn expand(&mut self, other: &Span) {
         self.end_line = other.end_line;

@@ -1,0 +1,2 @@
+{% block hello %}{% endblock %}
+{% block hello %}{% endblock %}

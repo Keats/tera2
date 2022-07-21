@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/multiple_extends.txt
+---
+error: Template is already extending `a`
+  -->   @ 2:11-2:14

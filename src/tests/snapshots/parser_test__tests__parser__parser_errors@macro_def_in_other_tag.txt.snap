@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/macro_def_in_other_tag.txt
+---
+error: Macro definitions cannot be written in another tag.
+  -->   @ 2:3-2:8

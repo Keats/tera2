@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/negation_missing_expr.txt
+---
+error: Found `}}` but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`
+  -->   @ 1:7-1:9

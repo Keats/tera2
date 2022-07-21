@@ -36,6 +36,16 @@ fn parser_expressions_idents_success() {
 }
 
 #[test]
+fn parser_errors() {
+    insta::glob!("parser_inputs/errors/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let res = Parser::new(&contents).parse();
+        assert!(res.is_err());
+        insta::assert_display_snapshot!(res.unwrap_err());
+    });
+}
+
+#[test]
 fn parser_tags_success() {
     insta::glob!(
         "parser_inputs/success/{tags,blocks,for,if,filter_section}.txt",

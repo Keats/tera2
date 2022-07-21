@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/unexpected_token_macro_def_args.txt
+---
+error: Found identifier but macro default arguments can only be one of: string, bool, integer, float
+  -->   @ 1:16-1:17

@@ -4,12 +4,12 @@ expression: res.unwrap_err()
 input_file: src/tests/lexer_inputs/errors/unclosed_comment.txt
 ---
 Error {
-    kind: SyntaxError,
-    message: "Closing comment tag `#}` not found",
-    filename: None,
-    span: Some(
-         @ 1:0-1:2 (0..2),
+    kind: SyntaxError(
+        SyntaxError {
+            message: "Closing comment tag `#}` not found",
+            filename: "",
+            span:  @ 1:0-1:2 (0..2),
+        },
     ),
     source: None,
-    labels: [],
 }

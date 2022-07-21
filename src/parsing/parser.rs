@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
 
-use crate::errors::{Error, ErrorKind, TeraResult};
+use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
     GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
@@ -38,28 +38,41 @@ macro_rules! expect_token {
     ($parser:expr, $match:pat, $expectation:expr) => {{
         match $parser.next_or_error()? {
             (token, span) if matches!(token, $match) => Ok((token, span)),
-            (token, _) => Err(Error::new(
-                ErrorKind::SyntaxError,
-                &format!("todo match got: {:?}, expected {}", token, $expectation),
+            (token, _) => Err(Error::new_syntax_error(
+                format!("Found {} but expected {}.", token, $expectation),
+                &$parser.current_span,
             )),
         }
     }};
     ($parser:expr, $match:pat => $target:expr, $expectation:expr) => {{
         match $parser.next_or_error()? {
             ($match, span) => Ok(($target, span)),
-            (token, _) => Err(Error::new(
-                ErrorKind::SyntaxError,
-                &format!("todo match got {:?}, expected {}", token, $expectation),
+            (token, _) => Err(Error::new_syntax_error(
+                format!("Found {} but expected {}.", token, $expectation),
+                &$parser.current_span,
             )),
         }
     }};
 }
 
-// TODO: double check what is actually reserved so we can't re-assign them
 const RESERVED_NAMES: [&str; 13] = [
     "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in", "continue",
     "break",
 ];
+
+/// This enum is only used to error when some tags are used in places they are not allowed
+/// For example super() outside of a block or a macro definition inside a macro definition
+/// or continue/break in for
+/// TODO: in practice it could be just an integer that gets +/- if we don't do special detection
+/// for tag specific keyword
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum BodyContext {
+    ForLoop,
+    Block,
+    If,
+    MacroDefinition,
+    FilterSection,
+}
 
 pub struct Parser<'a> {
     source: &'a str,
@@ -68,6 +81,10 @@ pub struct Parser<'a> {
     next: Option<Result<(Token<'a>, Span), Error>>,
     // We keep track of the current span
     current_span: Span,
+    // A stack of our body context to know where we are
+    body_contexts: Vec<BodyContext>,
+    // How many bytes just the textual content takes
+    size_hint: usize,
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
     // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
@@ -87,6 +104,8 @@ impl<'a> Parser<'a> {
             lexer: iter.peekable(),
             next: None,
             current_span: Span::default(),
+            body_contexts: Vec::new(),
+            size_hint: 0,
             parent: None,
             blocks: HashMap::new(),
             macros: HashMap::new(),
@@ -104,11 +123,29 @@ impl<'a> Parser<'a> {
         cur.transpose()
     }
 
+    fn eoi(&self) -> Error {
+        // The EOI is after the current span
+        let mut span = self.current_span.clone();
+        span.start_col = span.end_col;
+        span.start_line = span.end_line;
+        Error::new(ErrorKind::SyntaxError(
+            SyntaxError::unexpected_end_of_input(&span),
+        ))
+    }
+
+    fn endblock_different_name(&self, start_name: &str, end_name: &str) -> Error {
+        Error::new_syntax_error(
+            format!(
+                "Opening block was named `{}`, found `{}` for the end block name",
+                start_name, end_name
+            ),
+            &self.current_span,
+        )
+    }
+
     fn next_or_error(&mut self) -> TeraResult<(Token<'a>, Span)> {
         match self.next()? {
-            None => {
-                todo!("handle error message")
-            }
+            None => Err(self.eoi()),
             Some(c) => Ok(c),
         }
     }
@@ -156,7 +193,7 @@ impl<'a> Parser<'a> {
                     start_span.expand(&self.current_span);
                     expr = Expression::FunctionCall(Spanned::new(
                         FunctionCall { expr, kwargs },
-                        start_span.clone(),
+                        start_span,
                     ));
                     break;
                 }
@@ -166,16 +203,17 @@ impl<'a> Parser<'a> {
                     expect_token!(self, Token::Colon, ":")?;
                     expect_token!(self, Token::Colon, ":")?;
                     // Then the macro name
-                    let (macro_name, span) =
+                    let (macro_name, _) =
                         expect_token!(self, Token::Ident(id) => id, "identifier")?;
                     let kwargs = self.parse_kwargs()?;
+                    start_span.expand(&self.current_span);
                     expr = Expression::MacroCall(Spanned::new(
                         MacroCall {
                             name: macro_name.to_string(),
                             namespace: ident.to_string(),
                             kwargs,
                         },
-                        start_span.clone(),
+                        start_span,
                     ));
                     break;
                 }
@@ -235,7 +273,19 @@ impl<'a> Parser<'a> {
                                 break;
                             }
                         }
-                        _ => todo!("handle unexpected tokens in test"),
+                        Some(Ok((ref token, _))) => {
+                            return Err(Error::new_syntax_error(
+                                format!("Found {} but expected `)` or `,`.", token),
+                                &self.current_span,
+                            ));
+                        }
+                        Some(Err(ref e)) => {
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
+                        None => return Err(self.eoi()),
                     };
                 }
             }
@@ -307,7 +357,12 @@ impl<'a> Parser<'a> {
                 lhs.expand_span(&self.current_span);
                 lhs
             }
-            _ => todo!("finish expression: {:?}", token),
+            _ => {
+                return Err(Error::new_syntax_error(
+                    format!("Found {} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`", token),
+                    &self.current_span,
+                ));
+            }
         };
 
         let mut negated = false;
@@ -407,10 +462,28 @@ impl<'a> Parser<'a> {
             }
         }
 
+        // TODO: do we need to do that?
+        // Make sure some reserved names are not used outside of their context
+        // match &lhs {
+        //     Expression::Var(var) => {
+        //         // Only allowed in for loops
+        //         if var.name == "continue" || var.name == "break" {
+        //             if !self.body_contexts.contains(&BodyContext::ForLoop) {
+        //
+        //             }
+        //         }
+        //     }
+        //     Expression::FunctionCall(fn_call) => {
+        //
+        //     }
+        //     _ => (),
+        // }
+
         Ok(lhs)
     }
 
     fn parse_for_loop(&mut self) -> TeraResult<ForLoop> {
+        self.body_contexts.push(BodyContext::ForLoop);
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         // Do we have a key?
         let mut key = None;
@@ -422,7 +495,10 @@ impl<'a> Parser<'a> {
         expect_token!(self, Token::Ident("in"), "in")?;
         let target = self.parse_expression(0)?;
         if !target.can_be_iterated_on() {
-            todo!("Handle invalid target in for loops");
+            return Err(Error::new_syntax_error(
+                "for loops can only iterate on strings, arrays, idents and function.".to_string(),
+                &self.current_span,
+            ));
         }
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body =
@@ -435,6 +511,7 @@ impl<'a> Parser<'a> {
         }
         // eat the endfor
         self.next_or_error()?;
+        self.body_contexts.pop();
 
         Ok(ForLoop {
             key,
@@ -446,6 +523,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_if(&mut self) -> TeraResult<If> {
+        self.body_contexts.push(BodyContext::If);
         let mut conditions = Vec::new();
         let mut else_body = Vec::new();
         let expr = self.parse_expression(0)?;
@@ -484,6 +562,7 @@ impl<'a> Parser<'a> {
             }
         }
 
+        self.body_contexts.pop();
         Ok(If {
             conditions,
             else_body,
@@ -491,6 +570,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
+        if !self.body_contexts.is_empty() {
+            return Err(Error::new_syntax_error(
+                "Macro definitions cannot be written in another tag.".to_string(),
+                &self.current_span,
+            ));
+        }
+
+        self.body_contexts.push(BodyContext::MacroDefinition);
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         expect_token!(self, Token::LeftParen, "(")?;
         let mut kwargs = HashMap::new();
@@ -520,7 +607,19 @@ impl<'a> Parser<'a> {
                         Some(Ok((Token::Float(b), span))) => {
                             Expression::Float(Spanned::new(*b, span.clone()))
                         }
-                        t => todo!("Unexpected token {:?} while looking macro def kwargs", t),
+                        Some(Ok((token, _))) => {
+                            return Err(Error::new_syntax_error(
+                                format!("Found {} but macro default arguments can only be one of: string, bool, integer, float", token),
+                                &self.current_span,
+                            ));
+                        }
+                        Some(Err(e)) => {
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
+                        None => return Err(self.eoi()),
                     };
                     self.next_or_error()?;
 
@@ -544,13 +643,11 @@ impl<'a> Parser<'a> {
         if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
             let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
             if name != end_name {
-                todo!(
-                    "Invalid name to end the macro def, got {} expected {}",
-                    end_name,
-                    name
-                );
+                return Err(self.endblock_different_name(name, end_name));
             }
         }
+
+        self.body_contexts.pop();
 
         Ok(MacroDefinition {
             name: name.to_string(),
@@ -559,11 +656,22 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_tag(&mut self) -> TeraResult<Option<Node>> {
-        let (tag_token, start_span) = self.next_or_error()?;
+    // We need to know whether this is the first node we encounter to error if the tag is an extend
+    // but not the first content node
+    fn parse_tag(&mut self, is_first_node: bool) -> TeraResult<Option<Node>> {
+        let (tag_token, _) = self.next_or_error()?;
         match tag_token {
             Token::Ident("set") | Token::Ident("set_global") => {
                 let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+                if RESERVED_NAMES.contains(&name) {
+                    return Err(Error::new_syntax_error(
+                        format!(
+                            "{} is a reserved keyword of Tera, it cannot be assigned to.",
+                            name
+                        ),
+                        &self.current_span,
+                    ));
+                }
                 expect_token!(self, Token::Assign, "=")?;
                 let value = self.parse_expression(0)?;
                 Ok(Some(Node::Set(Set {
@@ -580,15 +688,30 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("extends") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
-                if self.parent.is_some() {
-                    todo!("error: can't extend multiple template");
+                if let Some(ref parent) = self.parent {
+                    return Err(Error::new_syntax_error(
+                        format!("Template is already extending `{}`", parent),
+                        &self.current_span,
+                    ));
                 }
-                // TODO: make it so extends has to be the first tag, maybe in parse_until if nodes
-                // is not empty?
+                if !is_first_node {
+                    return Err(Error::new_syntax_error(
+                        "`extends` needs to be the first tag of the template".to_string(),
+                        &self.current_span,
+                    ));
+                }
+                if !self.body_contexts.is_empty() {
+                    return Err(Error::new_syntax_error(
+                        "`extends` cannot be nested in other tags.".to_string(),
+                        &self.current_span,
+                    ));
+                }
+                // TODO: ensure super() only exists in blocks
                 self.parent = Some(name.to_string());
                 Ok(None)
             }
             Token::Ident("block") => {
+                self.body_contexts.push(BodyContext::Block);
                 let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
                 expect_token!(self, Token::TagEnd(..), "%}")?;
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endblock")))?;
@@ -596,16 +719,25 @@ impl<'a> Parser<'a> {
                 if let Some(Ok((Token::Ident(end_name), _))) = self.next {
                     self.next_or_error()?;
                     if end_name != name {
-                        todo!("not matching block names");
+                        return Err(self.endblock_different_name(name, end_name));
                     }
                 }
 
+                if self.blocks.contains_key(name) {
+                    return Err(Error::new_syntax_error(
+                        format!("Template already contains a block named `{}`", name),
+                        &self.current_span,
+                    ));
+                }
+
+                self.body_contexts.pop();
+
                 if self.parent.is_some() {
-                    // TODO: error on duplicate blocks, maybe insert an empty vec to keep
-                    // track of which ones has been inserted in all cases?
                     self.blocks.insert(name.to_string(), body);
                     Ok(None)
                 } else {
+                    // Only filled to give an error if there are duplicates
+                    self.blocks.insert(name.to_string(), Vec::new());
                     Ok(Some(Node::Block(Block {
                         name: name.to_string(),
                         body,
@@ -621,6 +753,7 @@ impl<'a> Parser<'a> {
                 Ok(Some(Node::If(node)))
             }
             Token::Ident("filter") => {
+                self.body_contexts.push(BodyContext::FilterSection);
                 let (name, ident_span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
 
                 let kwargs = if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
@@ -646,6 +779,7 @@ impl<'a> Parser<'a> {
                 ));
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
                 self.next_or_error()?;
+                self.body_contexts.pop();
                 Ok(Some(Node::FilterSection(FilterSection { filter, body })))
             }
             Token::Ident("macro") => {
@@ -663,18 +797,19 @@ impl<'a> Parser<'a> {
 
                 Ok(None)
             }
-            _ => todo!("all cases handled?"),
+            _ => unreachable!("all cases handled?"),
         }
     }
 
     fn parse_until<F: Fn(&Token) -> bool>(&mut self, end_check_fn: F) -> TeraResult<Vec<Node>> {
         let mut nodes = Vec::new();
 
-        while let Some((token, ref span)) = self.next()? {
+        while let Some((token, _)) = self.next()? {
             match token {
                 Token::Content(c) => {
                     // We have pushed an empty content to replace comment so we ignore those
                     if !c.is_empty() {
+                        self.size_hint += c.len();
                         nodes.push(Node::Content(c.to_owned()));
                     }
                 }
@@ -685,14 +820,19 @@ impl<'a> Parser<'a> {
                 }
                 Token::TagStart(_) => {
                     let tok = match &self.next {
-                        None => todo!("unexpected eof"),
+                        None => return Err(self.eoi()),
                         Some(Ok((tok, _))) => tok,
-                        e => panic!("got {:?}", e),
+                        Some(Err(ref e)) => {
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
                     };
                     if end_check_fn(tok) {
                         return Ok(nodes);
                     }
-                    let node = self.parse_tag()?;
+                    let node = self.parse_tag(nodes.is_empty())?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
                     if let Some(n) = node {
                         nodes.push(n);

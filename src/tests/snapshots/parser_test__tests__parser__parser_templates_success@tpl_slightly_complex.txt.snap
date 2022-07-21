@@ -124,7 +124,7 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                             kwargs: {
                                 "title": "Buy now" @ 19:33-19:42 (526..535),
                             },
-                        } @ 19:15-19:21 (508..514),
+                        } @ 19:15-19:43 (508..536),
                         right: FunctionCall {
                             expr: Var {
                                 name: "safe",

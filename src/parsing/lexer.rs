@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::errors::{Error, ErrorKind};
+use crate::errors::Error;
 use crate::utils::Span;
 
 // handwritten lexer, peekable iterator taken from minijinja
@@ -163,6 +163,52 @@ impl<'a> fmt::Debug for Token<'a> {
     }
 }
 
+/// Used in error messages
+impl<'a> fmt::Display for Token<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Token::Content(_) => write!(f, "content",),
+            Token::RawContent(_, _, _) => write!(f, "raw content",),
+            Token::VariableStart(_) => write!(f, "`{{{{`"),
+            Token::VariableEnd(_) => write!(f, "`}}}}`"),
+            Token::TagStart(_) => write!(f, "`{{%`"),
+            Token::TagEnd(_) => write!(f, "`%}}`"),
+            Token::Comment(_, _) => write!(f, "comment`"),
+            Token::Ident(_) => write!(f, "identifier"),
+            Token::String(_) => write!(f, "string"),
+            Token::Integer(_) => write!(f, "integer"),
+            Token::Float(_) => write!(f, "float"),
+            Token::Bool(_) => write!(f, "bool"),
+            Token::Plus => write!(f, "`+`"),
+            Token::Minus => write!(f, "`-`"),
+            Token::Mul => write!(f, "`*`"),
+            Token::Div => write!(f, "`/`"),
+            Token::FloorDiv => write!(f, "`//`"),
+            Token::Power => write!(f, "`**`"),
+            Token::Mod => write!(f, "`%`"),
+            Token::Bang => write!(f, "`!`"),
+            Token::Dot => write!(f, "`.`"),
+            Token::Comma => write!(f, "`,`"),
+            Token::Colon => write!(f, "`:`"),
+            Token::Tilde => write!(f, "`~`"),
+            Token::Assign => write!(f, "`=`"),
+            Token::Pipe => write!(f, "`|`"),
+            Token::Equal => write!(f, "`==`"),
+            Token::NotEqual => write!(f, "`!="),
+            Token::GreaterThan => write!(f, "`>`"),
+            Token::GreaterThanOrEqual => write!(f, "`>=`"),
+            Token::LessThan => write!(f, "`<`"),
+            Token::LessThanOrEqual => write!(f, "`<=`"),
+            Token::LeftBracket => write!(f, "`[`"),
+            Token::RightBracket => write!(f, "`]`"),
+            Token::LeftParen => write!(f, "`(`"),
+            Token::RightParen => write!(f, "`)`"),
+            Token::LeftBrace => write!(f, "`{{`"),
+            Token::RightBrace => write!(f, "`}}`"),
+        }
+    }
+}
+
 fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
     let mut rest = input;
     let mut stack = vec![State::Template];
@@ -174,9 +220,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
     macro_rules! syntax_error {
         ($message:expr, $span:expr) => {{
             errored = true;
-            let mut err = Error::new(ErrorKind::SyntaxError, $message);
-            err.set_span($span);
-            return Some(Err(err));
+            return Some(Err(Error::new_syntax_error($message.to_string(), &$span)));
         }};
     }
 
