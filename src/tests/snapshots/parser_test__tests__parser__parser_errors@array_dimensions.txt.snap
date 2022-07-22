@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/array_dimensions.txt
+---
+error: Arrays can have a maximum of 2 dimensions.
+  -->   @ 1:5-1:6

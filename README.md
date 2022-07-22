@@ -2,7 +2,7 @@ TODO:
 
 - [x] Wire up new error struct in lexer2
 - [x] Add insta tests for lexing errors
-- [ ] Start writing parser, copying most of parser.rs probably
+- [x] Start writing parser, copying most of parser.rs probably
   - [x] raw
   - [x] block
   - [x] for loop
@@ -11,15 +11,16 @@ TODO:
   - [x] macro definition
   - [x] macro imports
 - [x] Delete logos lexer/tests/parser
-- [ ] Adds lots of tests, some with insta some without + including error reporting
+- [x] Adds lots of tests, some with insta some without 
   - [x] Make sure the spans are always correct
   - [x] Handle all custom errors from previous parser
   - [x] Handle extends not being the first tag as error
   - [x] Handle nodes not allowed in certain places (eg macro def inside a macro def)
-- [ ] Fuzz like there's no tomorrow
-- [ ] Polish lexer + parser until it's perfect (eg, allow `\n` in text to avoid some workarounds when building strings - find Zola related issue)
+- [x] Fuzz like there's no tomorrow
+- [ ] Polish lexer + parser until it's perfect
 - [ ] Fuzz like there's no tomorrow
 - [ ] Generate bytecode
 - [ ] Implement VM
+- [ ] Allow escape chars  (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Handle map literals (only allow string as keys for now?)
 - [ ] Nice reporting with Ariadne (make it optional)

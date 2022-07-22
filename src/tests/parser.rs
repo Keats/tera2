@@ -139,12 +139,16 @@ fn parser_templates_success() {
     });
 }
 
-// #[test]
-// fn test_lexer_errors() {
-//     insta::glob!("parser_inputs/errors/*.txt", |path| {
-//         let contents = std::fs::read_to_string(path).unwrap();
-//         let res: Result<Vec<_>, _> = tokenize(&contents).collect();
-//         assert!(res.is_err());
-//         insta::assert_debug_snapshot!(res.unwrap_err());
-//     });
-// }
+#[test]
+fn fuzzing_findings() {
+    let inputs = vec![
+        //         r#"
+        //         /ff}zpp.%{%if
+        // bT%}h
+        //         "#,
+    ];
+
+    for txt in inputs {
+        assert!(Parser::new(txt).parse().is_ok());
+    }
+}

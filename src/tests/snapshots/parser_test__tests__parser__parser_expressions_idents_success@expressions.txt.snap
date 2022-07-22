@@ -14,6 +14,7 @@ a
 (- (* a 2))
 [1, 1.2, a, 'b', true]
 [1, 1.2, a, 'b', true]
+[[1], [2], [c, d]]
 hello.data[var].hey
 (+ (+ 1 2) 3)
 (+ 1 count)
@@ -81,8 +82,6 @@ get_url{}
 (and (in person groupA) (in person groupB))
 (| (~ (~ query.tags ' ') tags) trim{})
 (and (or (and a (is a containing{'a'})) b) (is b containing{'b'}))
-(not (not a))
-(not (not a))
 macros::input{label='Name', type='text'}
 (| macros::input{} safe{})
 

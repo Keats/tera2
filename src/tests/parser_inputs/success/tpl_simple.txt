@@ -1,4 +1,5 @@
 <html>
+  {# some comment #}
   <head>
     <title>{{ product.name }}</title>
   </head>

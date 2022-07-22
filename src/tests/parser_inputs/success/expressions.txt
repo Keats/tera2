@@ -10,6 +10,7 @@
 {{ - a * 2 }}
 {{ [1, 1.2, a, 'b', true] }}
 {{ [1, 1.2, a, 'b', true,] }}
+{{ [[1], [2], [c, d]] }}
 {{ hello.data[var].hey }}
 {{ 1 + 2 + 3 }}
 {{ 1 + count }}
@@ -102,8 +103,6 @@
 {{ (person in groupA) and person in groupB }}
 {{ (query.tags ~ ' ' ~ tags) | trim }}
 {{ a and a is containing('a') or b and b is containing('b') }}
-{{ not (not a) }}
-{{ not not a }}
 
 // Macro calls
 {{ macros::input(label='Name', type='text') }}

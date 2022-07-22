@@ -10,6 +10,11 @@ use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
 
+/// parse_expression can call itself max 100 times, after that it's an error
+const MAX_EXPR_RECURSION: usize = 100;
+/// We only allow that many dimensions in an array literal
+const MAX_DIMENSION_ARRAY: usize = 2;
+
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
 fn unary_binding_power(op: UnaryOperator) -> ((), u8) {
@@ -85,6 +90,11 @@ pub struct Parser<'a> {
     body_contexts: Vec<BodyContext>,
     // How many bytes just the textual content takes
     size_hint: usize,
+    // The current array dimension, to avoid stack overflows with too many of them
+    array_dimension: usize,
+    // We limit the length of an expression to avoid stack overflows with crazy expressions like
+    // 100 `(`
+    num_expr_calls: usize,
     // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
     pub parent: Option<String>,
     // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
@@ -106,6 +116,8 @@ impl<'a> Parser<'a> {
             current_span: Span::default(),
             body_contexts: Vec::new(),
             size_hint: 0,
+            num_expr_calls: 0,
+            array_dimension: 0,
             parent: None,
             blocks: HashMap::new(),
             macros: HashMap::new(),
@@ -310,22 +322,34 @@ impl<'a> Parser<'a> {
                 break;
             }
 
+            // trailing commas
             if !vals.is_empty() {
                 expect_token!(self, Token::Comma, ",")?;
             }
 
-            // trailing commas
             if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
             }
 
-            vals.push(self.parse_expression(0)?);
+            // parse_array is always called from inner_parse_expression
+            vals.push(self.inner_parse_expression(0)?);
         }
 
         Ok(vals)
     }
 
-    fn parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
+    /// This is called recursively so we do put a limit as to how many times it can call itself
+    /// to avoid stack overflow. In practice, normal users will not run into the limit at all.
+    /// We're talking 100 parentheses for example
+    fn inner_parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
+        self.num_expr_calls += 1;
+        if self.num_expr_calls > MAX_EXPR_RECURSION {
+            return Err(Error::new_syntax_error(
+                "The expression is too complex".to_string(),
+                &self.current_span,
+            ));
+        }
+
         let (token, mut span) = self.next_or_error()?;
 
         let mut lhs = match token {
@@ -339,20 +363,41 @@ impl<'a> Parser<'a> {
                     Token::Ident("not") => UnaryOperator::Not,
                     _ => unreachable!(),
                 };
+                match &self.next {
+                    Some(Ok((Token::Minus, next_span)))
+                    | Some(Ok((Token::Ident("not"), next_span))) => {
+                        // Can't have unary with unary (eg - - - - - 1) otherwise we will quickly
+                        // stack overflow. It doesn't make much sense anyway in practice.
+                        // Alternatively, limit the number to 2?
+                        return Err(Error::new_syntax_error(
+                            "`-` or `not` cannot be used consecutively.".to_string(),
+                            next_span,
+                        ));
+                    }
+                    _ => (),
+                }
                 let (_, r_bp) = unary_binding_power(op);
-                let expr = self.parse_expression(r_bp)?;
+                let expr = self.inner_parse_expression(r_bp)?;
                 span.expand(&self.current_span);
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
             Token::LeftBracket => {
+                self.array_dimension += 1;
+                if self.array_dimension > MAX_DIMENSION_ARRAY {
+                    return Err(Error::new_syntax_error(
+                        "Arrays can have a maximum of 2 dimensions.".to_string(),
+                        &self.current_span,
+                    ));
+                }
                 let items = self.parse_array()?;
+                self.array_dimension -= 1;
                 expect_token!(self, Token::RightBracket, "]")?;
                 span.expand(&self.current_span);
                 Expression::Array(Spanned::new(Array { items }, span.clone()))
             }
             Token::LeftParen => {
-                let mut lhs = self.parse_expression(0)?;
+                let mut lhs = self.inner_parse_expression(0)?;
                 expect_token!(self, Token::RightParen, ")")?;
                 lhs.expand_span(&self.current_span);
                 lhs
@@ -418,7 +463,7 @@ impl<'a> Parser<'a> {
 
             let mut rhs = match op {
                 BinaryOperator::Is => self.parse_test()?,
-                _ => self.parse_expression(r_bp)?,
+                _ => self.inner_parse_expression(r_bp)?,
             };
 
             // We can have filters that look like ident (eg hello | upper) so we need to make sure
@@ -482,6 +527,11 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    fn parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
+        self.num_expr_calls = 0;
+        self.inner_parse_expression(min_bp)
+    }
+
     fn parse_for_loop(&mut self) -> TeraResult<ForLoop> {
         self.body_contexts.push(BodyContext::ForLoop);
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
@@ -537,28 +587,44 @@ impl<'a> Parser<'a> {
         conditions.push((expr, if_body));
 
         loop {
-            if matches!(self.next, Some(Ok((Token::Ident("elif"), _)))) {
-                self.next_or_error()?;
-                let expr = self.parse_expression(0)?;
-                expect_token!(self, Token::TagEnd(..), "%}")?;
-                let elif_body = self.parse_until(|tok| {
-                    matches!(
-                        tok,
-                        Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
-                    )
-                })?;
-                conditions.push((expr, elif_body));
-            }
-
-            if matches!(self.next, Some(Ok((Token::Ident("else"), _)))) {
-                self.next_or_error()?;
-                expect_token!(self, Token::TagEnd(..), "%}")?;
-                else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
-            }
-
-            if matches!(self.next, Some(Ok((Token::Ident("endif"), _)))) {
-                self.next_or_error()?;
-                break;
+            match &self.next {
+                Some(Ok((Token::Ident("elif"), _))) => {
+                    self.next_or_error()?;
+                    let expr = self.parse_expression(0)?;
+                    expect_token!(self, Token::TagEnd(..), "%}")?;
+                    let elif_body = self.parse_until(|tok| {
+                        matches!(
+                            tok,
+                            Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
+                        )
+                    })?;
+                    conditions.push((expr, elif_body));
+                }
+                Some(Ok((Token::Ident("else"), _))) => {
+                    self.next_or_error()?;
+                    expect_token!(self, Token::TagEnd(..), "%}")?;
+                    else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+                }
+                Some(Ok((Token::Ident("endif"), _))) => {
+                    self.next_or_error()?;
+                    break;
+                }
+                Some(Ok((token, _))) => {
+                    return Err(Error::new_syntax_error(
+                        format!(
+                            "Found {} but was expecting `elif`, `else` or `endif`.",
+                            token
+                        ),
+                        &self.current_span,
+                    ));
+                }
+                Some(Err(e)) => {
+                    return Err(Error {
+                        kind: e.kind.clone(),
+                        source: None,
+                    });
+                }
+                None => return Err(self.eoi()),
             }
         }
 
@@ -706,7 +772,6 @@ impl<'a> Parser<'a> {
                         &self.current_span,
                     ));
                 }
-                // TODO: ensure super() only exists in blocks
                 self.parent = Some(name.to_string());
                 Ok(None)
             }
@@ -797,7 +862,12 @@ impl<'a> Parser<'a> {
 
                 Ok(None)
             }
-            _ => unreachable!("all cases handled?"),
+            _ => {
+                Err(Error::new_syntax_error(
+                    "Unknown tag".to_string(),
+                    &self.current_span,
+                ))
+            }
         }
     }
 

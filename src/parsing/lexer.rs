@@ -391,7 +391,11 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     Some("{#") => {
                         let ws_start = check_ws_start!();
                         if let Some(comment_end) = memstr(rest.as_bytes(), b"#}") {
-                            let ws_end = rest.as_bytes().get(comment_end - 1) == Some(&b'-');
+                            let ws_end = if comment_end > 0 {
+                                rest.as_bytes().get(comment_end - 1) == Some(&b'-')
+                            } else {
+                                false
+                            };
                             advance!(comment_end + 2);
                             return Some(Ok((
                                 Token::Comment(ws_start, ws_end),
@@ -592,8 +596,10 @@ fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
             remove_leading_ws = true;
             rv
         }
-        Some(Ok((Token::Comment(_, true), span))) => {
-            remove_leading_ws = true;
+        Some(Ok((Token::Comment(_, end_ws), span))) => {
+            if end_ws {
+                remove_leading_ws = true;
+            }
             // Empty content nodes will get removed by the parser
             Some(Ok((Token::Content(""), span)))
         }

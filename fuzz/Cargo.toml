@@ -20,14 +20,14 @@ path = ".."
 members = ["."]
 
 [[bin]]
-name = "fuzz_target_1"
-path = "fuzz_targets/fuzz_target_1.rs"
+name = "expression"
+path = "fuzz_targets/expression.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "expression"
-path = "fuzz_targets/expression.rs"
+name = "tag"
+path = "fuzz_targets/tag.rs"
 test = false
 doc = false
 
