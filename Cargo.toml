@@ -10,7 +10,7 @@ edition = "2021"
 #valuable =  { git = "https://github.com/tokio-rs/valuable/", features = ["derive"] }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 insta = { version = "1", features = ["glob"] }
 
 [[bench]]

@@ -21,6 +21,6 @@ TODO:
 - [ ] Fuzz like there's no tomorrow
 - [ ] Generate bytecode
 - [ ] Implement VM
-- [ ] Allow escape chars  (eg \n) in strings concat, there was an issue about that in Zola
+- [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Handle map literals (only allow string as keys for now?)
 - [ ] Nice reporting with Ariadne (make it optional)
