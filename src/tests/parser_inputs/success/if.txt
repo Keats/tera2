@@ -1,0 +1,3 @@
+{% if true -%} Hello {%- elif false -%} otherwise{% elif b %}ELIF{%- else -%}{{world}} {%- endif %}
+{% if something %}hello{% endif %}
+{% if something %}hello{% else %}arr{% endif %}

@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/duplicate_block.txt
+---
+error: Template already contains a block named `hello`
+  -->   @ 2:20-2:28

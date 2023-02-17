@@ -1,0 +1,9 @@
+Hello
+
+{%- raw -%}
+Some ignored {{ content }}  {% if true %} hello {%
+{%- endraw -%}
+
+World
+
+Inline as well {% raw %} {{ hey }} {% endraw %}

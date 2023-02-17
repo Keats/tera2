@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/extends_not_first.txt
+---
+error: `extends` needs to be the first tag of the template
+  -->   @ 3:11-3:14

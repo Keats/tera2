@@ -1,0 +1,88 @@
+---
+source: src/tests/parser.rs
+expression: "&res_nodes"
+input_file: src/tests/parser_inputs/success/for.txt
+---
+[
+    ForLoop {
+        key: None,
+        value: "v",
+        target: Var {
+            name: "my_array",
+        } @ 1:12-1:20 (12..20),
+        body: [
+            Var {
+                name: "v",
+            } @ 1:28-1:29 (28..29),
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: Array {
+            items: [
+                1 @ 2:13-2:14 (59..60),
+                2 @ 2:16-2:17 (62..63),
+            ],
+        } @ 2:12-2:19 (58..65),
+        body: [
+            Var {
+                name: "v",
+            } @ 2:27-2:28 (73..74),
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: "hello" @ 3:12-3:19 (103..110),
+        body: [
+            Var {
+                name: "v",
+            } @ 3:27-3:28 (118..119),
+        ],
+        else_body: [],
+    },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: BinaryOperation {
+            op: Pipe,
+            left: Var {
+                name: "my_array",
+            } @ 4:12-4:20 (148..156),
+            right: FunctionCall {
+                expr: Var {
+                    name: "sort",
+                } @ 4:23-4:27 (159..163),
+                kwargs: {},
+            } @ 4:23-4:27 (159..163),
+        } @ 4:12-4:27 (148..163),
+        body: [
+            Var {
+                name: "v",
+            } @ 4:35-4:36 (171..172),
+        ],
+        else_body: [
+            "Empty",
+        ],
+    },
+    ForLoop {
+        key: Some(
+            "v",
+        ),
+        value: "k",
+        target: Var {
+            name: "obj",
+        } @ 5:15-5:18 (219..222),
+        body: [
+            Var {
+                name: "v",
+            } @ 5:26-5:27 (230..231),
+        ],
+        else_body: [
+            "Empty",
+        ],
+    },
+]

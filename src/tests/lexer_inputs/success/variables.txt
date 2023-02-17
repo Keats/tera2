@@ -1,0 +1,15 @@
+{{ 'hello' }}
+{{ "hello" }}
+{{ `hello` }}
+{{ 1 }}
+{{ 1.0 }}
+{{ [1, 2, 3] }}
+{{ true }}
+{{ false }}
+{{ {"hello": 1, "world": false} }}
+{{ person.name }}
+{{ person[name] }}
+{{ person[name].age }}
+{{ person['name'].age }}
+{{ persons[0].age }}
+{{ macros::hello(body='hey') }}

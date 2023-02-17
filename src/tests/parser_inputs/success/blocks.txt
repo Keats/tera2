@@ -1,0 +1,5 @@
+{% block start -%}
+Hello {{world}}!
+{%- endblock %}
+
+And inline {% block second %}{{super()}}{% endblock second %}.

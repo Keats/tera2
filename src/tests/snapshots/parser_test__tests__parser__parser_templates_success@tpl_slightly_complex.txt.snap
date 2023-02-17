@@ -1,0 +1,147 @@
+---
+source: src/tests/parser.rs
+expression: "&nodes"
+input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
+---
+[
+    "\n\n<html>\n  <head>\n    <title>",
+    Block {
+        name: "title",
+        body: [
+            GetAttr {
+                expr: Var {
+                    name: "product",
+                } @ 5:31-5:38 (85..92),
+                name: "name",
+            } @ 5:31-5:43 (85..97),
+        ],
+    },
+    "</title>\n  </head>\n  <body>",
+    Block {
+        name: "content",
+        body: [
+            ForLoop {
+                key: None,
+                value: "item",
+                target: Var {
+                    name: "items",
+                } @ 9:24-9:29 (198..203),
+                body: [
+                    If {
+                        conditions: [
+                            (
+                                GetAttr {
+                                    expr: Var {
+                                        name: "item",
+                                    } @ 10:19-10:23 (227..231),
+                                    name: "show",
+                                } @ 10:19-10:28 (227..236),
+                                [
+                                    GetAttr {
+                                        expr: Var {
+                                            name: "item",
+                                        } @ 10:34-10:38 (242..246),
+                                        name: "name",
+                                    } @ 10:34-10:43 (242..251),
+                                ],
+                            ),
+                        ],
+                        else_body: [
+                            "-",
+                        ],
+                    },
+                    "Price: $",
+                    BinaryOperation {
+                        op: Pipe,
+                        left: BinaryOperation {
+                            op: Minus,
+                            left: BinaryOperation {
+                                op: Mul,
+                                left: GetAttr {
+                                    expr: Var {
+                                        name: "item",
+                                    } @ 11:23-11:27 (303..307),
+                                    name: "price",
+                                } @ 11:23-11:33 (303..313),
+                                right: Var {
+                                    name: "vat",
+                                } @ 11:36-11:39 (316..319),
+                            } @ 11:23-11:39 (303..319),
+                            right: BinaryOperation {
+                                op: Mul,
+                                left: GetAttr {
+                                    expr: Var {
+                                        name: "item",
+                                    } @ 11:43-11:47 (323..327),
+                                    name: "price",
+                                } @ 11:43-11:53 (323..333),
+                                right: Var {
+                                    name: "discount",
+                                } @ 11:56-11:64 (336..344),
+                            } @ 11:43-11:65 (323..345),
+                        } @ 11:23-11:65 (303..345),
+                        right: FunctionCall {
+                            expr: Var {
+                                name: "integer",
+                            } @ 11:68-11:75 (348..355),
+                            kwargs: {},
+                        } @ 11:68-11:75 (348..355),
+                    } @ 11:23-11:75 (303..355),
+                    "\n\n            ",
+                    FilterSection {
+                        filter: FunctionCall {
+                            expr: Var {
+                                name: "markdown",
+                            } @ 13:22-13:30 (382..390),
+                            kwargs: {},
+                        } @ 13:22-13:30 (382..390),
+                        body: [
+                            "\n            ## Description\n\n            ",
+                            BinaryOperation {
+                                op: Pipe,
+                                left: GetAttr {
+                                    expr: Var {
+                                        name: "page",
+                                    } @ 16:15-16:19 (437..441),
+                                    name: "description",
+                                } @ 16:15-16:31 (437..453),
+                                right: FunctionCall {
+                                    expr: Var {
+                                        name: "safe",
+                                    } @ 16:34-16:38 (456..460),
+                                    kwargs: {},
+                                } @ 16:34-16:38 (456..460),
+                            } @ 16:15-16:38 (437..460),
+                            "\n            ",
+                        ],
+                    },
+                    "\n\n            ",
+                    BinaryOperation {
+                        op: Pipe,
+                        left: MacroCall {
+                            namespace: "macros",
+                            name: "cta",
+                            kwargs: {
+                                "title": "Buy now" @ 19:33-19:42 (526..535),
+                            },
+                        } @ 19:15-19:43 (508..536),
+                        right: FunctionCall {
+                            expr: Var {
+                                name: "safe",
+                            } @ 19:46-19:50 (539..543),
+                            kwargs: {},
+                        } @ 19:46-19:50 (539..543),
+                    } @ 19:15-19:50 (508..543),
+                    "\n\n            ",
+                    Include {
+                        name: "sales.html",
+                    },
+                ],
+                else_body: [
+                    "No items.",
+                ],
+            },
+        ],
+    },
+    "</body>\n</html>\n",
+]

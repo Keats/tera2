@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
-pub mod parser;
-pub use parser::Parser;
-mod context;
+// mod context;
+mod errors;
+mod parsing;
 mod utils;
+pub use parsing::parser::Parser;
+
+#[cfg(test)]
+mod tests;

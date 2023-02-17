@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/unclosed_variable.txt
+---
+error: Unexpected end of input
+  -->   @ 1:4-1:4

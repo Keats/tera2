@@ -1,0 +1,27 @@
+{% import "macros.html" as macros %}
+
+<html>
+  <head>
+    <title>{% block title %}{{ product.name }}{% endblock title %}</title>
+  </head>
+  <body>
+    {%- block content -%}
+        {%- for item in items -%}
+            {%- if item.show -%}{{item.name}}{%- else -%}-{%- endif -%}
+            Price: ${{ item.price * vat - (item.price * discount) | integer }}
+
+            {% filter markdown %}
+            ## Description
+
+            {{ page.description | safe }}
+            {% endfilter %}
+
+            {{ macros::cta(title="Buy now") | safe }}
+
+            {% include "sales.html" %}
+        {%- else -%}
+            No items.
+        {%- endfor -%}
+    {%- endblock -%}
+  </body>
+</html>

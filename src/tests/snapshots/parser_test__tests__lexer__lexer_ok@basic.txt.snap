@@ -1,0 +1,12 @@
+---
+source: src/tests/lexer.rs
+expression: "&tokens"
+input_file: src/tests/lexer_inputs/success/basic.txt
+---
+[
+    CONTENT("Hello "),
+    VARIABLE_START(false),
+    IDENT(username),
+    VARIABLE_END(false),
+    CONTENT(", {welcome}."),
+]

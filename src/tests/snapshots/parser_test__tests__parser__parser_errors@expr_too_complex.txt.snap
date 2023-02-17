@@ -1,0 +1,7 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/expr_too_complex.txt
+---
+error: The expression is too complex
+  -->   @ 1:102-1:103

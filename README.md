@@ -1,25 +1,26 @@
-DONE:
-1. count newlines (logos extra: https://github.com/maciejhirsz/logos/blob/master/tests/tests/simple.rs) in lexer, make sure we still get the newlines
-2. Start writing parser (expression only for now) using Tera AST if it makes sense: https://github.com/Keats/tera/blob/master/src/parser/ast.rs 
-3. Add pratt parser: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
-4. Add error handling with nice error reporting with https://github.com/brendanzab/codespan and LOTS OF tests
-5. Validation + Constant folding in parser for expression (https://github.com/Keats/tera/blob/master/src/parser/tests/parser.rs#L1074), 
-   can also constant fold at expression level (1==1)
-
-DOING:
-6. Finish parser with whitespace handling done while parsing
-
-   
 TODO:
 
-
-7. Fuzz
-8. Profit
-
-
-Old Tera parser https://github.com/Keats/tera/blob/2e7fb71fc4834c8dd557a70f1a512bb37001a74e/src/parser.rs (2016)
-
-
-Order of operators:
-
-https://github.com/pallets/jinja/issues/379
+- [x] Wire up new error struct in lexer2
+- [x] Add insta tests for lexing errors
+- [x] Start writing parser, copying most of parser.rs probably
+  - [x] raw
+  - [x] block
+  - [x] for loop
+  - [x] if/elif/else
+  - [x] filter section
+  - [x] macro definition
+  - [x] macro imports
+- [x] Delete logos lexer/tests/parser
+- [x] Adds lots of tests, some with insta some without 
+  - [x] Make sure the spans are always correct
+  - [x] Handle all custom errors from previous parser
+  - [x] Handle extends not being the first tag as error
+  - [x] Handle nodes not allowed in certain places (eg macro def inside a macro def)
+- [x] Fuzz like there's no tomorrow
+- [ ] Polish lexer + parser until it's perfect
+- [ ] Fuzz like there's no tomorrow
+- [ ] Generate bytecode
+- [ ] Implement VM
+- [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
+- [ ] Handle map literals (only allow string as keys for now?)
+- [ ] Nice reporting with Ariadne (make it optional)
