@@ -1,5 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser_test::Parser;
+use std::sync::Arc;
 
 static SIMPLE_TEMPLATE: &'static str = "
 <html>

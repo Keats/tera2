@@ -862,12 +862,10 @@ impl<'a> Parser<'a> {
 
                 Ok(None)
             }
-            _ => {
-                Err(Error::new_syntax_error(
-                    "Unknown tag".to_string(),
-                    &self.current_span,
-                ))
-            }
+            _ => Err(Error::new_syntax_error(
+                "Unknown tag".to_string(),
+                &self.current_span,
+            )),
         }
     }
 

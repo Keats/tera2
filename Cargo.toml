@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde = "1"
 # TODO: make it optional?
 #ariadne = "0.1.5"
 #codespan-reporting = "0.11"

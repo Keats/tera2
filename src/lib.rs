@@ -4,6 +4,7 @@
 mod errors;
 mod parsing;
 mod utils;
+mod value;
 pub use parsing::parser::Parser;
 
 #[cfg(test)]

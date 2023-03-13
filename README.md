@@ -17,8 +17,8 @@ TODO:
   - [x] Handle extends not being the first tag as error
   - [x] Handle nodes not allowed in certain places (eg macro def inside a macro def)
 - [x] Fuzz like there's no tomorrow
-- [ ] Polish lexer + parser until it's perfect
-- [ ] Fuzz like there's no tomorrow
+- [x] Polish lexer + parser until it's perfect
+- [x] Fuzz like there's no tomorrow
 - [ ] Generate bytecode
 - [ ] Implement VM
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
