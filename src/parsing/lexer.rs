@@ -119,20 +119,20 @@ pub enum Token<'a> {
 impl<'a> fmt::Debug for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Content(s) => write!(f, "CONTENT({:?})", s),
+            Token::Content(s) => write!(f, "CONTENT({s:?})"),
             Token::RawContent(ws_start, s, ws_end) => {
-                write!(f, "RAW_CONTENT({}, {:?}, {})", ws_start, s, ws_end)
+                write!(f, "RAW_CONTENT({ws_start}, {s:?}, {ws_end})")
             }
-            Token::VariableStart(ws) => write!(f, "VARIABLE_START({})", ws),
-            Token::VariableEnd(ws) => write!(f, "VARIABLE_END({})", ws),
-            Token::TagStart(ws) => write!(f, "TAG_START({})", ws),
-            Token::TagEnd(ws) => write!(f, "TAG_END({})", ws),
-            Token::Comment(start, end) => write!(f, "COMMENT({}, {})", start, end),
-            Token::Ident(i) => write!(f, "IDENT({})", i),
-            Token::String(s) => write!(f, "STRING({:?})", s),
-            Token::Integer(i) => write!(f, "INTEGER({:?})", i),
-            Token::Float(v) => write!(f, "FLOAT({:?})", v),
-            Token::Bool(v) => write!(f, "BOOL({:?})", v),
+            Token::VariableStart(ws) => write!(f, "VARIABLE_START({ws})"),
+            Token::VariableEnd(ws) => write!(f, "VARIABLE_END({ws})"),
+            Token::TagStart(ws) => write!(f, "TAG_START({ws})"),
+            Token::TagEnd(ws) => write!(f, "TAG_END({ws})"),
+            Token::Comment(start, end) => write!(f, "COMMENT({start}, {end})"),
+            Token::Ident(i) => write!(f, "IDENT({i})"),
+            Token::String(s) => write!(f, "STRING({s:?})"),
+            Token::Integer(i) => write!(f, "INTEGER({i:?})"),
+            Token::Float(v) => write!(f, "FLOAT({v:?})"),
+            Token::Bool(v) => write!(f, "BOOL({v:?})"),
             Token::Plus => write!(f, "PLUS"),
             Token::Minus => write!(f, "MINUS"),
             Token::Mul => write!(f, "MUL"),
@@ -481,7 +481,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
 
                 // Then the rest of the ops, strings and numbers
                 // strings and numbers will get returned inside the match so only operators are returned
-                let op = match rest.as_bytes().get(0) {
+                let op = match rest.as_bytes().first() {
                     Some(b'+') => Some(Token::Plus),
                     Some(b'-') => {
                         if rest.as_bytes().get(1).map_or(false, |x| x.is_ascii_digit()) {

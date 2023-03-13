@@ -148,8 +148,7 @@ impl<'a> Parser<'a> {
     fn endblock_different_name(&self, start_name: &str, end_name: &str) -> Error {
         Error::new_syntax_error(
             format!(
-                "Opening block was named `{}`, found `{}` for the end block name",
-                start_name, end_name
+                "Opening block was named `{start_name}`, found `{end_name}` for the end block name"
             ),
             &self.current_span,
         )
@@ -287,7 +286,7 @@ impl<'a> Parser<'a> {
                         }
                         Some(Ok((ref token, _))) => {
                             return Err(Error::new_syntax_error(
-                                format!("Found {} but expected `)` or `,`.", token),
+                                format!("Found {token} but expected `)` or `,`."),
                                 &self.current_span,
                             ));
                         }
@@ -404,7 +403,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::new_syntax_error(
-                    format!("Found {} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`", token),
+                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`"),
                     &self.current_span,
                 ));
             }
@@ -612,8 +611,7 @@ impl<'a> Parser<'a> {
                 Some(Ok((token, _))) => {
                     return Err(Error::new_syntax_error(
                         format!(
-                            "Found {} but was expecting `elif`, `else` or `endif`.",
-                            token
+                            "Found {token} but was expecting `elif`, `else` or `endif`."
                         ),
                         &self.current_span,
                     ));
@@ -675,7 +673,7 @@ impl<'a> Parser<'a> {
                         }
                         Some(Ok((token, _))) => {
                             return Err(Error::new_syntax_error(
-                                format!("Found {} but macro default arguments can only be one of: string, bool, integer, float", token),
+                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
                                 &self.current_span,
                             ));
                         }
@@ -732,8 +730,7 @@ impl<'a> Parser<'a> {
                 if RESERVED_NAMES.contains(&name) {
                     return Err(Error::new_syntax_error(
                         format!(
-                            "{} is a reserved keyword of Tera, it cannot be assigned to.",
-                            name
+                            "{name} is a reserved keyword of Tera, it cannot be assigned to."
                         ),
                         &self.current_span,
                     ));
@@ -756,7 +753,7 @@ impl<'a> Parser<'a> {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
                 if let Some(ref parent) = self.parent {
                     return Err(Error::new_syntax_error(
-                        format!("Template is already extending `{}`", parent),
+                        format!("Template is already extending `{parent}`"),
                         &self.current_span,
                     ));
                 }
@@ -790,7 +787,7 @@ impl<'a> Parser<'a> {
 
                 if self.blocks.contains_key(name) {
                     return Err(Error::new_syntax_error(
-                        format!("Template already contains a block named `{}`", name),
+                        format!("Template already contains a block named `{name}`"),
                         &self.current_span,
                     ));
                 }

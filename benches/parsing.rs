@@ -1,8 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use parser_test::Parser;
-use std::sync::Arc;
 
-static SIMPLE_TEMPLATE: &'static str = "
+
+static SIMPLE_TEMPLATE: &str = "
 <html>
   <head>
     <title>{{ product.name }}</title>
@@ -17,7 +17,7 @@ static SIMPLE_TEMPLATE: &'static str = "
 </html>
 ";
 
-static SLIGHTLY_COMPLEX_TEMPLATE: &'static str = "
+static SLIGHTLY_COMPLEX_TEMPLATE: &str = "
 <html>
   <head>
     <title>{% block title %}{{ product.name }}{% endblock title %}</title>

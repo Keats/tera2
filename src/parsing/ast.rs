@@ -17,7 +17,7 @@ impl fmt::Display for UnaryOperator {
             Minus => "-",
             Not => "not",
         };
-        write!(f, "{}", val)
+        write!(f, "{val}")
     }
 }
 
@@ -74,7 +74,7 @@ impl fmt::Display for BinaryOperator {
             StrConcat => "~",
             Pipe => "|",
         };
-        write!(f, "{}", val)
+        write!(f, "{val}")
     }
 }
 
@@ -220,9 +220,9 @@ impl fmt::Display for Array {
         write!(f, "[")?;
         for (i, s) in self.items.iter().enumerate() {
             if i == self.items.len() - 1 {
-                write!(f, "{}", s)?
+                write!(f, "{s}")?
             } else {
-                write!(f, "{}, ", s)?
+                write!(f, "{s}, ")?
             }
         }
         write!(f, "]")
@@ -243,9 +243,9 @@ impl fmt::Display for Test {
             write!(f, "{{",)?;
             for (i, s) in self.args.iter().enumerate() {
                 if i == self.args.len() - 1 {
-                    write!(f, "{}", s)?
+                    write!(f, "{s}")?
                 } else {
-                    write!(f, "{}, ", s)?
+                    write!(f, "{s}, ")?
                 }
             }
             write!(f, "}}",)?;

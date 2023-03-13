@@ -41,7 +41,7 @@ pub enum ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::SyntaxError(s) => write!(f, "{}", s),
+            ErrorKind::SyntaxError(s) => write!(f, "{s}"),
         }
     }
 }
