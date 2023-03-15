@@ -610,9 +610,7 @@ impl<'a> Parser<'a> {
                 }
                 Some(Ok((token, _))) => {
                     return Err(Error::new_syntax_error(
-                        format!(
-                            "Found {token} but was expecting `elif`, `else` or `endif`."
-                        ),
+                        format!("Found {token} but was expecting `elif`, `else` or `endif`."),
                         &self.current_span,
                     ));
                 }
@@ -729,9 +727,7 @@ impl<'a> Parser<'a> {
                 let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                 if RESERVED_NAMES.contains(&name) {
                     return Err(Error::new_syntax_error(
-                        format!(
-                            "{name} is a reserved keyword of Tera, it cannot be assigned to."
-                        ),
+                        format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),
                         &self.current_span,
                     ));
                 }
