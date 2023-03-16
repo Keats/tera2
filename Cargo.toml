@@ -9,6 +9,11 @@ serde = "1"
 #ariadne = "0.1.5"
 #codespan-reporting = "0.11"
 #valuable =  { git = "https://github.com/tokio-rs/valuable/", features = ["derive"] }
+indexmap = {version = "1.9.2", optional = true}
+
+[features]
+preserve_order = ["dep:indexmap"]
+
 
 [dev-dependencies]
 criterion = "0.4"

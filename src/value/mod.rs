@@ -1,14 +1,24 @@
 use serde::Serialize;
+#[cfg(not(feature = "preserve_order"))]
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::Arc;
+
+#[cfg(feature = "preserve_order")]
+use indexmap::IndexMap;
 
 mod key;
 mod ser;
 mod utils;
 
 use key::Key;
+
+#[cfg(not(feature = "preserve_order"))]
+pub(crate) type Map = HashMap<Key, Value>;
+
+#[cfg(feature = "preserve_order")]
+pub(crate) type Map = IndexMap<Key, Value>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -25,10 +35,9 @@ pub enum Value {
     Array(Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     String(Arc<String>),
-    // TODO: order preserving feature via indexmap
     // TODO: string interning?
-    // TODO: change the hash alg feature
-    Map(Arc<HashMap<Key, Value>>),
+    // TODO: change the hash alg feature? rustc-hash/ahash after testing
+    Map(Arc<Map>),
 }
 
 impl fmt::Display for Value {

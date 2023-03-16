@@ -1,12 +1,11 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::value::key::Key;
 use serde::{ser, Serialize, Serializer};
 
 use crate::value::utils::SerializationFailed;
-use crate::value::Value;
+use crate::value::{Map, Value};
 
 pub struct ValueSerializer;
 
@@ -135,7 +134,7 @@ impl Serializer for ValueSerializer {
     where
         T: Serialize,
     {
-        let mut map = HashMap::with_capacity(1);
+        let mut map = Map::with_capacity(1);
         map.insert(Key::String(Cow::Borrowed(variant)), value.serialize(self)?);
         Ok(Value::Map(Arc::new(map)))
     }
@@ -173,7 +172,7 @@ impl Serializer for ValueSerializer {
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         Ok(SerializeMap {
-            entries: HashMap::with_capacity(len.unwrap_or(0)),
+            entries: Map::with_capacity(len.unwrap_or(0)),
             key: None,
         })
     }
@@ -184,7 +183,7 @@ impl Serializer for ValueSerializer {
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         Ok(SerializeStruct {
-            fields: HashMap::with_capacity(len),
+            fields: Map::with_capacity(len),
         })
     }
 
@@ -197,7 +196,7 @@ impl Serializer for ValueSerializer {
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         Ok(SerializeStructVariant {
             variant,
-            fields: HashMap::with_capacity(len),
+            fields: Map::with_capacity(len),
         })
     }
 }
@@ -275,7 +274,7 @@ impl ser::SerializeTupleVariant for SerializeTupleVariant {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        let mut map = HashMap::with_capacity(1);
+        let mut map = Map::with_capacity(1);
         map.insert(
             Key::String(Cow::Borrowed(self.name)),
             Value::Array(Arc::new(self.fields)),
@@ -285,7 +284,7 @@ impl ser::SerializeTupleVariant for SerializeTupleVariant {
 }
 
 pub struct SerializeMap {
-    entries: HashMap<Key, Value>,
+    entries: Map,
     key: Option<Value>,
 }
 
@@ -321,7 +320,7 @@ impl ser::SerializeMap for SerializeMap {
 }
 
 pub struct SerializeStruct {
-    fields: HashMap<Key, Value>,
+    fields: Map,
 }
 
 impl ser::SerializeStruct for SerializeStruct {
@@ -348,7 +347,7 @@ impl ser::SerializeStruct for SerializeStruct {
 
 pub struct SerializeStructVariant {
     variant: &'static str,
-    fields: HashMap<Key, Value>,
+    fields: Map,
 }
 
 impl ser::SerializeStructVariant for SerializeStructVariant {
@@ -369,7 +368,7 @@ impl ser::SerializeStructVariant for SerializeStructVariant {
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        let mut map = HashMap::with_capacity(1);
+        let mut map = Map::with_capacity(1);
         map.insert(
             Key::String(Cow::Borrowed(self.variant)),
             Value::Map(Arc::new(self.fields)),
