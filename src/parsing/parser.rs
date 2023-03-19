@@ -9,6 +9,7 @@ use crate::parsing::ast::{
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
+use crate::value::Value;
 
 /// parse_expression can call itself max 100 times, after that it's an error
 const MAX_EXPR_RECURSION: usize = 100;
@@ -352,10 +353,10 @@ impl<'a> Parser<'a> {
         let (token, mut span) = self.next_or_error()?;
 
         let mut lhs = match token {
-            Token::Integer(i) => Expression::Integer(Spanned::new(i, span.clone())),
-            Token::Float(f) => Expression::Float(Spanned::new(f, span.clone())),
-            Token::String(s) => Expression::Str(Spanned::new(s.to_owned(), span.clone())),
-            Token::Bool(b) => Expression::Bool(Spanned::new(b, span.clone())),
+            Token::Integer(i) => Expression::Const(Spanned::new(Value::from(i), span.clone())),
+            Token::Float(f) => Expression::Const(Spanned::new(Value::from(f), span.clone())),
+            Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
+            Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -658,16 +659,16 @@ impl<'a> Parser<'a> {
 
                     let val = match &self.next {
                         Some(Ok((Token::Bool(b), span))) => {
-                            Expression::Bool(Spanned::new(*b, span.clone()))
+                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
                         }
                         Some(Ok((Token::String(b), span))) => {
-                            Expression::Str(Spanned::new(b.to_string(), span.clone()))
+                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
                         }
                         Some(Ok((Token::Integer(b), span))) => {
-                            Expression::Integer(Spanned::new(*b, span.clone()))
+                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
                         }
                         Some(Ok((Token::Float(b), span))) => {
-                            Expression::Float(Spanned::new(*b, span.clone()))
+                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
                         }
                         Some(Ok((token, _))) => {
                             return Err(Error::new_syntax_error(

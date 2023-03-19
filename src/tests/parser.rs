@@ -4,6 +4,7 @@ use std::fmt;
 use crate::parsing::ast::{Expression, MacroDefinition, Node};
 use crate::parsing::parser::Parser;
 use crate::utils::{Span, Spanned};
+use crate::value::Value;
 
 struct Expressions(pub Vec<Expression>);
 
@@ -96,7 +97,7 @@ fn parser_macro_def_success() {
                     span.range = 21..25;
                     kwargs.insert(
                         "hey".to_owned(),
-                        Some(Expression::Str(Spanned::new("ho".to_string(), span))),
+                        Some(Expression::Const(Spanned::new(Value::from("ho"), span))),
                     );
                     kwargs.insert("optional".to_owned(), None);
                     kwargs

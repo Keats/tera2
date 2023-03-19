@@ -119,7 +119,7 @@ impl Value {
             Value::I64(v) => Some(*v as i128),
             // TODO: in theory this cannot necessarily fit in i128
             Value::U128(v) => Some(*v as i128),
-            Value::I128(v) => Some(*v as i128),
+            Value::I128(v) => Some(*v),
             _ => None,
         }
     }
@@ -154,14 +154,44 @@ impl Value {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display() {
-        let val = Value::from_serializable(&vec![1, 2, 3]);
-        println!("{val}");
-        assert!(false);
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
     }
 }
+
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Value::String(Arc::new(value.to_owned()))
+    }
+}
+
+impl From<u64> for Value {
+    fn from(value: u64) -> Self {
+        Value::U64(value)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Value::I64(value)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Value::F64(value)
+    }
+}
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//
+//     #[test]
+//     fn test_display() {
+//         let val = Value::from_serializable(&vec![1, 2, 3]);
+//         println!("{val}");
+//         assert!(false);
+//     }
+// }

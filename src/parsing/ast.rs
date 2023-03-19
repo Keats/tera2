@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::utils::{Span, Spanned};
+use crate::value::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -78,14 +79,12 @@ impl fmt::Display for BinaryOperator {
     }
 }
 
+// TODO: use the Value type here and replace Str/Integer/Float/Bool with a Const
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
-    Str(Spanned<String>),
-    Integer(Spanned<i64>),
-    Float(Spanned<f64>),
-    Bool(Spanned<bool>),
+    Const(Spanned<Value>),
     Array(Spanned<Array>),
     Var(Spanned<Var>),
     GetAttr(Spanned<GetAttr>),
@@ -99,21 +98,17 @@ pub enum Expression {
 
 impl Expression {
     pub fn is_literal(&self) -> bool {
-        matches!(
-            self,
-            Expression::Str(..)
-                | Expression::Integer(..)
-                | Expression::Float(..)
-                | Expression::Bool(..)
-        )
+        matches!(self, Expression::Const(..))
     }
 
     /// Whether those nodes can be used in for loops
     pub fn can_be_iterated_on(&self) -> bool {
+        if let Expression::Const(c) = self {
+            return matches!(c.node(), Value::String(..));
+        }
         matches!(
             self,
-            Expression::Str(..)
-                | Expression::Var(..)
+            Expression::Var(..)
                 | Expression::GetItem(..)
                 | Expression::GetAttr(..)
                 | Expression::Array(..)
@@ -124,10 +119,7 @@ impl Expression {
 
     pub fn expand_span(&mut self, span: &Span) {
         match self {
-            Expression::Str(s) => s.span_mut().expand(span),
-            Expression::Integer(s) => s.span_mut().expand(span),
-            Expression::Float(s) => s.span_mut().expand(span),
-            Expression::Bool(s) => s.span_mut().expand(span),
+            Expression::Const(s) => s.span_mut().expand(span),
             Expression::Array(s) => s.span_mut().expand(span),
             Expression::Test(s) => s.span_mut().expand(span),
             Expression::MacroCall(s) => s.span_mut().expand(span),
@@ -146,10 +138,13 @@ impl fmt::Debug for Expression {
         use Expression::*;
 
         match self {
-            Str(i) => fmt::Debug::fmt(i, f),
-            Integer(i) => fmt::Debug::fmt(i, f),
-            Float(i) => fmt::Debug::fmt(i, f),
-            Bool(i) => fmt::Debug::fmt(i, f),
+            Const(i) => match i.node() {
+                Value::Bool(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                Value::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                Value::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                _ => unreachable!(),
+            },
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
             MacroCall(i) => fmt::Debug::fmt(i, f),
@@ -168,10 +163,13 @@ impl fmt::Display for Expression {
         use Expression::*;
 
         match self {
-            Str(i) => write!(f, "'{}'", **i),
-            Integer(i) => write!(f, "{}", **i),
-            Float(i) => write!(f, "{}", **i),
-            Bool(i) => write!(f, "{}", **i),
+            Const(i) => match i.node() {
+                Value::String(s) => write!(f, "'{}'", *s),
+                Value::I64(s) => write!(f, "{}", *s),
+                Value::F64(s) => write!(f, "{}", *s),
+                Value::Bool(s) => write!(f, "{}", *s),
+                _ => unreachable!(),
+            },
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
             MacroCall(i) => write!(f, "{}", **i),

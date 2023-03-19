@@ -76,7 +76,7 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        Ok(Key::U64(v as u64))
+        Ok(Key::U64(v))
     }
 
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok, Self::Error> {

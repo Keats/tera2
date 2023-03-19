@@ -5,6 +5,7 @@ mod errors;
 mod parsing;
 mod utils;
 pub mod value;
+mod vm;
 pub use parsing::parser::Parser;
 
 #[cfg(test)]
