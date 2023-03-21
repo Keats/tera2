@@ -79,7 +79,6 @@ impl fmt::Display for BinaryOperator {
     }
 }
 
-// TODO: use the Value type here and replace Str/Integer/Float/Bool with a Const
 /// An expression is the node found in variable block, kwargs and conditions.
 #[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
@@ -89,6 +88,7 @@ pub enum Expression {
     Var(Spanned<Var>),
     GetAttr(Spanned<GetAttr>),
     GetItem(Spanned<GetItem>),
+    // TODO: add filter calls here rather than being in the binop struct
     Test(Spanned<Test>),
     MacroCall(Spanned<MacroCall>),
     FunctionCall(Spanned<FunctionCall>),
@@ -278,6 +278,7 @@ impl fmt::Display for MacroCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
+    // TODO: use a string since it's only used in Filters?
     pub expr: Expression,
     pub kwargs: HashMap<String, Expression>,
 }
@@ -407,7 +408,6 @@ pub struct ForLoop {
     pub else_body: Vec<Node>,
 }
 
-// TODO: is it worth using spanned as well here?
 #[derive(Clone, PartialEq)]
 pub enum Node {
     Content(String),

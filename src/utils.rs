@@ -26,6 +26,10 @@ impl<T: fmt::Debug> Spanned<T> {
     pub(crate) fn node(&self) -> &T {
         &self.node
     }
+
+    pub fn into_parts(self) -> (T, Span) {
+        (*self.node, self.span)
+    }
 }
 
 impl<T: fmt::Debug> Deref for Spanned<T> {

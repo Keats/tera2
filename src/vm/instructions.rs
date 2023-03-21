@@ -1,4 +1,6 @@
+use crate::utils::Span;
 use crate::value::Value;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
@@ -9,7 +11,15 @@ pub enum Instruction {
     /// Reading a variable/function
     LoadVar(String),
     /// Some raw strings in between tags
-    Content(String),
+    WriteText(String),
+    /// Writes the value on the top of the stack
+    WriteTop,
+    /// Set the last value on the stack in the current context
+    Set(String),
+    /// Set the last value on the stack in the global context. Same as Set outside of loops.
+    SetGlobal(String),
+    /// Include the given template
+    Include(String),
 
     // math
     Mul,
@@ -27,11 +37,20 @@ pub enum Instruction {
     GreaterThanOrEqual,
     Equal,
     NotEqual,
+
+    StrConcat,
+    In,
+
+    // unary
+    Not,
+    Negative,
 }
 
 #[derive(Clone)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
+    /// instruction idx -> Span
+    spans: HashMap<u32, Span>,
     // What should it be there? Template name?
     name: String,
 }
@@ -40,12 +59,20 @@ impl Chunk {
     pub(crate) fn new(name: &str) -> Self {
         Self {
             instructions: Vec::with_capacity(256),
+            spans: HashMap::with_capacity(256),
             name: name.to_owned(),
         }
     }
 
-    pub(crate) fn add_instruction(&mut self, instr: Instruction) {
+    pub(crate) fn add_instruction(&mut self, instr: Instruction) -> u32 {
+        let idx = self.instructions.len();
         self.instructions.push(instr);
+        idx as u32
+    }
+
+    pub(crate) fn add_instruction_with_span(&mut self, instr: Instruction, span: Span) {
+        let idx = self.add_instruction(instr);
+        self.spans.insert(idx, span);
     }
 }
 
