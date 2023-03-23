@@ -51,9 +51,8 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                         ],
                     },
                     "Price: $",
-                    BinaryOperation {
-                        op: Pipe,
-                        left: BinaryOperation {
+                    Filter {
+                        expr: BinaryOperation {
                             op: Minus,
                             left: BinaryOperation {
                                 op: Mul,
@@ -80,58 +79,42 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                                 } @ 11:56-11:64 (336..344),
                             } @ 11:43-11:65 (323..345),
                         } @ 11:23-11:65 (303..345),
-                        right: FunctionCall {
-                            expr: Var {
-                                name: "integer",
-                            } @ 11:68-11:75 (348..355),
-                            kwargs: {},
-                        } @ 11:68-11:75 (348..355),
-                    } @ 11:23-11:75 (303..355),
+                        name: "integer",
+                        kwargs: {
+                            "base": 10 @ 11:81-11:83 (361..363),
+                        },
+                    } @ 11:68-11:84 (348..364),
                     "\n\n            ",
                     FilterSection {
-                        filter: FunctionCall {
-                            expr: Var {
-                                name: "markdown",
-                            } @ 13:22-13:30 (382..390),
-                            kwargs: {},
-                        } @ 13:22-13:30 (382..390),
+                        name: "markdown" @ 13:22-13:30 (391..399),
+                        kwargs: {},
                         body: [
                             "\n            ## Description\n\n            ",
-                            BinaryOperation {
-                                op: Pipe,
-                                left: GetAttr {
+                            Filter {
+                                expr: GetAttr {
                                     expr: Var {
                                         name: "page",
-                                    } @ 16:15-16:19 (437..441),
+                                    } @ 16:15-16:19 (446..450),
                                     name: "description",
-                                } @ 16:15-16:31 (437..453),
-                                right: FunctionCall {
-                                    expr: Var {
-                                        name: "safe",
-                                    } @ 16:34-16:38 (456..460),
-                                    kwargs: {},
-                                } @ 16:34-16:38 (456..460),
-                            } @ 16:15-16:38 (437..460),
+                                } @ 16:15-16:31 (446..462),
+                                name: "safe",
+                                kwargs: {},
+                            } @ 16:34-16:38 (465..469),
                             "\n            ",
                         ],
                     },
                     "\n\n            ",
-                    BinaryOperation {
-                        op: Pipe,
-                        left: MacroCall {
+                    Filter {
+                        expr: MacroCall {
                             namespace: "macros",
                             name: "cta",
                             kwargs: {
-                                "title": "Buy now" @ 19:33-19:42 (526..535),
+                                "title": "Buy now" @ 19:33-19:42 (535..544),
                             },
-                        } @ 19:15-19:43 (508..536),
-                        right: FunctionCall {
-                            expr: Var {
-                                name: "safe",
-                            } @ 19:46-19:50 (539..543),
-                            kwargs: {},
-                        } @ 19:46-19:50 (539..543),
-                    } @ 19:15-19:50 (508..543),
+                        } @ 19:15-19:43 (517..545),
+                        name: "safe",
+                        kwargs: {},
+                    } @ 19:46-19:50 (548..552),
                     "\n\n            ",
                     Include {
                         name: "sales.html",

@@ -18,9 +18,7 @@ input_file: src/tests/parser_inputs/success/blocks.txt
         name: "second",
         body: [
             FunctionCall {
-                expr: Var {
-                    name: "super",
-                } @ 5:31-5:36 (84..89),
+                name: "super",
                 kwargs: {},
             } @ 5:31-5:38 (84..91),
         ],

@@ -46,6 +46,8 @@ pub enum BinaryOperator {
     Or,
     StrConcat,
     In,
+
+    // Not binary operators, only there simplicity for precedence in the parser.
     Is,
     Pipe,
 }
@@ -70,9 +72,9 @@ impl fmt::Display for BinaryOperator {
             NotEqual => "!=",
             And => "and",
             Or => "or",
+            StrConcat => "~",
             In => "in",
             Is => "is",
-            StrConcat => "~",
             Pipe => "|",
         };
         write!(f, "{val}")
@@ -86,9 +88,11 @@ pub enum Expression {
     Const(Spanned<Value>),
     Array(Spanned<Array>),
     Var(Spanned<Var>),
+    /// The `.` getter, as in item.field
     GetAttr(Spanned<GetAttr>),
+    /// The in brackets getter as in item[hello * 10]
     GetItem(Spanned<GetItem>),
-    // TODO: add filter calls here rather than being in the binop struct
+    Filter(Spanned<Filter>),
     Test(Spanned<Test>),
     MacroCall(Spanned<MacroCall>),
     FunctionCall(Spanned<FunctionCall>),
@@ -112,6 +116,7 @@ impl Expression {
                 | Expression::GetItem(..)
                 | Expression::GetAttr(..)
                 | Expression::Array(..)
+                | Expression::Filter(..)
                 | Expression::FunctionCall(..)
                 | Expression::BinaryOperation(..)
         )
@@ -129,6 +134,7 @@ impl Expression {
             Expression::Var(s) => s.span_mut().expand(span),
             Expression::GetAttr(s) => s.span_mut().expand(span),
             Expression::GetItem(s) => s.span_mut().expand(span),
+            Expression::Filter(s) => s.span_mut().expand(span),
         }
     }
 }
@@ -148,6 +154,7 @@ impl fmt::Debug for Expression {
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
             MacroCall(i) => fmt::Debug::fmt(i, f),
+            Filter(i) => fmt::Debug::fmt(i, f),
             FunctionCall(i) => fmt::Debug::fmt(i, f),
             UnaryOperation(i) => fmt::Debug::fmt(i, f),
             BinaryOperation(i) => fmt::Debug::fmt(i, f),
@@ -173,6 +180,7 @@ impl fmt::Display for Expression {
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
             MacroCall(i) => write!(f, "{}", **i),
+            Filter(i) => write!(f, "{}", **i),
             FunctionCall(i) => write!(f, "{}", **i),
             UnaryOperation(i) => write!(f, "{}", **i),
             BinaryOperation(i) => write!(f, "{}", **i),
@@ -180,6 +188,31 @@ impl fmt::Display for Expression {
             GetAttr(i) => write!(f, "{}", **i),
             GetItem(i) => write!(f, "{}", **i),
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Filter {
+    pub expr: Expression,
+    pub name: String,
+    pub kwargs: HashMap<String, Expression>,
+}
+
+impl fmt::Display for Filter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(| {}", self.expr)?;
+        write!(f, " {}", self.name)?;
+        write!(f, "{{",)?;
+        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
+        keys.sort();
+        for (i, k) in keys.iter().enumerate() {
+            if i == self.kwargs.len() - 1 {
+                write!(f, "{}={}", k, self.kwargs[*k])?
+            } else {
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
+            }
+        }
+        write!(f, "}})",)
     }
 }
 
@@ -229,16 +262,18 @@ impl fmt::Display for Array {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Test {
+    pub expr: Expression,
     pub name: String,
     pub args: Vec<Expression>,
 }
 
 impl fmt::Display for Test {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)?;
+        write!(f, "(is {}", self.expr)?;
+        write!(f, " {}", self.name)?;
+        write!(f, "{{",)?;
 
         if !self.args.is_empty() {
-            write!(f, "{{",)?;
             for (i, s) in self.args.iter().enumerate() {
                 if i == self.args.len() - 1 {
                     write!(f, "{s}")?
@@ -246,8 +281,9 @@ impl fmt::Display for Test {
                     write!(f, "{s}, ")?
                 }
             }
-            write!(f, "}}",)?;
         }
+
+        write!(f, "}})",)?;
         Ok(())
     }
 }
@@ -278,14 +314,13 @@ impl fmt::Display for MacroCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
-    // TODO: use a string since it's only used in Filters?
-    pub expr: Expression,
+    pub name: String,
     pub kwargs: HashMap<String, Expression>,
 }
 
 impl fmt::Display for FunctionCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.expr)?;
+        write!(f, "{}", self.name)?;
         write!(f, "{{",)?;
         let mut keys = self.kwargs.keys().collect::<Vec<_>>();
         keys.sort();
@@ -377,7 +412,8 @@ pub struct If {
 /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterSection {
-    pub filter: Expression,
+    pub name: Spanned<String>,
+    pub kwargs: HashMap<String, Expression>,
     /// The filter body
     pub body: Vec<Node>,
 }

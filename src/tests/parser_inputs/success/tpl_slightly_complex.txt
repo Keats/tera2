@@ -8,7 +8,7 @@
     {%- block content -%}
         {%- for item in items -%}
             {%- if item.show -%}{{item.name}}{%- else -%}-{%- endif -%}
-            Price: ${{ item.price * vat - (item.price * discount) | integer }}
+            Price: ${{ item.price * vat - (item.price * discount) | integer(base=10) }}
 
             {% filter markdown %}
             ## Description

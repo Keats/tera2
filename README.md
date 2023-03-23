@@ -24,3 +24,8 @@ TODO:
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Handle map literals (only allow string as keys for now?)
 - [ ] Nice reporting with Ariadne (make it optional)
+
+
+Ideas:
+
+- Collect all functions/filters/macro call/includes/tests and make sure it's all available at compile time

@@ -31,6 +31,7 @@ impl Compiler {
             Expression::GetItem(_) => {}
             Expression::Test(_) => {}
             Expression::MacroCall(_) => {}
+            Expression::Filter(_) => {}
             Expression::FunctionCall(_) => {}
             Expression::UnaryOperation(e) => {
                 let (op, _) = e.into_parts();
@@ -43,6 +44,7 @@ impl Compiler {
             Expression::BinaryOperation(e) => {
                 let (op, span) = e.into_parts();
                 // TODO: implement constant folding for arithmetics, string concat
+                // Value::constant_fold(self, other) -> Option<Value>?
                 self.compile_expr(op.left);
                 self.compile_expr(op.right);
                 let instr = match op.op {

@@ -3,8 +3,8 @@ use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
-    GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, Expression, Filter, FilterSection, ForLoop, FunctionCall,
+    GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -204,7 +204,10 @@ impl<'a> Parser<'a> {
                     let kwargs = self.parse_kwargs()?;
                     start_span.expand(&self.current_span);
                     expr = Expression::FunctionCall(Spanned::new(
-                        FunctionCall { expr, kwargs },
+                        FunctionCall {
+                            name: ident.to_owned(),
+                            kwargs,
+                        },
                         start_span,
                     ));
                     break;
@@ -260,8 +263,28 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
-    fn parse_test(&mut self) -> TeraResult<Expression> {
-        let (name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+    fn parse_filter(&mut self, expr: Expression) -> TeraResult<Expression> {
+        let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let mut kwargs = HashMap::new();
+
+        // We have potentially args to handle
+        if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
+            kwargs = self.parse_kwargs()?;
+        }
+        span.expand(&self.current_span);
+
+        Ok(Expression::Filter(Spanned::new(
+            Filter {
+                expr,
+                name: name.to_string(),
+                kwargs,
+            },
+            span,
+        )))
+    }
+
+    fn parse_test(&mut self, expr: Expression) -> TeraResult<Expression> {
+        let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         let mut args = Vec::new();
 
         // We have potentially args to handle
@@ -305,8 +328,11 @@ impl<'a> Parser<'a> {
             expect_token!(self, Token::RightParen, ")")?;
         }
 
+        span.expand(&self.current_span);
+
         Ok(Expression::Test(Spanned::new(
             Test {
+                expr,
                 name: name.to_string(),
                 args,
             },
@@ -428,7 +454,6 @@ impl<'a> Parser<'a> {
                 Token::Equal => BinaryOperator::Equal,
                 Token::NotEqual => BinaryOperator::NotEqual,
                 Token::Tilde => BinaryOperator::StrConcat,
-                Token::Pipe => BinaryOperator::Pipe,
                 Token::Ident("not") => {
                     negated = true;
                     // eat it and continue
@@ -439,6 +464,7 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
+                Token::Pipe => BinaryOperator::Pipe,
                 _ => break,
             };
 
@@ -461,40 +487,22 @@ impl<'a> Parser<'a> {
                 negated = true;
             }
 
-            let mut rhs = match op {
-                BinaryOperator::Is => self.parse_test()?,
-                _ => self.inner_parse_expression(r_bp)?,
+            lhs = match op {
+                BinaryOperator::Is => self.parse_test(lhs)?,
+                BinaryOperator::Pipe => self.parse_filter(lhs)?,
+                _ => {
+                    let rhs = self.inner_parse_expression(r_bp)?;
+                    span.expand(&self.current_span);
+                    Expression::BinaryOperation(Spanned::new(
+                        BinaryOperation {
+                            op,
+                            left: lhs,
+                            right: rhs,
+                        },
+                        span.clone(),
+                    ))
+                }
             };
-
-            // We can have filters that look like ident (eg hello | upper) so we need to make sure
-            // we have them as fn in the AST
-            if op == BinaryOperator::Pipe {
-                rhs = match rhs {
-                    Expression::Var(s) => {
-                        let node_span = s.span().clone();
-                        Expression::FunctionCall(Spanned::new(
-                            FunctionCall {
-                                expr: Expression::Var(s),
-                                kwargs: HashMap::new(),
-                            },
-                            node_span,
-                        ))
-                    }
-                    _ => rhs,
-                };
-            }
-
-            span.expand(&self.current_span);
-
-            lhs = Expression::BinaryOperation(Spanned::new(
-                BinaryOperation {
-                    op,
-                    left: lhs,
-                    right: rhs,
-                },
-                span.clone(),
-            ));
-
             if negated {
                 lhs = Expression::UnaryOperation(Spanned::new(
                     UnaryOperation {
@@ -506,23 +514,6 @@ impl<'a> Parser<'a> {
                 negated = false;
             }
         }
-
-        // TODO: do we need to do that?
-        // Make sure some reserved names are not used outside of their context
-        // match &lhs {
-        //     Expression::Var(var) => {
-        //         // Only allowed in for loops
-        //         if var.name == "continue" || var.name == "break" {
-        //             if !self.body_contexts.contains(&BodyContext::ForLoop) {
-        //
-        //             }
-        //         }
-        //     }
-        //     Expression::FunctionCall(fn_call) => {
-        //
-        //     }
-        //     _ => (),
-        // }
 
         Ok(lhs)
     }
@@ -823,23 +814,14 @@ impl<'a> Parser<'a> {
                 let mut fn_span = ident_span.clone();
                 fn_span.expand(&self.current_span);
                 expect_token!(self, Token::TagEnd(..), "%}")?;
-
-                let filter = Expression::FunctionCall(Spanned::new(
-                    FunctionCall {
-                        expr: Expression::Var(Spanned::new(
-                            Var {
-                                name: name.to_string(),
-                            },
-                            ident_span,
-                        )),
-                        kwargs,
-                    },
-                    fn_span,
-                ));
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
                 self.next_or_error()?;
                 self.body_contexts.pop();
-                Ok(Some(Node::FilterSection(FilterSection { filter, body })))
+                Ok(Some(Node::FilterSection(FilterSection {
+                    name: Spanned::new(name.to_owned(), ident_span),
+                    kwargs,
+                    body,
+                })))
             }
             Token::Ident("macro") => {
                 let macro_def = self.parse_macro_definition()?;

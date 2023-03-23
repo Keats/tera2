@@ -98,12 +98,12 @@ mod tests {
         assert_eq!(std::mem::size_of::<Instruction>(), 32);
     }
 
-    #[test]
-    fn test_debug() {
-        let mut chunk = Chunk::new("hello");
-        chunk.add_instruction(Instruction::LoadConst(Value::U64(1)));
-        chunk.add_instruction(Instruction::LoadVar("ho".to_string()));
-        println!("{:?}", chunk);
-        assert!(false);
-    }
+    // #[test]
+    // fn test_debug() {
+    //     let mut chunk = Chunk::new("hello");
+    //     chunk.add_instruction(Instruction::LoadConst(Value::U64(1)));
+    //     chunk.add_instruction(Instruction::LoadVar("ho".to_string()));
+    //     println!("{:?}", chunk);
+    //     assert!(false);
+    // }
 }

@@ -20,21 +20,16 @@ input_file: src/tests/parser_inputs/success/tpl_simple.txt
         name: "name",
     } @ 7:11-7:23 (105..117),
     " - ",
-    BinaryOperation {
-        op: Pipe,
-        left: GetAttr {
+    Filter {
+        expr: GetAttr {
             expr: Var {
                 name: "product",
             } @ 7:32-7:39 (126..133),
             name: "manufacturer",
         } @ 7:32-7:52 (126..146),
-        right: FunctionCall {
-            expr: Var {
-                name: "upper",
-            } @ 7:55-7:60 (149..154),
-            kwargs: {},
-        } @ 7:55-7:60 (149..154),
-    } @ 7:32-7:60 (126..154),
+        name: "upper",
+        kwargs: {},
+    } @ 7:55-7:60 (149..154),
     "</h1>\n    <p>",
     GetAttr {
         expr: Var {
