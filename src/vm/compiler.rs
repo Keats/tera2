@@ -26,7 +26,10 @@ impl Compiler {
                 self.chunk.add_instruction(Instruction::LoadConst(val));
             }
             Expression::Array(_) => {}
-            Expression::Var(_) => {}
+            Expression::Var(e) => {
+                let (val, _) = e.into_parts();
+                self.chunk.add_instruction(Instruction::LoadVar(val.name));
+            }
             Expression::GetAttr(_) => {}
             Expression::GetItem(_) => {}
             Expression::Test(_) => {}
@@ -45,6 +48,7 @@ impl Compiler {
                 let (op, span) = e.into_parts();
                 // TODO: implement constant folding for arithmetics, string concat
                 // Value::constant_fold(self, other) -> Option<Value>?
+                // need to pass the op as well...^
                 self.compile_expr(op.left);
                 self.compile_expr(op.right);
                 let instr = match op.op {
@@ -65,8 +69,9 @@ impl Compiler {
                     BinaryOperator::In => Instruction::In,
                     BinaryOperator::And => todo!("what do we generate"),
                     BinaryOperator::Or => todo!("what do we generate"),
-                    BinaryOperator::Is => todo!("it's a test"),
-                    BinaryOperator::Pipe => todo!("it's a filter"),
+                    // These are not really binops and we already switched them to separate AST
+                    // nodes in the parser
+                    BinaryOperator::Is | BinaryOperator::Pipe => unreachable!(),
                 };
                 self.chunk.add_instruction_with_span(instr, span);
             }

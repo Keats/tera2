@@ -10,7 +10,7 @@ pub enum Instruction {
     LoadConst(Value),
     /// Reading a variable/function
     LoadVar(String),
-    /// Some raw strings in between tags
+    /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack
     WriteTop,

@@ -43,7 +43,7 @@ hello.data[var].hey
 (in a range{end=2})
 (in a 'hello')
 (and (in a b) (in b c))
-(and (in msg.status ['pending', 'confirmed']) msg.body)
+(and (in msg.status ["pending", "confirmed"]) msg.body)
 (is a defined{})
 (not (is a defined{}))
 (is (+ a 1) odd{})

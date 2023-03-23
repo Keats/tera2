@@ -41,6 +41,7 @@ fn parser_errors() {
     insta::glob!("parser_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res = Parser::new(&contents).parse();
+        println!("{path:?}");
         assert!(res.is_err());
         insta::assert_display_snapshot!(res.unwrap_err());
     });
@@ -129,6 +130,22 @@ fn parser_macro_import_success() {
         parser.macro_imports,
         vec![("macros.html".to_string(), "macros".to_string())]
     );
+}
+
+#[test]
+fn parser_can_convert_array_to_const_when_possible() {
+    let mut parser = Parser::new(r#"{{ [1, 2, 3] }}"#);
+    let nodes = parser.parse().unwrap();
+    let expected = Value::from(vec![1, 2, 3]);
+    match &nodes[0] {
+        Node::Expression(e) => {
+            assert_eq!(
+                e,
+                &Expression::Const(Spanned::new(expected, e.span().clone()))
+            );
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[test]

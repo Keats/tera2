@@ -412,7 +412,7 @@ impl<'a> Parser<'a> {
                 self.array_dimension += 1;
                 if self.array_dimension > MAX_DIMENSION_ARRAY {
                     return Err(Error::new_syntax_error(
-                        "Arrays can have a maximum of 2 dimensions.".to_string(),
+                        format!("Arrays can have a maximum of {MAX_DIMENSION_ARRAY} dimensions."),
                         &self.current_span,
                     ));
                 }
@@ -420,7 +420,12 @@ impl<'a> Parser<'a> {
                 self.array_dimension -= 1;
                 expect_token!(self, Token::RightBracket, "]")?;
                 span.expand(&self.current_span);
-                Expression::Array(Spanned::new(Array { items }, span.clone()))
+                let array = Array { items };
+                if let Some(const_array) = array.as_const() {
+                    Expression::Const(Spanned::new(const_array, span.clone()))
+                } else {
+                    Expression::Array(Spanned::new(array, span.clone()))
+                }
             }
             Token::LeftParen => {
                 let mut lhs = self.inner_parse_expression(0)?;
@@ -535,12 +540,6 @@ impl<'a> Parser<'a> {
         }
         expect_token!(self, Token::Ident("in"), "in")?;
         let target = self.parse_expression(0)?;
-        if !target.can_be_iterated_on() {
-            return Err(Error::new_syntax_error(
-                "for loops can only iterate on strings, arrays, idents and function.".to_string(),
-                &self.current_span,
-            ));
-        }
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body =
             self.parse_until(|tok| matches!(tok, Token::Ident("endfor") | Token::Ident("else")))?;

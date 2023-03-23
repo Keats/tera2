@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
 use crate::value::Value;
@@ -85,14 +86,20 @@ impl fmt::Display for BinaryOperator {
 #[derive(Clone, PartialEq)]
 #[allow(missing_docs)]
 pub enum Expression {
+    /// A constant: string, number, boolean, array or null
     Const(Spanned<Value>),
+    /// An array that contains things not
     Array(Spanned<Array>),
+    /// A variable to look up in the context.
+    /// Note that
     Var(Spanned<Var>),
     /// The `.` getter, as in item.field
     GetAttr(Spanned<GetAttr>),
     /// The in brackets getter as in item[hello * 10]
     GetItem(Spanned<GetItem>),
+    /// my_value | safe(potential="argument") filter
     Filter(Spanned<Filter>),
+    /// my_value is defined
     Test(Spanned<Test>),
     MacroCall(Spanned<MacroCall>),
     FunctionCall(Spanned<FunctionCall>),
@@ -105,21 +112,20 @@ impl Expression {
         matches!(self, Expression::Const(..))
     }
 
-    /// Whether those nodes can be used in for loops
-    pub fn can_be_iterated_on(&self) -> bool {
-        if let Expression::Const(c) = self {
-            return matches!(c.node(), Value::String(..));
+    pub fn span(&self) -> &Span {
+        match self {
+            Expression::Const(s) => s.span(),
+            Expression::Array(s) => s.span(),
+            Expression::Test(s) => s.span(),
+            Expression::MacroCall(s) => s.span(),
+            Expression::FunctionCall(s) => s.span(),
+            Expression::UnaryOperation(s) => s.span(),
+            Expression::BinaryOperation(s) => s.span(),
+            Expression::Var(s) => s.span(),
+            Expression::GetAttr(s) => s.span(),
+            Expression::GetItem(s) => s.span(),
+            Expression::Filter(s) => s.span(),
         }
-        matches!(
-            self,
-            Expression::Var(..)
-                | Expression::GetItem(..)
-                | Expression::GetAttr(..)
-                | Expression::Array(..)
-                | Expression::Filter(..)
-                | Expression::FunctionCall(..)
-                | Expression::BinaryOperation(..)
-        )
     }
 
     pub fn expand_span(&mut self, span: &Span) {
@@ -149,7 +155,8 @@ impl fmt::Debug for Expression {
                 Value::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
-                _ => unreachable!(),
+                Value::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                _ => unreachable!("{self} is not implemented"),
             },
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
@@ -175,6 +182,20 @@ impl fmt::Display for Expression {
                 Value::I64(s) => write!(f, "{}", *s),
                 Value::F64(s) => write!(f, "{}", *s),
                 Value::Bool(s) => write!(f, "{}", *s),
+                Value::Array(s) => {
+                    write!(f, "[")?;
+                    for (i, elem) in s.iter().enumerate() {
+                        if i > 0 && i != s.len() {
+                            write!(f, ", ")?;
+                        }
+                        match elem {
+                            Value::Char(t) => write!(f, "'{t}'"),
+                            Value::String(t) => write!(f, r#""{t}""#),
+                            _ => write!(f, "{elem}"),
+                        }?;
+                    }
+                    write!(f, "]")
+                }
                 _ => unreachable!(),
             },
             Array(i) => write!(f, "{}", **i),
@@ -260,6 +281,18 @@ impl fmt::Display for Array {
     }
 }
 
+impl Array {
+    pub(crate) fn as_const(&self) -> Option<Value> {
+        let mut res = Vec::with_capacity(self.items.len());
+        for v in &self.items {
+            match v {
+                Expression::Const(v) => res.push(v.node().clone()),
+                _ => return None,
+            }
+        }
+        Some(Value::Array(Arc::new(res)))
+    }
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct Test {
     pub expr: Expression,

@@ -166,9 +166,21 @@ impl From<&str> for Value {
     }
 }
 
+impl From<u32> for Value {
+    fn from(value: u32) -> Self {
+        Value::U64(value as u64)
+    }
+}
+
 impl From<u64> for Value {
     fn from(value: u64) -> Self {
         Value::U64(value)
+    }
+}
+
+impl From<i32> for Value {
+    fn from(value: i32) -> Self {
+        Value::I64(value as i64)
     }
 }
 
@@ -181,6 +193,12 @@ impl From<i64> for Value {
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Value::F64(value)
+    }
+}
+
+impl<T: Into<Value>> From<Vec<T>> for Value {
+    fn from(value: Vec<T>) -> Self {
+        Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
     }
 }
 
