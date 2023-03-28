@@ -9,7 +9,7 @@ pub enum Instruction {
     /// Pushing a value to the stack
     LoadConst(Value),
     /// Reading a variable/function
-    LoadVar(String),
+    LoadName(String),
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack
@@ -20,6 +20,22 @@ pub enum Instruction {
     SetGlobal(String),
     /// Include the given template
     Include(String),
+    /// Get the named field of the top stack value (`person.name`)
+    LoadAttr(String),
+    /// Handles `a[b]`. `b` is the top stack value, `a` the one before
+    BinarySubscript,
+
+    /// Create a map for the kwargs of a function. Inner field is the number of values
+    BuildKwargs(usize),
+    /// Create a list. Inner field is the number of values
+    BuildList(usize),
+    /// Calls the named Tera function
+    CallFunction(String),
+    /// Calls the macro in the given namespace. (namespace_idx, name_idx)
+    CallMacro(usize, usize),
+    /// Apply the given filter
+    ApplyFilter(String),
+    RunTest(String),
 
     // math
     Mul,
@@ -64,14 +80,14 @@ impl Chunk {
         }
     }
 
-    pub(crate) fn add_instruction(&mut self, instr: Instruction) -> u32 {
+    pub(crate) fn add(&mut self, instr: Instruction) -> u32 {
         let idx = self.instructions.len();
         self.instructions.push(instr);
         idx as u32
     }
 
     pub(crate) fn add_instruction_with_span(&mut self, instr: Instruction, span: Span) {
-        let idx = self.add_instruction(instr);
+        let idx = self.add(instr);
         self.spans.insert(idx, span);
     }
 }

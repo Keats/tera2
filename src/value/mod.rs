@@ -166,6 +166,12 @@ impl From<&str> for Value {
     }
 }
 
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::String(Arc::new(value))
+    }
+}
+
 impl From<u32> for Value {
     fn from(value: u32) -> Self {
         Value::U64(value as u64)
