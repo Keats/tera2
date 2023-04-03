@@ -29,13 +29,20 @@ pub enum Instruction {
     BuildKwargs(usize),
     /// Create a list. Inner field is the number of values
     BuildList(usize),
-    /// Calls the named Tera function
+    /// Call the named Tera function
     CallFunction(String),
-    /// Calls the macro in the given namespace. (namespace_idx, name_idx)
+    /// Call the macro in the given namespace. (namespace_idx, name_idx)
     CallMacro(usize, usize),
     /// Apply the given filter
     ApplyFilter(String),
+    /// Run the given test
     RunTest(String),
+    /// Call the given block
+    CallBlock(String),
+    /// Jump to the instruction at the given idx if expr on stack is false
+    JumpIfFalse(usize),
+    /// Jump to the instruction at the given idx
+    JumpForward(usize),
 
     // math
     Mul,

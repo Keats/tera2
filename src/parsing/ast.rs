@@ -439,7 +439,7 @@ pub struct If {
     /// First item if the if, all the ones after are elif
     pub conditions: Vec<(Expression, Vec<Node>)>,
     /// The optional `else` block
-    pub else_body: Vec<Node>,
+    pub else_body: Option<Vec<Node>>,
 }
 
 /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
@@ -474,7 +474,7 @@ pub struct ForLoop {
     /// What's in the forloop itself
     pub body: Vec<Node>,
     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
-    pub else_body: Vec<Node>,
+    pub else_body: Option<Vec<Node>>,
 }
 
 #[derive(Clone, PartialEq)]

@@ -35,7 +35,7 @@ input_file: src/tests/parser_inputs/success/filter_section.txt
                         ],
                     ),
                 ],
-                else_body: [],
+                else_body: None,
             },
         ],
     },

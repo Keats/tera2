@@ -34,6 +34,9 @@ checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
 [[package]]
 name = "parser-test"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "parser-test-fuzz"
@@ -42,3 +45,9 @@ dependencies = [
  "libfuzzer-sys",
  "parser-test",
 ]
+
+[[package]]
+name = "serde"
+version = "1.0.159"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c04e8343c3daeec41f58990b9d77068df31209f2af111e059e9fe9646693065"

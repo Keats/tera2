@@ -27,11 +27,13 @@ input_file: src/tests/parser_inputs/success/if.txt
                 ],
             ),
         ],
-        else_body: [
-            Var {
-                name: "world",
-            } @ 1:79-1:84 (79..84),
-        ],
+        else_body: Some(
+            [
+                Var {
+                    name: "world",
+                } @ 1:79-1:84 (79..84),
+            ],
+        ),
     },
     If {
         conditions: [
@@ -44,7 +46,7 @@ input_file: src/tests/parser_inputs/success/if.txt
                 ],
             ),
         ],
-        else_body: [],
+        else_body: None,
     },
     If {
         conditions: [
@@ -57,8 +59,10 @@ input_file: src/tests/parser_inputs/success/if.txt
                 ],
             ),
         ],
-        else_body: [
-            "arr",
-        ],
+        else_body: Some(
+            [
+                "arr",
+            ],
+        ),
     },
 ]

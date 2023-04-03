@@ -543,11 +543,11 @@ impl<'a> Parser<'a> {
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body =
             self.parse_until(|tok| matches!(tok, Token::Ident("endfor") | Token::Ident("else")))?;
-        let mut else_body = Vec::new();
+        let mut else_body = None;
         if matches!(self.next, Some(Ok((Token::Ident("else"), _)))) {
             self.next_or_error()?;
             expect_token!(self, Token::TagEnd(..), "%}")?;
-            else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endfor")))?;
+            else_body = Some(self.parse_until(|tok| matches!(tok, Token::Ident("endfor")))?);
         }
         // eat the endfor
         self.next_or_error()?;
@@ -565,7 +565,7 @@ impl<'a> Parser<'a> {
     fn parse_if(&mut self) -> TeraResult<If> {
         self.body_contexts.push(BodyContext::If);
         let mut conditions = Vec::new();
-        let mut else_body = Vec::new();
+        let mut else_body = None;
         let expr = self.parse_expression(0)?;
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let if_body = self.parse_until(|tok| {
@@ -593,7 +593,7 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Ident("else"), _))) => {
                     self.next_or_error()?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
-                    else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+                    else_body = Some(self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?);
                 }
                 Some(Ok((Token::Ident("endif"), _))) => {
                     self.next_or_error()?;

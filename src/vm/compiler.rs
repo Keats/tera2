@@ -1,13 +1,21 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Expression, Node, UnaryOperator};
+use crate::parsing::ast::{BinaryOperator, Block, Expression, If, Node, UnaryOperator};
 use crate::value::Value;
 use crate::vm::instructions::{Chunk, Instruction};
 use std::collections::HashMap;
+
+/// We need to handle some pc jumps but we only know to where after we are done processing it
+enum ProcessingBody {
+    /// if/elif
+    Branch(usize),
+    Loop(usize),
+}
 
 // TODO: a bit weird to have the compiler in the vm part?
 pub(crate) struct Compiler {
     pub(crate) chunk: Chunk,
     body: String,
+    blocks: HashMap<String, Chunk>,
     macro_namespaces: Vec<String>,
     macro_names: Vec<Vec<String>>,
     /// How many bytes of raw content we've seen
@@ -18,8 +26,9 @@ impl Compiler {
     pub(crate) fn new(name: &str, body: &str) -> Self {
         Self {
             chunk: Chunk::new(name),
-            macro_namespaces: Vec::with_capacity(8),
-            macro_names: Vec::with_capacity(8),
+            macro_namespaces: Vec::new(),
+            macro_names: Vec::new(),
+            blocks: HashMap::new(),
             body: body.to_string(),
             bytes_size: 0,
         }
@@ -27,7 +36,7 @@ impl Compiler {
 
     fn compile_kwargs(&mut self, kwargs: HashMap<String, Expression>) {
         let num_args = kwargs.len();
-        // TODO: push a single instr for all keys?
+        // TODO: push a single instr for all keys as a Vec<String> like Python?
         for (key, value) in kwargs {
             self.chunk.add(Instruction::LoadConst(Value::from(key)));
             self.compile_expr(value);
@@ -73,11 +82,18 @@ impl Compiler {
             Expression::Test(e) => {
                 let (test, _) = e.into_parts();
                 self.compile_expr(test.expr);
-                // TODO: use kwargs instead of Vec<args>
+                let num_args = test.args.len();
+                for arg in test.args {
+                    self.compile_expr(arg);
+                }
+                self.chunk.add(Instruction::BuildList(num_args));
+                self.chunk.add(Instruction::RunTest(test.name));
             }
             Expression::MacroCall(e) => {
                 let (macro_call, _) = e.into_parts();
                 self.compile_kwargs(macro_call.kwargs);
+                // TODO: it's because we can't pass anything to the enum to make it 32 bytes
+                // eg (String, String), (String, u8) etc don't fit
                 let namespace_idx = if let Some(idx) = self
                     .macro_namespaces
                     .iter()
@@ -87,7 +103,7 @@ impl Compiler {
                 } else {
                     let len = self.macro_namespaces.len();
                     self.macro_namespaces.push(macro_call.namespace);
-                    self.macro_names.push(Vec::with_capacity(8));
+                    self.macro_names.push(Vec::with_capacity(4));
                     len
                 };
                 let name_idx = if let Some(idx) = self.macro_names[namespace_idx]
@@ -153,6 +169,21 @@ impl Compiler {
         }
     }
 
+    fn compile_block(&mut self, block: Block) {
+        // TODO: fix stuff
+        let mut compiler = Compiler::new("", "");
+        for node in block.body {
+            compiler.compile_node(node);
+        }
+        // TODO: we need to pass the whole compiler?
+        // TODO: handle nested blocks
+        self.bytes_size += compiler.bytes_size;
+        self.blocks.insert(block.name.clone(), compiler.chunk);
+        self.chunk.add(Instruction::CallBlock(block.name));
+    }
+
+    fn compile_if(&mut self, node: If) {}
+
     pub fn compile_node(&mut self, node: Node) {
         match node {
             Node::Content(text) => {
@@ -175,15 +206,18 @@ impl Compiler {
             Node::Include(i) => {
                 self.chunk.add(Instruction::Include(i.name));
             }
-            Node::Block(_) => {}
+            Node::Block(b) => {
+                self.compile_block(b);
+            }
             Node::ForLoop(_) => {}
-            Node::If(_) => {}
+            Node::If(i) => {
+                self.compile_if(i);
+            }
             Node::FilterSection(f) => {}
         }
     }
 
-    pub(crate) fn test_compile_tmp(&mut self, nodes: Vec<Node>) {
-        println!("{:?}", nodes);
+    pub fn compile(&mut self, nodes: Vec<Node>) {
         for node in nodes {
             self.compile_node(node);
         }

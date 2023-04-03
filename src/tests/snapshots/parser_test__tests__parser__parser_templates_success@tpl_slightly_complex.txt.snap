@@ -46,9 +46,11 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                                 ],
                             ),
                         ],
-                        else_body: [
-                            "-",
-                        ],
+                        else_body: Some(
+                            [
+                                "-",
+                            ],
+                        ),
                     },
                     "Price: $",
                     Filter {
@@ -120,9 +122,11 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                         name: "sales.html",
                     },
                 ],
-                else_body: [
-                    "No items.",
-                ],
+                else_body: Some(
+                    [
+                        "No items.",
+                    ],
+                ),
             },
         ],
     },
