@@ -29,3 +29,4 @@ TODO:
 Ideas:
 
 - Collect all functions/filters/macro call/includes/tests and make sure it's all available at compile time
+- Pre-compute hashes for all keys used in the templates somehow? runtime phf?

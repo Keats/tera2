@@ -5,16 +5,19 @@ use crate::vm::instructions::{Chunk, Instruction};
 use std::collections::HashMap;
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
+#[derive(Debug)]
 enum ProcessingBody {
     /// if/elif
     Branch(usize),
     Loop(usize),
 }
 
-// TODO: a bit weird to have the compiler in the vm part?
+// TODO: a bit weird to have the compiler in the vm folder?
 pub(crate) struct Compiler {
+    // TODO: keep a reference to the body to avoid copying it for blocks?
     pub(crate) chunk: Chunk,
     body: String,
+    processing_bodies: Vec<ProcessingBody>,
     blocks: HashMap<String, Chunk>,
     macro_namespaces: Vec<String>,
     macro_names: Vec<Vec<String>>,
@@ -26,6 +29,7 @@ impl Compiler {
     pub(crate) fn new(name: &str, body: &str) -> Self {
         Self {
             chunk: Chunk::new(name),
+            processing_bodies: Vec::new(),
             macro_namespaces: Vec::new(),
             macro_names: Vec::new(),
             blocks: HashMap::new(),
@@ -36,7 +40,7 @@ impl Compiler {
 
     fn compile_kwargs(&mut self, kwargs: HashMap<String, Expression>) {
         let num_args = kwargs.len();
-        // TODO: push a single instr for all keys as a Vec<String> like Python?
+        // TODO: push a single instr for all keys as a Vec<String> like Python? bench first
         for (key, value) in kwargs {
             self.chunk.add(Instruction::LoadConst(Value::from(key)));
             self.compile_expr(value);
@@ -170,19 +174,29 @@ impl Compiler {
     }
 
     fn compile_block(&mut self, block: Block) {
-        // TODO: fix stuff
-        let mut compiler = Compiler::new("", "");
+        // TODO: add tests
+        let mut compiler = Compiler::new(&self.chunk.name, &self.body);
         for node in block.body {
             compiler.compile_node(node);
         }
-        // TODO: we need to pass the whole compiler?
-        // TODO: handle nested blocks
         self.bytes_size += compiler.bytes_size;
+        self.blocks.extend(compiler.blocks.into_iter());
         self.blocks.insert(block.name.clone(), compiler.chunk);
         self.chunk.add(Instruction::CallBlock(block.name));
     }
 
-    fn compile_if(&mut self, node: If) {}
+    fn end_branch(&mut self, idx: usize) {
+        match self.processing_bodies.pop() {
+            Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr as usize) {
+                Some(Instruction::JumpForward(ref mut target))
+                | Some(Instruction::PopJumpIfFalse(ref mut target)) => {
+                    *target = idx;
+                }
+                _ => {}
+            },
+            _ => unreachable!(),
+        }
+    }
 
     pub fn compile_node(&mut self, node: Node) {
         match node {
@@ -211,7 +225,25 @@ impl Compiler {
             }
             Node::ForLoop(_) => {}
             Node::If(i) => {
-                self.compile_if(i);
+                for (expr, body) in i.conditions {
+                    self.compile_expr(expr);
+                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                    self.processing_bodies.push(ProcessingBody::Branch(idx));
+                    for node in body {
+                        self.compile_node(node);
+                    }
+                    self.end_branch(self.chunk.len());
+                }
+
+                if let Some(else_body) = i.else_body {
+                    let idx = self.chunk.add(Instruction::JumpForward(0)) as usize;
+                    self.processing_bodies.push(ProcessingBody::Branch(idx));
+                    for node in else_body {
+                        self.compile_node(node);
+                    }
+
+                    self.end_branch(self.chunk.len());
+                }
             }
             Node::FilterSection(f) => {}
         }

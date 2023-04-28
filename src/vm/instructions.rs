@@ -39,8 +39,11 @@ pub enum Instruction {
     RunTest(String),
     /// Call the given block
     CallBlock(String),
+
     /// Jump to the instruction at the given idx if expr on stack is false
     JumpIfFalse(usize),
+    /// Same as above but pops the top value of the stack
+    PopJumpIfFalse(usize),
     /// Jump to the instruction at the given idx
     JumpForward(usize),
 
@@ -75,7 +78,7 @@ pub struct Chunk {
     /// instruction idx -> Span
     spans: HashMap<u32, Span>,
     // What should it be there? Template name?
-    name: String,
+    pub name: String,
 }
 
 impl Chunk {
@@ -96,6 +99,14 @@ impl Chunk {
     pub(crate) fn add_instruction_with_span(&mut self, instr: Instruction, span: Span) {
         let idx = self.add(instr);
         self.spans.insert(idx, span);
+    }
+
+    pub(crate) fn get_mut(&mut self, idx: usize) -> Option<&mut Instruction> {
+        self.instructions.get_mut(idx)
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.instructions.len()
     }
 }
 
