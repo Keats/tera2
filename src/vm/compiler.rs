@@ -1,5 +1,5 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Block, Expression, If, Node, UnaryOperator};
+use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
 use crate::value::Value;
 use crate::vm::instructions::{Chunk, Instruction};
 use std::collections::HashMap;
@@ -18,7 +18,7 @@ pub(crate) struct Compiler {
     pub(crate) chunk: Chunk,
     body: String,
     processing_bodies: Vec<ProcessingBody>,
-    blocks: HashMap<String, Chunk>,
+    pub(crate) blocks: HashMap<String, Chunk>,
     macro_namespaces: Vec<String>,
     macro_names: Vec<Vec<String>>,
     /// How many bytes of raw content we've seen
@@ -174,7 +174,6 @@ impl Compiler {
     }
 
     fn compile_block(&mut self, block: Block) {
-        // TODO: add tests
         let mut compiler = Compiler::new(&self.chunk.name, &self.body);
         for node in block.body {
             compiler.compile_node(node);
@@ -187,7 +186,7 @@ impl Compiler {
 
     fn end_branch(&mut self, idx: usize) {
         match self.processing_bodies.pop() {
-            Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr as usize) {
+            Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr) {
                 Some(Instruction::JumpForward(ref mut target))
                 | Some(Instruction::PopJumpIfFalse(ref mut target)) => {
                     *target = idx;
