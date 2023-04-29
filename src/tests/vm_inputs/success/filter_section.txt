@@ -1,0 +1,3 @@
+{% filter capitalize(lang="fr") %}
+Hello {{ world }}
+{% endfilter %}

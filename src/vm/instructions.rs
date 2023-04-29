@@ -47,6 +47,12 @@ pub enum Instruction {
     /// Jump to the instruction at the given idx
     JumpForward(usize),
 
+    /// Start capturing the output in another buffer than the template output
+    /// Used for filter section
+    Capture,
+    /// We are done capturing
+    EndCapture,
+
     // math
     Mul,
     Div,

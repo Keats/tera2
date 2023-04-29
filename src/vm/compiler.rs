@@ -244,7 +244,15 @@ impl Compiler {
                     self.end_branch(self.chunk.len());
                 }
             }
-            Node::FilterSection(f) => {}
+            Node::FilterSection(f) => {
+                self.chunk.add(Instruction::Capture);
+                for node in f.body {
+                    self.compile_node(node);
+                }
+                self.chunk.add(Instruction::EndCapture);
+                self.compile_kwargs(f.kwargs);
+                self.chunk.add(Instruction::ApplyFilter(f.name.into_parts().0));
+            }
         }
     }
 
