@@ -14,6 +14,6 @@ input_file: src/tests/vm_inputs/success/ifs_else.txt
 0007 Equal
 0008 PopJumpIfFalse(10)
 0009 WriteText("B")
-0010 JumpForward(12)
+0010 Jump(12)
 0011 WriteText("Oops")
 

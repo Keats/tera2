@@ -1,13 +1,8 @@
 import dis
 
 text = """
-if a:
-    res = 1
-elif b == 1:
-    res = 2
-else:
-    res = 3
-res += 1
+res = a and b
+res2 = a or b
 """
 
 print(dis.dis(text))
@@ -16,26 +11,15 @@ print(dis.dis(text))
   0           0 RESUME                   0
 
   2           2 LOAD_NAME                0 (a)
-              4 POP_JUMP_FORWARD_IF_FALSE     4 (to 14)
+              4 JUMP_IF_FALSE_OR_POP     1 (to 8)
+              6 LOAD_NAME                1 (b)
+        >>    8 STORE_NAME               2 (res)
 
-  3           6 LOAD_CONST               0 (1)
-              8 STORE_NAME               1 (res)
-             10 LOAD_CONST               3 (None)
-             12 RETURN_VALUE
-
-  4     >>   14 LOAD_NAME                2 (b)
-             16 LOAD_CONST               0 (1)
-             18 COMPARE_OP               2 (==)
-             24 POP_JUMP_FORWARD_IF_FALSE     4 (to 34)
-
-  5          26 LOAD_CONST               1 (2)
-             28 STORE_NAME               1 (res)
-             30 LOAD_CONST               3 (None)
-             32 RETURN_VALUE
-
-  7     >>   34 LOAD_CONST               2 (3)
-             36 STORE_NAME               1 (res)
-             38 LOAD_CONST               3 (None)
-             40 RETURN_VALUE
+  3          10 LOAD_NAME                0 (a)
+             12 JUMP_IF_TRUE_OR_POP      1 (to 16)
+             14 LOAD_NAME                1 (b)
+        >>   16 STORE_NAME               3 (res2)
+             18 LOAD_CONST               0 (None)
+             20 RETURN_VALUE
 
 """

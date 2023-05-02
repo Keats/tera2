@@ -9,6 +9,8 @@ use std::collections::HashMap;
 enum ProcessingBody {
     /// if/elif
     Branch(usize),
+    /// and/or
+    ShortCircuit(Vec<usize>),
     Loop(usize),
 }
 
@@ -141,11 +143,6 @@ impl Compiler {
             }
             Expression::BinaryOperation(e) => {
                 let (op, span) = e.into_parts();
-                // TODO: implement constant folding for arithmetics, string concat
-                // Value::constant_fold(self, other) -> Option<Value>?
-                // need to pass the op as well...^
-                self.compile_expr(op.left);
-                self.compile_expr(op.right);
                 let instr = match op.op {
                     BinaryOperator::Mul => Instruction::Mul,
                     BinaryOperator::Div => Instruction::Div,
@@ -162,12 +159,49 @@ impl Compiler {
                     BinaryOperator::NotEqual => Instruction::NotEqual,
                     BinaryOperator::StrConcat => Instruction::StrConcat,
                     BinaryOperator::In => Instruction::In,
-                    BinaryOperator::And => todo!("what do we generate"),
-                    BinaryOperator::Or => todo!("what do we generate"),
+                    BinaryOperator::And | BinaryOperator::Or => {
+                        self.processing_bodies
+                            .push(ProcessingBody::ShortCircuit(vec![]));
+                        self.compile_expr(op.left);
+                        if let Some(ProcessingBody::ShortCircuit(ref mut instr)) =
+                            self.processing_bodies.last_mut()
+                        {
+                            instr.push(self.chunk.add(if op.op == BinaryOperator::And {
+                                Instruction::JumpIfFalseOrPop(0)
+                            } else {
+                                Instruction::JumpIfTrueOrPop(0)
+                            }) as usize);
+                        } else {
+                            unreachable!();
+                        }
+                        self.compile_expr(op.right);
+                        let end = self.chunk.len();
+                        if let Some(ProcessingBody::ShortCircuit(instr)) =
+                            self.processing_bodies.pop()
+                        {
+                            for i in instr {
+                                match self.chunk.get_mut(i) {
+                                    Some(Instruction::JumpIfFalseOrPop(ref mut target))
+                                    | Some(Instruction::JumpIfTrueOrPop(ref mut target)) => {
+                                        *target = end;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                        return;
+                    }
                     // These are not really binops and we already switched them to separate AST
-                    // nodes in the parser
+                    // nodes in the parser so we are not going to have them here
                     BinaryOperator::Is | BinaryOperator::Pipe => unreachable!(),
                 };
+                // TODO: implement constant folding for arithmetics, string concat
+                // Value::constant_fold(self, other) -> Option<Value>?
+                // need to pass the op as well...^
+                self.compile_expr(op.left);
+                self.compile_expr(op.right);
                 self.chunk.add_instruction_with_span(instr, span);
             }
         }
@@ -187,7 +221,7 @@ impl Compiler {
     fn end_branch(&mut self, idx: usize) {
         match self.processing_bodies.pop() {
             Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr) {
-                Some(Instruction::JumpForward(ref mut target))
+                Some(Instruction::Jump(ref mut target))
                 | Some(Instruction::PopJumpIfFalse(ref mut target)) => {
                     *target = idx;
                 }
@@ -235,7 +269,7 @@ impl Compiler {
                 }
 
                 if let Some(else_body) = i.else_body {
-                    let idx = self.chunk.add(Instruction::JumpForward(0)) as usize;
+                    let idx = self.chunk.add(Instruction::Jump(0)) as usize;
                     self.processing_bodies.push(ProcessingBody::Branch(idx));
                     for node in else_body {
                         self.compile_node(node);
@@ -251,7 +285,8 @@ impl Compiler {
                 }
                 self.chunk.add(Instruction::EndCapture);
                 self.compile_kwargs(f.kwargs);
-                self.chunk.add(Instruction::ApplyFilter(f.name.into_parts().0));
+                self.chunk
+                    .add(Instruction::ApplyFilter(f.name.into_parts().0));
             }
         }
     }
