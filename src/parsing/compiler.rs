@@ -1,7 +1,7 @@
 //! AST -> bytecode
 use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
+use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
-use crate::vm::instructions::{Chunk, Instruction};
 use std::collections::HashMap;
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
@@ -256,7 +256,41 @@ impl Compiler {
             Node::Block(b) => {
                 self.compile_block(b);
             }
-            Node::ForLoop(_) => {}
+            Node::ForLoop(forloop) => {
+                self.compile_expr(forloop.target);
+                self.chunk
+                    .add(Instruction::StartIterate(forloop.key.is_some()));
+                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
+                self.processing_bodies.push(ProcessingBody::Loop(start_idx));
+
+                // TODO: use UNPACK_SEQUENCE like python instead?
+                if let Some(key_var) = forloop.key {
+                    self.chunk.add(Instruction::StoreLocal(key_var));
+                }
+                self.chunk.add(Instruction::StoreLocal(forloop.value));
+
+                for node in forloop.body {
+                    self.compile_node(node);
+                }
+
+                match self.processing_bodies.pop() {
+                    Some(ProcessingBody::Loop(start_idx)) => {
+                        self.chunk.add(Instruction::Jump(start_idx));
+                        let loop_end = self.chunk.len();
+
+                        self.chunk.add(Instruction::PopFrame);
+                        // TODO: handle else by pushing something
+                        if let Some(Instruction::Iterate(ref mut jump_target)) =
+                            self.chunk.get_mut(start_idx)
+                        {
+                            *jump_target = loop_end;
+                        } else {
+                            unreachable!();
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
             Node::If(i) => {
                 for (expr, body) in i.conditions {
                     self.compile_expr(expr);

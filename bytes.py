@@ -1,8 +1,12 @@
 import dis
 
 text = """
-res = a and b
-res2 = a or b
+res = 0
+for a, b in c:
+    res = 1
+else:
+    res = 10
+res = 2
 """
 
 print(dis.dis(text))
@@ -10,16 +14,22 @@ print(dis.dis(text))
 """
   0           0 RESUME                   0
 
-  2           2 LOAD_NAME                0 (a)
-              4 JUMP_IF_FALSE_OR_POP     1 (to 8)
-              6 LOAD_NAME                1 (b)
-        >>    8 STORE_NAME               2 (res)
+  2           2 LOAD_CONST               0 (0)
+              4 STORE_NAME               0 (res)
 
-  3          10 LOAD_NAME                0 (a)
-             12 JUMP_IF_TRUE_OR_POP      1 (to 16)
-             14 LOAD_NAME                1 (b)
-        >>   16 STORE_NAME               3 (res2)
-             18 LOAD_CONST               0 (None)
-             20 RETURN_VALUE
+  3           6 LOAD_NAME                1 (c)
+              8 GET_ITER
+        >>   10 FOR_ITER                 7 (to 26)
+             12 UNPACK_SEQUENCE          2
+             16 STORE_NAME               2 (a)
+             18 STORE_NAME               3 (b)
 
+  4          20 LOAD_CONST               1 (1)
+             22 STORE_NAME               0 (res)
+             24 JUMP_BACKWARD            8 (to 10)
+
+  6     >>   26 LOAD_CONST               2 (2)
+             28 STORE_NAME               0 (res)
+             30 LOAD_CONST               3 (None)
+             32 RETURN_VALUE
 """

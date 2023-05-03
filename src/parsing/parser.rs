@@ -558,7 +558,7 @@ impl<'a> Parser<'a> {
             value: name.to_string(),
             target,
             body,
-            else_body,
+            else_body: else_body.unwrap_or_default(),
         })
     }
 

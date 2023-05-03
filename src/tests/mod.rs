@@ -1,3 +1,3 @@
 mod lexer;
 mod parser;
-mod vm;
+mod compiler;

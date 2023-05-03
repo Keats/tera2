@@ -1,9 +1,9 @@
 use crate::parsing::parser::Parser;
-use crate::vm::Compiler;
+use crate::parsing::Compiler;
 
 #[test]
-fn vm_ok() {
-    insta::glob!("vm_inputs/success/*.txt", |path| {
+fn compiler_ok() {
+    insta::glob!("compiler_inputs/success/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = Parser::new(&contents).parse().unwrap();
         let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");
@@ -14,8 +14,8 @@ fn vm_ok() {
 }
 
 #[test]
-fn vm_blocks() {
-    insta::glob!("vm_inputs/blocks/*.txt", |path| {
+fn compiler_blocks() {
+    insta::glob!("compiler_inputs/blocks/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = Parser::new(&contents).parse().unwrap();
         let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");

@@ -474,7 +474,7 @@ pub struct ForLoop {
     /// What's in the forloop itself
     pub body: Vec<Node>,
     /// The body to execute in case of an empty object in the `{% for .. %}{% else %}{% endfor %}` construct
-    pub else_body: Option<Vec<Node>>,
+    pub else_body: Vec<Node>,
 }
 
 #[derive(Clone, PartialEq)]

@@ -15,7 +15,7 @@ input_file: src/tests/parser_inputs/success/for.txt
                 name: "v",
             } @ 1:28-1:29 (28..29),
         ],
-        else_body: None,
+        else_body: [],
     },
     ForLoop {
         key: None,
@@ -33,7 +33,7 @@ input_file: src/tests/parser_inputs/success/for.txt
                 name: "v",
             } @ 2:27-2:28 (73..74),
         ],
-        else_body: None,
+        else_body: [],
     },
     ForLoop {
         key: None,
@@ -44,7 +44,7 @@ input_file: src/tests/parser_inputs/success/for.txt
                 name: "v",
             } @ 3:27-3:28 (118..119),
         ],
-        else_body: None,
+        else_body: [],
     },
     ForLoop {
         key: None,
@@ -61,11 +61,9 @@ input_file: src/tests/parser_inputs/success/for.txt
                 name: "v",
             } @ 4:35-4:36 (171..172),
         ],
-        else_body: Some(
-            [
-                "Empty",
-            ],
-        ),
+        else_body: [
+            "Empty",
+        ],
     },
     ForLoop {
         key: Some(
@@ -80,10 +78,8 @@ input_file: src/tests/parser_inputs/success/for.txt
                 name: "v",
             } @ 5:26-5:27 (230..231),
         ],
-        else_body: Some(
-            [
-                "Empty",
-            ],
-        ),
+        else_body: [
+            "Empty",
+        ],
     },
 ]

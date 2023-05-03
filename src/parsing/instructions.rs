@@ -10,6 +10,8 @@ pub enum Instruction {
     LoadConst(Value),
     /// Reading a variable/function
     LoadName(String),
+    /// Store a value for key/value in a for loop
+    StoreLocal(String),
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack
@@ -58,6 +60,14 @@ pub enum Instruction {
     Capture,
     /// We are done capturing
     EndCapture,
+
+    /// Start an iteration. `true` if it's iterating on (key, value)
+    StartIterate(bool),
+    /// Start to iterate on the value at the top of the stack
+    Iterate(usize),
+    /// At the end of an iteration we want to pop the top frame
+    /// TODO: do we need that?
+    PopFrame,
 
     // math
     Mul,

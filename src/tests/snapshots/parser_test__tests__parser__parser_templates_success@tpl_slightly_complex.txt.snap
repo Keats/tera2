@@ -122,11 +122,9 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                         name: "sales.html",
                     },
                 ],
-                else_body: Some(
-                    [
-                        "No items.",
-                    ],
-                ),
+                else_body: [
+                    "No items.",
+                ],
             },
         ],
     },
