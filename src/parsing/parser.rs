@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
@@ -69,8 +69,6 @@ const RESERVED_NAMES: [&str; 13] = [
 /// This enum is only used to error when some tags are used in places they are not allowed
 /// For example super() outside of a block or a macro definition inside a macro definition
 /// or continue/break in for
-/// TODO: in practice it could be just an integer that gets +/- if we don't do special detection
-/// for tag specific keyword
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum BodyContext {
     ForLoop,
@@ -78,6 +76,17 @@ enum BodyContext {
     If,
     MacroDefinition,
     FilterSection,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct ParserOutput {
+    // filled when we encounter a {% extends %}
+    pub(crate) parent: Option<String>,
+    // The AST for the body
+    pub(crate) nodes: Vec<Node>,
+    pub(crate) macro_definitions: Vec<MacroDefinition>,
+    // (file, namespace)
+    pub(crate) macro_imports: Vec<(String, String)>,
 }
 
 pub struct Parser<'a> {
@@ -89,22 +98,13 @@ pub struct Parser<'a> {
     current_span: Span,
     // A stack of our body context to know where we are
     body_contexts: Vec<BodyContext>,
-    // How many bytes just the textual content takes
-    size_hint: usize,
     // The current array dimension, to avoid stack overflows with too many of them
     array_dimension: usize,
     // We limit the length of an expression to avoid stack overflows with crazy expressions like
     // 100 `(`
     num_expr_calls: usize,
-    // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
-    pub parent: Option<String>,
-    // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
-    // while parsing
-    pub blocks: HashMap<String, Vec<Node>>,
-    // (name, def)
-    pub macros: HashMap<String, MacroDefinition>,
-    // (file, namespace)
-    pub macro_imports: Vec<(String, String)>,
+    blocks_seen: HashSet<String>,
+    output: ParserOutput,
 }
 
 impl<'a> Parser<'a> {
@@ -116,13 +116,10 @@ impl<'a> Parser<'a> {
             next: None,
             current_span: Span::default(),
             body_contexts: Vec::new(),
-            size_hint: 0,
             num_expr_calls: 0,
             array_dimension: 0,
-            parent: None,
-            blocks: HashMap::new(),
-            macros: HashMap::new(),
-            macro_imports: Vec::new(),
+            blocks_seen: HashSet::with_capacity(10),
+            output: ParserOutput::default(),
         }
     }
 
@@ -648,18 +645,10 @@ impl<'a> Parser<'a> {
                     self.next_or_error()?;
 
                     let val = match &self.next {
-                        Some(Ok((Token::Bool(b), span))) => {
-                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
-                        }
-                        Some(Ok((Token::String(b), span))) => {
-                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
-                        }
-                        Some(Ok((Token::Integer(b), span))) => {
-                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
-                        }
-                        Some(Ok((Token::Float(b), span))) => {
-                            Expression::Const(Spanned::new(Value::from(*b), span.clone()))
-                        }
+                        Some(Ok((Token::Bool(b), _))) => Value::from(*b),
+                        Some(Ok((Token::String(b), _))) => Value::from(*b),
+                        Some(Ok((Token::Integer(b), _))) => Value::from(*b),
+                        Some(Ok((Token::Float(b), _))) => Value::from(*b),
                         Some(Ok((token, _))) => {
                             return Err(Error::new_syntax_error(
                                 format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
@@ -738,7 +727,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("extends") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
-                if let Some(ref parent) = self.parent {
+                if let Some(ref parent) = self.output.parent {
                     return Err(Error::new_syntax_error(
                         format!("Template is already extending `{parent}`"),
                         &self.current_span,
@@ -756,7 +745,7 @@ impl<'a> Parser<'a> {
                         &self.current_span,
                     ));
                 }
-                self.parent = Some(name.to_string());
+                self.output.parent = Some(name.to_string());
                 Ok(None)
             }
             Token::Ident("block") => {
@@ -772,7 +761,7 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                if self.blocks.contains_key(name) {
+                if self.blocks_seen.contains(name) {
                     return Err(Error::new_syntax_error(
                         format!("Template already contains a block named `{name}`"),
                         &self.current_span,
@@ -781,17 +770,11 @@ impl<'a> Parser<'a> {
 
                 self.body_contexts.pop();
 
-                if self.parent.is_some() {
-                    self.blocks.insert(name.to_string(), body);
-                    Ok(None)
-                } else {
-                    // Only filled to give an error if there are duplicates
-                    self.blocks.insert(name.to_string(), Vec::new());
-                    Ok(Some(Node::Block(Block {
-                        name: name.to_string(),
-                        body,
-                    })))
-                }
+                self.blocks_seen.insert(name.to_string());
+                Ok(Some(Node::Block(Block {
+                    name: name.to_string(),
+                    body,
+                })))
             }
             Token::Ident("for") => {
                 let node = self.parse_for_loop()?;
@@ -824,7 +807,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("macro") => {
                 let macro_def = self.parse_macro_definition()?;
-                self.macros.insert(macro_def.name.clone(), macro_def);
+                self.output.macro_definitions.push(macro_def);
                 Ok(None)
             }
             Token::Ident("import") => {
@@ -832,7 +815,8 @@ impl<'a> Parser<'a> {
                 let (filename, _) = expect_token!(self, Token::String(s) => s, "string")?;
                 expect_token!(self, Token::Ident("as"), "as")?;
                 let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
-                self.macro_imports
+                self.output
+                    .macro_imports
                     .push((filename.to_string(), namespace.to_string()));
 
                 Ok(None)
@@ -852,7 +836,6 @@ impl<'a> Parser<'a> {
                 Token::Content(c) => {
                     // We have pushed an empty content to replace comment so we ignore those
                     if !c.is_empty() {
-                        self.size_hint += c.len();
                         nodes.push(Node::Content(c.to_owned()));
                     }
                 }
@@ -888,10 +871,10 @@ impl<'a> Parser<'a> {
         Ok(nodes)
     }
 
-    pub fn parse(&mut self) -> TeraResult<Vec<Node>> {
+    pub(crate) fn parse(mut self) -> TeraResult<ParserOutput> {
         // get the first token
         self.next()?;
-        let nodes = self.parse_until(|_| false)?;
-        Ok(nodes)
+        self.output.nodes = self.parse_until(|_| false)?;
+        Ok(self.output)
     }
 }

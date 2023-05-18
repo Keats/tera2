@@ -458,7 +458,7 @@ pub struct MacroDefinition {
     pub name: String,
     /// The args for that macro: name -> optional default value
     /// Expression for default args can only be literals
-    pub kwargs: HashMap<String, Option<Expression>>,
+    pub kwargs: HashMap<String, Option<Value>>,
     pub body: Vec<Node>,
 }
 

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /// Pushing a value to the stack
     LoadConst(Value),
@@ -94,12 +94,12 @@ pub enum Instruction {
     Negative,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Default)]
 pub struct Chunk {
     instructions: Vec<Instruction>,
     /// instruction idx -> Span
     spans: HashMap<u32, Span>,
-    // What should it be there? Template name?
+    // TODO: What should it be there? Template name? Template::block_name?
     pub name: String,
 }
 

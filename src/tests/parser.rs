@@ -20,7 +20,7 @@ impl fmt::Display for Expressions {
 fn parser_expressions_idents_success() {
     insta::glob!("parser_inputs/success/{expressions,idents}.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = &Parser::new(&contents).parse().unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
             match node {
@@ -53,7 +53,7 @@ fn parser_tags_success() {
         "parser_inputs/success/{tags,blocks,for,if,filter_section}.txt",
         |path| {
             let contents = std::fs::read_to_string(path).unwrap();
-            let nodes = &Parser::new(&contents).parse().unwrap();
+            let nodes = &Parser::new(&contents).parse().unwrap().nodes;
             let mut res_nodes = Vec::with_capacity(nodes.len());
             for node in nodes {
                 if matches!(
@@ -90,16 +90,7 @@ fn parser_macro_def_success() {
                 name: "another".to_owned(),
                 kwargs: {
                     let mut kwargs = HashMap::new();
-                    let mut span = Span::default();
-                    span.start_line = 1;
-                    span.start_col = 21;
-                    span.end_line = 1;
-                    span.end_col = 25;
-                    span.range = 21..25;
-                    kwargs.insert(
-                        "hey".to_owned(),
-                        Some(Expression::Const(Spanned::new(Value::from("ho"), span))),
-                    );
+                    kwargs.insert("hey".to_owned(), Some(Value::from("ho")));
                     kwargs.insert("optional".to_owned(), None);
                     kwargs
                 },
@@ -110,24 +101,24 @@ fn parser_macro_def_success() {
 
     for (t, expected) in tests {
         let mut parser = Parser::new(t);
-        parser.parse().unwrap();
-        assert_eq!(parser.macros[&expected.name], expected);
+        let macros = parser.parse().unwrap().macro_definitions;
+        assert_eq!(macros.iter().find(|x| x.name == expected.name).unwrap(), &expected);
     }
 }
 
 #[test]
 fn parser_extends_success() {
     let mut parser = Parser::new("{% extends 'a.html' %}");
-    parser.parse().unwrap();
-    assert_eq!(parser.parent, Some("a.html".to_string()));
+    let parent = parser.parse().unwrap().parent;
+    assert_eq!(parent, Some("a.html".to_string()));
 }
 
 #[test]
 fn parser_macro_import_success() {
     let mut parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
-    parser.parse().unwrap();
+    let macro_imports = parser.parse().unwrap().macro_imports;
     assert_eq!(
-        parser.macro_imports,
+        macro_imports,
         vec![("macros.html".to_string(), "macros".to_string())]
     );
 }
@@ -135,7 +126,7 @@ fn parser_macro_import_success() {
 #[test]
 fn parser_can_convert_array_to_const_when_possible() {
     let mut parser = Parser::new(r#"{{ [1, 2, 3] }}"#);
-    let nodes = parser.parse().unwrap();
+    let nodes = parser.parse().unwrap().nodes;
     let expected = Value::from(vec![1, 2, 3]);
     match &nodes[0] {
         Node::Expression(e) => {
@@ -152,7 +143,7 @@ fn parser_can_convert_array_to_const_when_possible() {
 fn parser_templates_success() {
     insta::glob!("parser_inputs/success/tpl_*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = &Parser::new(&contents).parse().unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         insta::assert_debug_snapshot!(&nodes);
     });
 }

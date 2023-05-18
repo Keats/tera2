@@ -14,29 +14,36 @@ enum ProcessingBody {
     Loop(usize),
 }
 
-// TODO: a bit weird to have the compiler in the vm folder?
-pub(crate) struct Compiler {
-    // TODO: keep a reference to the body to avoid copying it for blocks?
-    pub(crate) chunk: Chunk,
-    body: String,
-    processing_bodies: Vec<ProcessingBody>,
-    pub(crate) blocks: HashMap<String, Chunk>,
-    macro_namespaces: Vec<String>,
-    macro_names: Vec<Vec<String>>,
-    /// How many bytes of raw content we've seen
-    bytes_size: usize,
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompiledMacroDefinition {
+    pub kwargs: HashMap<String, Option<Value>>,
+    pub body: Chunk,
 }
 
-impl Compiler {
-    pub(crate) fn new(name: &str, body: &str) -> Self {
+pub(crate) struct Compiler<'s> {
+    // TODO: keep a reference to the body to avoid copying it for blocks?
+    pub(crate) chunk: Chunk,
+    source: &'s str,
+    processing_bodies: Vec<ProcessingBody>,
+    /// Name -> chunk to interpret
+    pub(crate) blocks: HashMap<String, Chunk>,
+    pub(crate) macro_definitions: HashMap<String, CompiledMacroDefinition>,
+    pub(crate) macro_namespaces: Vec<String>,
+    pub(crate) macro_names: Vec<Vec<String>>,
+    pub(crate) raw_content_num_bytes: usize,
+}
+
+impl<'s> Compiler<'s> {
+    pub(crate) fn new(name: &str, source: &'s str) -> Self {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
+            macro_definitions: HashMap::new(),
             macro_namespaces: Vec::new(),
             macro_names: Vec::new(),
             blocks: HashMap::new(),
-            body: body.to_string(),
-            bytes_size: 0,
+            source,
+            raw_content_num_bytes: 0,
         }
     }
 
@@ -208,11 +215,11 @@ impl Compiler {
     }
 
     fn compile_block(&mut self, block: Block) {
-        let mut compiler = Compiler::new(&self.chunk.name, &self.body);
+        let mut compiler = Compiler::new(&self.chunk.name, &self.source);
         for node in block.body {
             compiler.compile_node(node);
         }
-        self.bytes_size += compiler.bytes_size;
+        self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks.into_iter());
         self.blocks.insert(block.name.clone(), compiler.chunk);
         self.chunk.add(Instruction::CallBlock(block.name));
@@ -234,7 +241,7 @@ impl Compiler {
     pub fn compile_node(&mut self, node: Node) {
         match node {
             Node::Content(text) => {
-                self.bytes_size += text.as_bytes().len();
+                self.raw_content_num_bytes += text.as_bytes().len();
                 self.chunk.add(Instruction::WriteText(text));
             }
             Node::Expression(expr) => {

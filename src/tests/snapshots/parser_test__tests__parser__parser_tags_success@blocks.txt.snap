@@ -11,7 +11,13 @@ input_file: src/tests/parser_inputs/success/blocks.txt
             Var {
                 name: "world",
             } @ 2:8-2:13 (27..32),
-            "!",
+            "!\n  ",
+            Block {
+                name: "nested",
+                body: [
+                    "\n    Even nested!\n  ",
+                ],
+            },
         ],
     },
     Block {
@@ -20,7 +26,7 @@ input_file: src/tests/parser_inputs/success/blocks.txt
             FunctionCall {
                 name: "super",
                 kwargs: {},
-            } @ 5:31-5:38 (84..91),
+            } @ 8:31-8:38 (139..146),
         ],
     },
 ]

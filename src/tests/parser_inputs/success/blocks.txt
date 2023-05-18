@@ -1,5 +1,8 @@
 {% block start -%}
 Hello {{world}}!
+  {% block nested %}
+    Even nested!
+  {% endblock %}
 {%- endblock %}
 
 And inline {% block second %}{{super()}}{% endblock second %}.

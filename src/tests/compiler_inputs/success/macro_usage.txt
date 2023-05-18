@@ -1,0 +1,2 @@
+{% import "macros.html" as maquereau %}
+{{ maquereau::swim(arg=1) }}

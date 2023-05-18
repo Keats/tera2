@@ -3,6 +3,7 @@
 // mod context;
 mod errors;
 mod parsing;
+mod template;
 mod utils;
 pub mod value;
 mod vm;
