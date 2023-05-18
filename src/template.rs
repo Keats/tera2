@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::errors::TeraResult;
 use crate::parsing::compiler::CompiledMacroDefinition;
-use crate::parsing::parser::ParserOutput;
 use crate::parsing::{Chunk, Compiler};
 use crate::Parser;
 
@@ -16,7 +15,8 @@ struct InProgressTemplate {
     chunk: Chunk,
     // (file, namespace)
     // TODO: use type alias to make things clearer and avoid using comments
-    macro_imports: Vec<(String, String)>,
+    // Or replace by the CompiledMacroDefinition directly
+    macro_calls: Vec<(String, String)>,
     blocks: HashMap<String, Chunk>,
     macro_definitions: HashMap<String, CompiledMacroDefinition>,
 }
@@ -34,6 +34,7 @@ impl InProgressTemplate {
         body_compiler.compile(parser_output.nodes);
         let chunk = body_compiler.chunk;
         let blocks = body_compiler.blocks;
+        let macro_calls = body_compiler.macro_calls.into_iter().collect();
 
         let mut macro_definitions = HashMap::with_capacity(parser_output.macro_definitions.len());
         for macro_def in parser_output.macro_definitions {
@@ -57,8 +58,8 @@ impl InProgressTemplate {
             chunk,
             blocks,
             macro_definitions,
+            macro_calls,
             parent: parser_output.parent,
-            macro_imports: parser_output.macro_imports,
         })
     }
 
@@ -80,18 +81,4 @@ struct Template {
     /// How many bytes of raw content we've seen
     /// TODO: take into account the fact that a child needs to get their parent bytes size roughly
     size_hint: usize,
-}
-
-impl Template {
-    pub fn new<S>(name: S, source: S, path: Option<String>) -> TeraResult<Self>
-    where
-        S: Into<String>,
-    {
-        todo!("");
-        // Ok(Self {
-        //     name,
-        //     source,
-        //     path,
-        // })
-    }
 }

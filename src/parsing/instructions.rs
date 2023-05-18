@@ -33,8 +33,8 @@ pub enum Instruction {
     BuildList(usize),
     /// Call the named Tera function
     CallFunction(String),
-    /// Call the macro in the given namespace. (namespace_idx, name_idx)
-    CallMacro(usize, usize),
+    /// Call the macro at the given index in the macro_calls vec
+    CallMacro(usize),
     /// Apply the given filter
     ApplyFilter(String),
     /// Run the given test

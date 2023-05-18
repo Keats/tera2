@@ -102,7 +102,10 @@ fn parser_macro_def_success() {
     for (t, expected) in tests {
         let mut parser = Parser::new(t);
         let macros = parser.parse().unwrap().macro_definitions;
-        assert_eq!(macros.iter().find(|x| x.name == expected.name).unwrap(), &expected);
+        assert_eq!(
+            macros.iter().find(|x| x.name == expected.name).unwrap(),
+            &expected
+        );
     }
 }
 

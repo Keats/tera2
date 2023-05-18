@@ -815,6 +815,15 @@ impl<'a> Parser<'a> {
                 let (filename, _) = expect_token!(self, Token::String(s) => s, "string")?;
                 expect_token!(self, Token::Ident("as"), "as")?;
                 let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+
+                for (_, namespace2) in &self.output.macro_imports {
+                    if namespace == namespace2 {
+                        return Err(Error::new_syntax_error(
+                            format!("Multiple macros imports using the `{namespace}` namespace"),
+                            &self.current_span,
+                        ));
+                    }
+                }
                 self.output
                     .macro_imports
                     .push((filename.to_string(), namespace.to_string()));

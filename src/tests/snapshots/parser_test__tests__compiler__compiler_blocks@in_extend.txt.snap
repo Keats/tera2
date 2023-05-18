@@ -1,6 +1,5 @@
 ---
 source: src/tests/compiler.rs
-assertion_line: 35
 expression: s
 input_file: src/tests/compiler_inputs/blocks/in_extend.txt
 ---

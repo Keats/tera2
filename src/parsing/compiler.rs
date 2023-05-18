@@ -2,7 +2,7 @@
 use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
 #[derive(Debug)]
@@ -21,15 +21,12 @@ pub struct CompiledMacroDefinition {
 }
 
 pub(crate) struct Compiler<'s> {
-    // TODO: keep a reference to the body to avoid copying it for blocks?
     pub(crate) chunk: Chunk,
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
-    /// Name -> chunk to interpret
     pub(crate) blocks: HashMap<String, Chunk>,
-    pub(crate) macro_definitions: HashMap<String, CompiledMacroDefinition>,
-    pub(crate) macro_namespaces: Vec<String>,
-    pub(crate) macro_names: Vec<Vec<String>>,
+    // (filename, namespace)
+    pub(crate) macro_calls: BTreeSet<(String, String)>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -38,9 +35,7 @@ impl<'s> Compiler<'s> {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
-            macro_definitions: HashMap::new(),
-            macro_namespaces: Vec::new(),
-            macro_names: Vec::new(),
+            macro_calls: BTreeSet::new(),
             blocks: HashMap::new(),
             source,
             raw_content_num_bytes: 0,
@@ -105,35 +100,20 @@ impl<'s> Compiler<'s> {
             Expression::MacroCall(e) => {
                 let (macro_call, _) = e.into_parts();
                 self.compile_kwargs(macro_call.kwargs);
-                // TODO: it's because we can't pass anything to the enum to make it 32 bytes
-                // eg (String, String), (String, u8) etc don't fit
-                let namespace_idx = if let Some(idx) = self
-                    .macro_namespaces
+                let call_idx = if let Some(idx) = self
+                    .macro_calls
                     .iter()
-                    .position(|x| x == &macro_call.namespace)
+                    .position(|x| &x.0 == &macro_call.namespace && &x.1 == &macro_call.name)
                 {
                     idx
                 } else {
-                    let len = self.macro_namespaces.len();
-                    self.macro_namespaces.push(macro_call.namespace);
-                    self.macro_names.push(Vec::with_capacity(4));
+                    let len = self.macro_calls.len();
+                    self.macro_calls
+                        .insert((macro_call.namespace, macro_call.name));
                     len
                 };
-                let name_idx = if let Some(idx) = self.macro_names[namespace_idx]
-                    .iter()
-                    .position(|x| x == &macro_call.name)
-                {
-                    idx
-                } else {
-                    let len = self.macro_names[namespace_idx].len();
-                    self.macro_names
-                        .get_mut(namespace_idx)
-                        .unwrap()
-                        .push(macro_call.name);
-                    len
-                };
-                self.chunk
-                    .add(Instruction::CallMacro(namespace_idx, name_idx));
+
+                self.chunk.add(Instruction::CallMacro(call_idx));
             }
             Expression::FunctionCall(e) => {
                 let (func, _) = e.into_parts();
