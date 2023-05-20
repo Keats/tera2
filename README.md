@@ -23,9 +23,9 @@ TODO:
 - [x] Decide where to calculate byte size hint, probably compiler
 - [x] Fix blocks/macros AST -> bytecode generation
 - [x] Fix macro call weird instruction (idx, idx).
-- [ ] Have a reasonable Template object (eg macro imports, extend)
-- [ ] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
-  - [ ] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
+- [x] Have a reasonable Template object (eg macro imports, extend)
+- [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
+  - [x] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
 - [ ] Add support for block assignment in lexer/parser/compiler
 - [ ] Handle map literals (only allow string as keys for now?)
 - [ ] Add a Context object that holds values like the one in Tera

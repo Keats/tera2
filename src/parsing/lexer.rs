@@ -220,7 +220,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
     macro_rules! syntax_error {
         ($message:expr, $span:expr) => {{
             errored = true;
-            return Some(Err(Error::new_syntax_error($message.to_string(), &$span)));
+            return Some(Err(Error::syntax_error($message.to_string(), &$span)));
         }};
     }
 

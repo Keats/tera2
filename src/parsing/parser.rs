@@ -44,7 +44,7 @@ macro_rules! expect_token {
     ($parser:expr, $match:pat, $expectation:expr) => {{
         match $parser.next_or_error()? {
             (token, span) if matches!(token, $match) => Ok((token, span)),
-            (token, _) => Err(Error::new_syntax_error(
+            (token, _) => Err(Error::syntax_error(
                 format!("Found {} but expected {}.", token, $expectation),
                 &$parser.current_span,
             )),
@@ -53,7 +53,7 @@ macro_rules! expect_token {
     ($parser:expr, $match:pat => $target:expr, $expectation:expr) => {{
         match $parser.next_or_error()? {
             ($match, span) => Ok(($target, span)),
-            (token, _) => Err(Error::new_syntax_error(
+            (token, _) => Err(Error::syntax_error(
                 format!("Found {} but expected {}.", token, $expectation),
                 &$parser.current_span,
             )),
@@ -144,7 +144,7 @@ impl<'a> Parser<'a> {
     }
 
     fn endblock_different_name(&self, start_name: &str, end_name: &str) -> Error {
-        Error::new_syntax_error(
+        Error::syntax_error(
             format!(
                 "Opening block was named `{start_name}`, found `{end_name}` for the end block name"
             ),
@@ -306,7 +306,7 @@ impl<'a> Parser<'a> {
                             }
                         }
                         Some(Ok((ref token, _))) => {
-                            return Err(Error::new_syntax_error(
+                            return Err(Error::syntax_error(
                                 format!("Found {token} but expected `)` or `,`."),
                                 &self.current_span,
                             ));
@@ -367,7 +367,7 @@ impl<'a> Parser<'a> {
     fn inner_parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
         self.num_expr_calls += 1;
         if self.num_expr_calls > MAX_EXPR_RECURSION {
-            return Err(Error::new_syntax_error(
+            return Err(Error::syntax_error(
                 "The expression is too complex".to_string(),
                 &self.current_span,
             ));
@@ -392,7 +392,7 @@ impl<'a> Parser<'a> {
                         // Can't have unary with unary (eg - - - - - 1) otherwise we will quickly
                         // stack overflow. It doesn't make much sense anyway in practice.
                         // Alternatively, limit the number to 2?
-                        return Err(Error::new_syntax_error(
+                        return Err(Error::syntax_error(
                             "`-` or `not` cannot be used consecutively.".to_string(),
                             next_span,
                         ));
@@ -408,7 +408,7 @@ impl<'a> Parser<'a> {
             Token::LeftBracket => {
                 self.array_dimension += 1;
                 if self.array_dimension > MAX_DIMENSION_ARRAY {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         format!("Arrays can have a maximum of {MAX_DIMENSION_ARRAY} dimensions."),
                         &self.current_span,
                     ));
@@ -431,7 +431,7 @@ impl<'a> Parser<'a> {
                 lhs
             }
             _ => {
-                return Err(Error::new_syntax_error(
+                return Err(Error::syntax_error(
                     format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`"),
                     &self.current_span,
                 ));
@@ -597,7 +597,7 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 Some(Ok((token, _))) => {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         format!("Found {token} but was expecting `elif`, `else` or `endif`."),
                         &self.current_span,
                     ));
@@ -621,7 +621,7 @@ impl<'a> Parser<'a> {
 
     fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
         if !self.body_contexts.is_empty() {
-            return Err(Error::new_syntax_error(
+            return Err(Error::syntax_error(
                 "Macro definitions cannot be written in another tag.".to_string(),
                 &self.current_span,
             ));
@@ -650,7 +650,7 @@ impl<'a> Parser<'a> {
                         Some(Ok((Token::Integer(b), _))) => Value::from(*b),
                         Some(Ok((Token::Float(b), _))) => Value::from(*b),
                         Some(Ok((token, _))) => {
-                            return Err(Error::new_syntax_error(
+                            return Err(Error::syntax_error(
                                 format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
                                 &self.current_span,
                             ));
@@ -706,7 +706,7 @@ impl<'a> Parser<'a> {
             Token::Ident("set") | Token::Ident("set_global") => {
                 let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                 if RESERVED_NAMES.contains(&name) {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),
                         &self.current_span,
                     ));
@@ -728,19 +728,19 @@ impl<'a> Parser<'a> {
             Token::Ident("extends") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
                 if let Some(ref parent) = self.output.parent {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         format!("Template is already extending `{parent}`"),
                         &self.current_span,
                     ));
                 }
                 if !is_first_node {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         "`extends` needs to be the first tag of the template".to_string(),
                         &self.current_span,
                     ));
                 }
                 if !self.body_contexts.is_empty() {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         "`extends` cannot be nested in other tags.".to_string(),
                         &self.current_span,
                     ));
@@ -762,7 +762,7 @@ impl<'a> Parser<'a> {
                 }
 
                 if self.blocks_seen.contains(name) {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         format!("Template already contains a block named `{name}`"),
                         &self.current_span,
                     ));
@@ -818,7 +818,7 @@ impl<'a> Parser<'a> {
 
                 for (_, namespace2) in &self.output.macro_imports {
                     if namespace == namespace2 {
-                        return Err(Error::new_syntax_error(
+                        return Err(Error::syntax_error(
                             format!("Multiple macros imports using the `{namespace}` namespace"),
                             &self.current_span,
                         ));
@@ -830,7 +830,7 @@ impl<'a> Parser<'a> {
 
                 Ok(None)
             }
-            _ => Err(Error::new_syntax_error(
+            _ => Err(Error::syntax_error(
                 "Unknown tag".to_string(),
                 &self.current_span,
             )),

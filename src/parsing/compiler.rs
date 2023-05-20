@@ -25,7 +25,7 @@ pub(crate) struct Compiler<'s> {
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
-    // (filename, namespace)
+    // (namespace, name)
     pub(crate) macro_calls: BTreeSet<(String, String)>,
     pub(crate) raw_content_num_bytes: usize,
 }
