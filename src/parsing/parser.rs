@@ -3,8 +3,9 @@ use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, Expression, Filter, FilterSection, ForLoop, FunctionCall,
-    GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Set, Test,
+    UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -698,27 +699,70 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_set(&mut self, global: bool) -> TeraResult<Node> {
+        let (name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        if RESERVED_NAMES.contains(&name) {
+            return Err(Error::syntax_error(
+                format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),
+                &self.current_span,
+            ));
+        }
+
+        // From where we will diverge whether it's a basic set or a block set
+        let node = match self.next {
+            Some(Ok((Token::Assign, _))) => {
+                expect_token!(self, Token::Assign, "=")?;
+                let value = self.parse_expression(0)?;
+                Node::Set(Set {
+                    name: name.to_string(),
+                    value,
+                    global,
+                })
+            }
+            Some(Ok((Token::Pipe, _))) | Some(Ok((Token::TagEnd(..), _))) => {
+                let mut filters = vec![];
+
+                loop {
+                    if let Some(Ok((Token::Pipe, _))) = self.next {
+                        expect_token!(self, Token::Pipe, "|")?;
+                        filters.push(self.parse_filter(Expression::Const(Spanned::new(
+                            Value::Null,
+                            self.current_span.clone(),
+                        )))?);
+                    } else {
+                        expect_token!(self, Token::TagEnd(..), "%}")?;
+                        break;
+                    }
+                }
+
+                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endset")))?;
+                self.next_or_error()?;
+                Node::BlockSet(BlockSet {
+                    name: name.to_string(),
+                    filters,
+                    body,
+                    global,
+                })
+            }
+            _ => {
+                return Err(Error::syntax_error(
+                    format!("Invalid syntax for `set`: expecting an `=` followed by an expression or a `%}}`"),
+                    &self.current_span,
+                ));
+            }
+        };
+
+        Ok(node)
+    }
+
     // We need to know whether this is the first node we encounter to error if the tag is an extend
     // but not the first content node
     fn parse_tag(&mut self, is_first_node: bool) -> TeraResult<Option<Node>> {
         let (tag_token, _) = self.next_or_error()?;
         match tag_token {
-            Token::Ident("set") | Token::Ident("set_global") => {
-                let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                if RESERVED_NAMES.contains(&name) {
-                    return Err(Error::syntax_error(
-                        format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),
-                        &self.current_span,
-                    ));
-                }
-                expect_token!(self, Token::Assign, "=")?;
-                let value = self.parse_expression(0)?;
-                Ok(Some(Node::Set(Set {
-                    name: name.to_string(),
-                    value,
-                    global: tag_token == Token::Ident("set_global"),
-                })))
-            }
+            Token::Ident("set") | Token::Ident("set_global") => Ok(Some(
+                self.parse_set(tag_token == Token::Ident("set_global"))?,
+            )),
             Token::Ident("include") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
                 Ok(Some(Node::Include(Include {

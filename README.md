@@ -26,13 +26,15 @@ TODO:
 - [x] Have a reasonable Template object (eg macro imports, extend)
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
   - [x] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
-- [ ] Add support for block assignment in lexer/parser/compiler
+- [x] Add support for block assignment in lexer/parser/compiler
 - [ ] Handle map literals (only allow string as keys for now?)
+- [ ] More fuzzing
 - [ ] Add a Context object that holds values like the one in Tera
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Ensure that runtime errors point to the right thing
   - [ ] Finish VM without filters/functions
+  - [ ] Fuzz rendering
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
 - [ ] Add filters/functions/tests to VM

@@ -6,3 +6,5 @@
 {% set a = [1, true, 'hello'] %}
 {% set a = [1, true, [1,2]] %}
 {% set_global a = 1 %}
+{% set body | upper %}Hello{% endset %}
+{% set_global body | upper(with=1) | trans(lang='fr') %}Hello{% endset %}

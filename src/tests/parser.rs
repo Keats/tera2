@@ -50,15 +50,17 @@ fn parser_errors() {
 #[test]
 fn parser_tags_success() {
     insta::glob!(
-        "parser_inputs/success/{tags,blocks,for,if,filter_section}.txt",
+        "parser_inputs/success/{tags,blocks,for,if,filter_section,set}.txt",
         |path| {
             let contents = std::fs::read_to_string(path).unwrap();
             let nodes = &Parser::new(&contents).parse().unwrap().nodes;
             let mut res_nodes = Vec::with_capacity(nodes.len());
+            // println!("{:?}", nodes);
             for node in nodes {
                 if matches!(
                     node,
                     Node::Set(..)
+                        | Node::BlockSet(..)
                         | Node::Include(..)
                         | Node::Block(..)
                         | Node::ForLoop(..)
@@ -100,7 +102,7 @@ fn parser_macro_def_success() {
     ];
 
     for (t, expected) in tests {
-        let mut parser = Parser::new(t);
+        let parser = Parser::new(t);
         let macros = parser.parse().unwrap().macro_definitions;
         assert_eq!(
             macros.iter().find(|x| x.name == expected.name).unwrap(),
@@ -111,14 +113,14 @@ fn parser_macro_def_success() {
 
 #[test]
 fn parser_extends_success() {
-    let mut parser = Parser::new("{% extends 'a.html' %}");
+    let parser = Parser::new("{% extends 'a.html' %}");
     let parent = parser.parse().unwrap().parent;
     assert_eq!(parent, Some("a.html".to_string()));
 }
 
 #[test]
 fn parser_macro_import_success() {
-    let mut parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
+    let parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
     let macro_imports = parser.parse().unwrap().macro_imports;
     assert_eq!(
         macro_imports,
@@ -128,7 +130,7 @@ fn parser_macro_import_success() {
 
 #[test]
 fn parser_can_convert_array_to_const_when_possible() {
-    let mut parser = Parser::new(r#"{{ [1, 2, 3] }}"#);
+    let parser = Parser::new(r#"{{ [1, 2, 3] }}"#);
     let nodes = parser.parse().unwrap().nodes;
     let expected = Value::from(vec![1, 2, 3]);
     match &nodes[0] {

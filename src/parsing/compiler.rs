@@ -237,6 +237,26 @@ impl<'s> Compiler<'s> {
                 };
                 self.chunk.add(instr);
             }
+            Node::BlockSet(b) => {
+                self.chunk.add(Instruction::Capture);
+                for node in b.body {
+                    self.compile_node(node);
+                }
+                self.chunk.add(Instruction::EndCapture);
+                for expr in b.filters {
+                    if let Expression::Filter(f) = expr {
+                        let (filter, _) = f.into_parts();
+                        self.compile_kwargs(filter.kwargs);
+                        self.chunk.add(Instruction::ApplyFilter(filter.name));
+                    }
+                }
+                let instr = if b.global {
+                    Instruction::SetGlobal(b.name)
+                } else {
+                    Instruction::Set(b.name)
+                };
+                self.chunk.add(instr);
+            }
             Node::Include(i) => {
                 self.chunk.add(Instruction::Include(i.name));
             }

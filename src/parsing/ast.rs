@@ -156,6 +156,7 @@ impl fmt::Debug for Expression {
                 Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                Value::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
                 _ => unreachable!("{self} is not implemented"),
             },
             Array(i) => fmt::Debug::fmt(i, f),
@@ -196,6 +197,7 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "]")
                 }
+                Value::Null => write!(f, "null"),
                 _ => unreachable!(),
             },
             Array(i) => write!(f, "{}", **i),
@@ -418,6 +420,20 @@ pub struct Set {
     pub global: bool,
 }
 
+/// Set a variable in the context from a block `{% set val %}Hello {{world}}{% endset %}`
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlockSet {
+    /// The name for that value in the context
+    pub name: String,
+    /// The filters to apply to the block, with a dummy source set to null
+    pub filters: Vec<Expression>,
+    /// The content of the block
+    pub body: Vec<Node>,
+    /// Whether we want to set the variable globally or locally
+    /// set_global is only useful in loops
+    pub global: bool,
+}
+
 /// A template to include
 #[derive(Clone, Debug, PartialEq)]
 pub struct Include {
@@ -482,6 +498,7 @@ pub enum Node {
     Content(String),
     Expression(Expression),
     Set(Set),
+    BlockSet(BlockSet),
     Include(Include),
     Block(Block),
     ForLoop(ForLoop),
@@ -497,6 +514,7 @@ impl fmt::Debug for Node {
             Content(s) => fmt::Debug::fmt(s, f),
             Expression(s) => fmt::Debug::fmt(s, f),
             Set(s) => fmt::Debug::fmt(s, f),
+            BlockSet(s) => fmt::Debug::fmt(s, f),
             Include(s) => fmt::Debug::fmt(s, f),
             Block(s) => fmt::Debug::fmt(s, f),
             ForLoop(s) => fmt::Debug::fmt(s, f),
