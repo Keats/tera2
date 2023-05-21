@@ -1,16 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
-    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Set, Test,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Test,
     UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
-use crate::value::Value;
+use crate::value::{Key, Value};
 
 /// parse_expression can call itself max 100 times, after that it's an error
 const MAX_EXPR_RECURSION: usize = 100;
@@ -338,6 +338,49 @@ impl<'a> Parser<'a> {
         )))
     }
 
+    fn parse_map(&mut self) -> TeraResult<Expression> {
+        let mut literal_only = true;
+        let mut items = BTreeMap::new();
+        let mut span = self.current_span.clone();
+
+        loop {
+            if matches!(self.next, Some(Ok((Token::RightBrace, _)))) {
+                break;
+            }
+
+            // trailing commas
+            if !items.is_empty() {
+                expect_token!(self, Token::Comma, ",")?;
+            }
+
+            if matches!(self.next, Some(Ok((Token::RightBrace, _)))) {
+                break;
+            }
+
+            let (key, _) = expect_token!(self, Token::String(key) => key, "key")?;
+            expect_token!(self, Token::Colon, ",")?;
+            let value = self.inner_parse_expression(0)?;
+            if !value.is_literal() {
+                literal_only = false;
+            }
+            items.insert(key.to_string(), value);
+        }
+        expect_token!(self, Token::RightBrace, ",")?;
+        span.expand(&self.current_span);
+
+        if literal_only {
+            let mut out = crate::value::Map::with_capacity(items.len());
+            for (k, v) in items {
+                if let Expression::Const(val) = v {
+                    out.insert(Key::String(k.into()), val.into_parts().0);
+                }
+            }
+            Ok(Expression::Const(Spanned::new(Value::from(out), span)))
+        } else {
+            Ok(Expression::Map(Spanned::new(Map { items }, span)))
+        }
+    }
+
     fn parse_array(&mut self) -> TeraResult<Vec<Expression>> {
         let mut vals = Vec::new();
 
@@ -406,6 +449,7 @@ impl<'a> Parser<'a> {
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
+            Token::LeftBrace => self.parse_map()?,
             Token::LeftBracket => {
                 self.array_dimension += 1;
                 if self.array_dimension > MAX_DIMENSION_ARRAY {
@@ -433,7 +477,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::syntax_error(
-                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`"),
+                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `{{`, `[` or `(`"),
                     &self.current_span,
                 ));
             }
@@ -700,7 +744,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_set(&mut self, global: bool) -> TeraResult<Node> {
-        let (name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         if RESERVED_NAMES.contains(&name) {
             return Err(Error::syntax_error(
                 format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),

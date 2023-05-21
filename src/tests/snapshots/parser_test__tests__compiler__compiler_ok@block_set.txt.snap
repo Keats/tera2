@@ -10,11 +10,11 @@ input_file: src/tests/compiler_inputs/success/block_set.txt
 0003 WriteTop
 0004 WriteText("\n")
 0005 EndCapture
-0006 BuildKwargs(0)
+0006 BuildMap(0)
 0007 ApplyFilter("upper")
 0008 LoadConst(String("lang"))
 0009 LoadConst(String("fr"))
-0010 BuildKwargs(1)
+0010 BuildMap(1)
 0011 ApplyFilter("trans")
 0012 Set("hero")
 

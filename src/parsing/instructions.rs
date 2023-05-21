@@ -27,8 +27,9 @@ pub enum Instruction {
     /// Handles `a[b]`. `b` is the top stack value, `a` the one before
     BinarySubscript,
 
-    /// Create a map for the kwargs of a function. Inner field is the number of values
-    BuildKwargs(usize),
+    /// Create a map for the kwargs of a function or for inline maps.
+    /// Inner field is the number of values
+    BuildMap(usize),
     /// Create a list. Inner field is the number of values
     BuildList(usize),
     /// Call the named Tera function

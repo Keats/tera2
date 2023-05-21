@@ -12,6 +12,6 @@ input_file: src/tests/compiler_inputs/success/filter_section.txt
 0005 EndCapture
 0006 LoadConst(String("lang"))
 0007 LoadConst(String("fr"))
-0008 BuildKwargs(1)
+0008 BuildMap(1)
 0009 ApplyFilter("capitalize")
 

@@ -8,3 +8,5 @@
 {% set_global a = 1 %}
 {% set body | upper %}Hello{% endset %}
 {% set_global body | upper(with=1) | trans(lang='fr') %}Hello{% endset %}
+{% set value = {"hello": 0} %}
+{% set value = {"hello": data} %}

@@ -1,6 +1,7 @@
 use serde::Serialize;
 #[cfg(not(feature = "preserve_order"))]
 use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -12,7 +13,7 @@ mod key;
 mod ser;
 mod utils;
 
-use key::Key;
+pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
 pub(crate) type Map = HashMap<Key, Value>;
@@ -205,6 +206,32 @@ impl From<f64> for Value {
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
         Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
+    }
+}
+
+impl<T: Into<Value>> From<BTreeSet<T>> for Value {
+    fn from(value: BTreeSet<T>) -> Self {
+        Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
+    }
+}
+
+impl<K: Into<Key>, T: Into<Value>> From<HashMap<K, T>> for Value {
+    fn from(input: HashMap<K, T>) -> Self {
+        let mut map = Map::with_capacity(input.len());
+        for (key, value) in input {
+            map.insert(key.into(), value.into());
+        }
+        Value::Map(Arc::new(map))
+    }
+}
+
+impl<K: Into<Key>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
+    fn from(input: BTreeMap<K, T>) -> Self {
+        let mut map = Map::with_capacity(input.len());
+        for (key, value) in input {
+            map.insert(key.into(), value.into());
+        }
+        Value::Map(Arc::new(map))
     }
 }
 

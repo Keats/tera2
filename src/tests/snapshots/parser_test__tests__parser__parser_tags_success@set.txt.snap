@@ -125,4 +125,26 @@ input_file: src/tests/parser_inputs/success/set.txt
         ],
         global: true,
     },
+    Set {
+        name: "value",
+        value: {
+            String(
+                "hello",
+            ): I64(
+                0,
+            ),
+        } @ 11:15-11:27 (338..350),
+        global: false,
+    },
+    Set {
+        name: "value",
+        value: Map {
+            items: {
+                "hello": Var {
+                    name: "data",
+                } @ 12:25-12:29 (379..383),
+            },
+        } @ 12:15-12:30 (369..384),
+        global: false,
+    },
 ]

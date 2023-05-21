@@ -49,7 +49,7 @@ impl<'s> Compiler<'s> {
             self.chunk.add(Instruction::LoadConst(Value::from(key)));
             self.compile_expr(value);
         }
-        self.chunk.add(Instruction::BuildKwargs(num_args));
+        self.chunk.add(Instruction::BuildMap(num_args));
     }
 
     fn compile_expr(&mut self, expr: Expression) {
@@ -57,6 +57,15 @@ impl<'s> Compiler<'s> {
             Expression::Const(e) => {
                 let (val, _) = e.into_parts();
                 self.chunk.add(Instruction::LoadConst(val));
+            }
+            Expression::Map(e) => {
+                let (map, _) = e.into_parts();
+                let num_items = map.items.len();
+                for (key, value) in map.items {
+                    self.chunk.add(Instruction::LoadConst(Value::from(key)));
+                    self.compile_expr(value);
+                }
+                self.chunk.add(Instruction::BuildMap(num_items));
             }
             Expression::Array(e) => {
                 let (array, _) = e.into_parts();

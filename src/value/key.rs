@@ -28,6 +28,47 @@ impl fmt::Display for Key {
         }
     }
 }
+impl From<bool> for Key {
+    fn from(key: bool) -> Self {
+        Key::Bool(key)
+    }
+}
+
+impl From<&str> for Key {
+    fn from(key: &str) -> Self {
+        Key::String(Cow::Owned(key.to_string()))
+    }
+}
+
+impl From<String> for Key {
+    fn from(key: String) -> Self {
+        Key::String(Cow::Owned(key))
+    }
+}
+
+impl From<u32> for Key {
+    fn from(key: u32) -> Self {
+        Key::U64(key as u64)
+    }
+}
+
+impl From<u64> for Key {
+    fn from(key: u64) -> Self {
+        Key::U64(key)
+    }
+}
+
+impl From<i32> for Key {
+    fn from(key: i32) -> Self {
+        Key::I64(key as i64)
+    }
+}
+
+impl From<i64> for Key {
+    fn from(key: i64) -> Self {
+        Key::I64(key)
+    }
+}
 
 pub struct KeySerializer;
 

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::sync::Arc;
 
@@ -90,6 +90,8 @@ pub enum Expression {
     Const(Spanned<Value>),
     /// An array that contains things not
     Array(Spanned<Array>),
+    /// A hashmap defined in the template
+    Map(Spanned<Map>),
     /// A variable to look up in the context.
     /// Note that
     Var(Spanned<Var>),
@@ -115,6 +117,7 @@ impl Expression {
     pub fn span(&self) -> &Span {
         match self {
             Expression::Const(s) => s.span(),
+            Expression::Map(s) => s.span(),
             Expression::Array(s) => s.span(),
             Expression::Test(s) => s.span(),
             Expression::MacroCall(s) => s.span(),
@@ -131,6 +134,7 @@ impl Expression {
     pub fn expand_span(&mut self, span: &Span) {
         match self {
             Expression::Const(s) => s.span_mut().expand(span),
+            Expression::Map(s) => s.span_mut().expand(span),
             Expression::Array(s) => s.span_mut().expand(span),
             Expression::Test(s) => s.span_mut().expand(span),
             Expression::MacroCall(s) => s.span_mut().expand(span),
@@ -156,9 +160,11 @@ impl fmt::Debug for Expression {
                 Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                Value::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
                 _ => unreachable!("{self} is not implemented"),
             },
+            Map(i) => fmt::Debug::fmt(i, f),
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
             MacroCall(i) => fmt::Debug::fmt(i, f),
@@ -200,6 +206,7 @@ impl fmt::Display for Expression {
                 Value::Null => write!(f, "null"),
                 _ => unreachable!(),
             },
+            Map(i) => write!(f, "{}", **i),
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
             MacroCall(i) => write!(f, "{}", **i),
@@ -261,6 +268,25 @@ pub struct BinaryOperation {
 impl fmt::Display for BinaryOperation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({} {} {})", self.op, self.left, self.right)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Map {
+    pub items: BTreeMap<String, Expression>,
+}
+
+impl fmt::Display for Map {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{")?;
+        for (i, (key, value)) in self.items.iter().enumerate() {
+            if i == self.items.len() - 1 {
+                write!(f, "{key}: {value}")?
+            } else {
+                write!(f, "{key}: {value}, ")?
+            }
+        }
+        write!(f, "}}")
     }
 }
 

@@ -27,7 +27,7 @@ TODO:
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
   - [x] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
 - [x] Add support for block assignment in lexer/parser/compiler
-- [ ] Handle map literals (only allow string as keys for now?)
+- [x] Handle map literals (only allow string as keys for now?)
 - [ ] More fuzzing
 - [ ] Add a Context object that holds values like the one in Tera
 - [ ] Implement basic VM without filters/functions/tests
