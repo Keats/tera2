@@ -16,6 +16,8 @@ use crate::value::{Key, Value};
 const MAX_EXPR_RECURSION: usize = 100;
 /// We only allow that many dimensions in an array literal
 const MAX_DIMENSION_ARRAY: usize = 2;
+/// How many nesting of brackets can we have in an variable, eg `a[b[e]]` counts as 2
+const MAX_NUM_LEFT_BRACKETS: usize = 4;
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
@@ -80,7 +82,7 @@ enum BodyContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub(crate) struct ParserOutput {
+pub struct ParserOutput {
     // filled when we encounter a {% extends %}
     pub(crate) parent: Option<String>,
     // The AST for the body
@@ -104,6 +106,8 @@ pub struct Parser<'a> {
     // We limit the length of an expression to avoid stack overflows with crazy expressions like
     // 100 `(`
     num_expr_calls: usize,
+    // We limit the number of nesting for brackets in idents
+    num_left_brackets: usize,
     blocks_seen: HashSet<String>,
     output: ParserOutput,
 }
@@ -111,6 +115,9 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let iter = Box::new(tokenize(source)) as Box<dyn Iterator<Item = _>>;
+        // for res in tokenize(source) {
+        //     println!("{:?}", res);
+        // }
         Self {
             source,
             lexer: iter.peekable(),
@@ -119,6 +126,7 @@ impl<'a> Parser<'a> {
             body_contexts: Vec::new(),
             num_expr_calls: 0,
             array_dimension: 0,
+            num_left_brackets: 0,
             blocks_seen: HashSet::with_capacity(10),
             output: ParserOutput::default(),
         }
@@ -187,6 +195,14 @@ impl<'a> Parser<'a> {
                 }
                 Some(Ok((Token::LeftBracket, _))) => {
                     expect_token!(self, Token::LeftBracket, "[")?;
+                    self.num_left_brackets += 1;
+                    if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
+                        return Err(Error::syntax_error(
+                            format!("Identifiers can only have up to {MAX_NUM_LEFT_BRACKETS} nested brackets."),
+                            &self.current_span,
+                        ));
+                    }
+
                     let sub_expr = self.parse_expression(0)?;
                     start_span.expand(&self.current_span);
 
@@ -196,6 +212,7 @@ impl<'a> Parser<'a> {
                     ));
 
                     expect_token!(self, Token::RightBracket, "]")?;
+                    self.num_left_brackets -= 1;
                 }
                 // Function
                 Some(Ok((Token::LeftParen, _))) => {
@@ -540,6 +557,17 @@ impl<'a> Parser<'a> {
                 _ => {
                     let rhs = self.inner_parse_expression(r_bp)?;
                     span.expand(&self.current_span);
+
+                    // unary operators are not allowed after a ~
+                    if op == BinaryOperator::StrConcat {
+                        if let Expression::UnaryOperation(uop) = rhs {
+                            return Err(Error::syntax_error(
+                                format!("`{}` is not allowed after `~`", uop.op),
+                                &self.current_span,
+                            ));
+                        }
+                    }
+
                     Expression::BinaryOperation(Spanned::new(
                         BinaryOperation {
                             op,
@@ -968,7 +996,8 @@ impl<'a> Parser<'a> {
         Ok(nodes)
     }
 
-    pub(crate) fn parse(mut self) -> TeraResult<ParserOutput> {
+    // TODO: make this private when we can load a template from a str
+    pub fn parse(mut self) -> TeraResult<ParserOutput> {
         // get the first token
         self.next()?;
         self.output.nodes = self.parse_until(|_| false)?;

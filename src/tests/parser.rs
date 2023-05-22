@@ -41,7 +41,6 @@ fn parser_errors() {
     insta::glob!("parser_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res = Parser::new(&contents).parse();
-        println!("{path:?}");
         assert!(res.is_err());
         insta::assert_display_snapshot!(res.unwrap_err());
     });
