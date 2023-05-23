@@ -29,7 +29,7 @@ TODO:
 - [x] Add support for block assignment in lexer/parser/compiler
 - [x] Handle map literals (only allow string as keys for now?)
 - [x] More fuzzing
-- [ ] Add a Context object that holds values like the one in Tera
+- [x] Add a Context object that holds values like the one in Tera
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Ensure that runtime errors point to the right thing

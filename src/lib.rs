@@ -7,6 +7,8 @@ mod template;
 mod utils;
 pub mod value;
 mod vm;
+mod context;
+
 pub use parsing::parser::Parser;
 
 #[cfg(test)]
