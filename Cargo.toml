@@ -1,5 +1,5 @@
 [package]
-name = "parser-test"
+name = "tera"
 version = "0.1.0"
 edition = "2021"
 
@@ -26,4 +26,8 @@ harness = false
 
 [[bench]]
 name = "value"
+harness = false
+
+[[bench]]
+name = "escape"
 harness = false

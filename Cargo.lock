@@ -406,17 +406,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ceedf44fb00f2d1984b0bc98102627ce622e083e49a5bacdb3e514fa4238e267"
 
 [[package]]
-name = "parser-test"
-version = "0.1.0"
-dependencies = [
- "criterion",
- "indexmap",
- "insta",
- "serde",
- "serde_derive",
-]
-
-[[package]]
 name = "plotters"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -579,6 +568,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tera"
+version = "0.1.0"
+dependencies = [
+ "criterion",
+ "indexmap",
+ "insta",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]

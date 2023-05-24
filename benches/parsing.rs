@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use parser_test::Parser;
+use tera::Parser;
 
 static SIMPLE_TEMPLATE: &str = "
 <html>

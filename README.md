@@ -30,6 +30,8 @@ TODO:
 - [x] Handle map literals (only allow string as keys for now?)
 - [x] More fuzzing
 - [x] Add a Context object that holds values like the one in Tera
+- [x] Add an escape_html fn with benchmarks and a faster one featured gated
+- [ ] Add a Tera object that holds all the templates
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Ensure that runtime errors point to the right thing
@@ -41,6 +43,7 @@ TODO:
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Nice reporting with Ariadne (make it optional)
 - [ ] Feature to load templates from a glob with optional dep
+- [ ] Add a way to add global variables to the Tera struct that are passed on every render
 - [ ] Shitload of tests
 - [ ] More fuzzing
 

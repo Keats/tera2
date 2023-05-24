@@ -118,6 +118,7 @@ fn find_parents(
     }
 }
 
+// TODO: How to add a single template?
 fn validate_templates(
     templates: HashMap<String, InProgressTemplate>,
 ) -> Result<HashMap<String, Template>, Error> {

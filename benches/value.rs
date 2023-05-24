@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use serde_derive::Serialize;
 
-use parser_test::value::Value;
+use tera::value::Value;
 
 #[derive(Serialize, Default)]
 struct Page {

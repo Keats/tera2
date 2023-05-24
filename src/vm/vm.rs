@@ -1,9 +1,14 @@
-struct VirtualMachine {}
+use crate::template::Template;
 
-impl VirtualMachine {
-    pub fn new() -> Self {
-        Self {}
+struct VirtualMachine<'t> {
+    template: &'t Template,
+    ip: usize,
+}
+
+impl<'t> VirtualMachine<'t> {
+    pub fn new(template: &'t Template) -> Self {
+        Self { template, ip: 0 }
     }
 
-    fn run(&self) {}
+    fn interpret(&self) {}
 }
