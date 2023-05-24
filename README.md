@@ -24,14 +24,14 @@ TODO:
 - [x] Fix blocks/macros AST -> bytecode generation
 - [x] Fix macro call weird instruction (idx, idx).
 - [x] Have a reasonable Template object (eg macro imports, extend)
-- [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
-  - [x] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
 - [x] Add support for block assignment in lexer/parser/compiler
 - [x] Handle map literals (only allow string as keys for now?)
 - [x] More fuzzing
 - [x] Add a Context object that holds values like the one in Tera
 - [x] Add an escape_html fn with benchmarks and a faster one featured gated
 - [ ] Add a Tera object that holds all the templates
+- [ ] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
+  - [ ] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Ensure that runtime errors point to the right thing

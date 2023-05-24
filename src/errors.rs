@@ -1,6 +1,8 @@
 //! The Tera error type, with optional nice terminal error reporting.
 use std::fmt::{self};
 
+use std::error::Error as StdError;
+
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +36,8 @@ impl fmt::Display for SyntaxError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
+    /// Generic error
+    Msg(String),
     /// Both lexer and parser errors
     SyntaxError(SyntaxError),
     /// A loop was found while looking up the inheritance chain
@@ -57,11 +61,14 @@ pub enum ErrorKind {
         /// The namespace causing problems
         namespace: String,
     },
+    /// A template was missing
+    TemplateNotFound(String),
 }
 
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            ErrorKind::Msg(ref message) => write!(f, "{}", message),
             ErrorKind::SyntaxError(s) => write!(f, "{s}"),
             ErrorKind::CircularExtend {
                 ref tpl,
@@ -79,6 +86,7 @@ impl fmt::Display for ErrorKind {
                 "Template '{}' is inheriting from '{}', which doesn't exist or isn't loaded.",
                 current, parent
             ),
+            ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{}' not found", name),
             ErrorKind::NamespaceNotLoaded {
                 ref tpl,
                 ref namespace,
@@ -107,6 +115,13 @@ impl fmt::Display for Error {
 impl Error {
     pub fn new(kind: ErrorKind) -> Self {
         Self { kind, source: None }
+    }
+    /// Creates generic error with a source
+    pub fn chain(value: impl ToString, source: impl Into<Box<dyn StdError + Send + Sync>>) -> Self {
+        Self {
+            kind: ErrorKind::Msg(value.to_string()),
+            source: Some(source.into()),
+        }
     }
 
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
@@ -145,6 +160,13 @@ impl Error {
             source: None,
         }
     }
+
+    pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
+    }
 }
 
 impl std::error::Error for Error {
@@ -154,3 +176,13 @@ impl std::error::Error for Error {
 }
 
 pub type TeraResult<T> = Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_error_is_send_and_sync() {
+        fn test_send_sync<T: Send + Sync>() {}
+
+        test_send_sync::<super::Error>();
+    }
+}

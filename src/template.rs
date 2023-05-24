@@ -7,10 +7,10 @@ use crate::Parser;
 
 /// A struct used to hold internal states about a template while it's being parsed
 #[derive(Debug, PartialEq, Clone)]
-struct InProgressTemplate {
+pub(crate) struct InProgressTemplate {
     name: String,
-    path: Option<String>,
     source: String,
+    path: Option<String>,
     parent: Option<String>,
     chunk: Chunk,
     // (file, name)
@@ -118,7 +118,12 @@ fn find_parents(
     }
 }
 
-// TODO: How to add a single template?
+// TODO: How to add a single template? That's not going to work in practice
+// because we need it to work with existing templates
+// Should we keep templates strings on Tera rather than the template? How would that work for
+// error reporting?
+// Macro indices is not going to work either unless we pass the current macros so we only push
+// Same for blocks. Can we have raw content be just range to keep instructions small?
 fn validate_templates(
     templates: HashMap<String, InProgressTemplate>,
 ) -> Result<HashMap<String, Template>, Error> {
