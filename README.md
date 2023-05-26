@@ -29,19 +29,19 @@ TODO:
 - [x] More fuzzing
 - [x] Add a Context object that holds values like the one in Tera
 - [x] Add an escape_html fn with benchmarks and a faster one featured gated
-- [ ] Add a Tera object that holds all the templates
-- [ ] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
-  - [ ] Investigate merging chunks for inheritance so we don't need to look at other templates during rendering
+- [x] Add a Tera object that holds all the templates
+- [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
 - [ ] Implement basic VM without filters/functions/tests
+  - [ ] Port all the tests from Tera v1 + some more
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Ensure that runtime errors point to the right thing
   - [ ] Finish VM without filters/functions
-  - [ ] Fuzz rendering
+- [ ] Parsing errors should report with the source context like Rust errors
+- [ ] Nice reporting with Ariadne (make it optional)
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
 - [ ] Add filters/functions/tests to VM
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
-- [ ] Nice reporting with Ariadne (make it optional)
 - [ ] Feature to load templates from a glob with optional dep
 - [ ] Add a way to add global variables to the Tera struct that are passed on every render
 - [ ] Shitload of tests
@@ -50,6 +50,9 @@ TODO:
 
 Ideas:
 
+- Repl
 - Collect all functions/filters/macro call/includes/tests and make sure it's all available at compile time
 - Pre-compute hashes for all keys used in the templates somehow? runtime phf?
 - Pre-render macro calls without arguments?
+- Check whether blocks have super() and if they don't just skip them when rendering
+- Have a way to merge chunks when handling inheritance

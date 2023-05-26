@@ -100,7 +100,7 @@ pub struct Chunk {
     instructions: Vec<Instruction>,
     /// instruction idx -> Span
     spans: HashMap<u32, Span>,
-    // TODO: What should it be there? Template name? Template::block_name?
+    /// The template name so we can point to the right place for error messages
     pub name: String,
 }
 
@@ -154,13 +154,4 @@ mod tests {
     fn test_size() {
         assert_eq!(std::mem::size_of::<Instruction>(), 32);
     }
-
-    // #[test]
-    // fn test_debug() {
-    //     let mut chunk = Chunk::new("hello");
-    //     chunk.add_instruction(Instruction::LoadConst(Value::U64(1)));
-    //     chunk.add_instruction(Instruction::LoadVar("ho".to_string()));
-    //     println!("{:?}", chunk);
-    //     assert!(false);
-    // }
 }

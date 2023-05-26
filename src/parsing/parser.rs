@@ -115,9 +115,6 @@ pub struct Parser<'a> {
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let iter = Box::new(tokenize(source)) as Box<dyn Iterator<Item = _>>;
-        // for res in tokenize(source) {
-        //     println!("{:?}", res);
-        // }
         Self {
             source,
             lexer: iter.peekable(),
@@ -818,7 +815,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::syntax_error(
-                    format!("Invalid syntax for `set`: expecting an `=` followed by an expression or a `%}}`"),
+                    "Invalid syntax for `set`: expecting an `=` followed by an expression or a `%}}`".to_string(),
                     &self.current_span,
                 ));
             }

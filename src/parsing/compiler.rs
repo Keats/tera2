@@ -16,6 +16,7 @@ enum ProcessingBody {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompiledMacroDefinition {
+    pub name: String,
     pub kwargs: HashMap<String, Option<Value>>,
     pub body: Chunk,
 }
@@ -112,7 +113,7 @@ impl<'s> Compiler<'s> {
                 let call_idx = if let Some(idx) = self
                     .macro_calls
                     .iter()
-                    .position(|x| &x.0 == &macro_call.namespace && &x.1 == &macro_call.name)
+                    .position(|x| x.0 == macro_call.namespace && x.1 == macro_call.name)
                 {
                     idx
                 } else {
@@ -204,7 +205,7 @@ impl<'s> Compiler<'s> {
     }
 
     fn compile_block(&mut self, block: Block) {
-        let mut compiler = Compiler::new(&self.chunk.name, &self.source);
+        let mut compiler = Compiler::new(&self.chunk.name, self.source);
         for node in block.body {
             compiler.compile_node(node);
         }

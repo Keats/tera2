@@ -1,5 +1,6 @@
 use crate::errors::{Error, TeraResult};
-use crate::template::{InProgressTemplate, Template};
+use crate::parsing::Chunk;
+use crate::template::{find_parents, Template};
 use crate::{escape_html, Context};
 use std::collections::HashMap;
 
@@ -13,10 +14,10 @@ pub type EscapeFn = fn(&str) -> String;
 pub struct Tera {
     #[doc(hidden)]
     pub templates: HashMap<String, Template>,
-    // Which extensions does Tera automatically autoescape on.
-    // Defaults to [".html", ".htm", ".xml"]
+    /// Which extensions does Tera automatically autoescape on.
+    /// Defaults to [".html", ".htm", ".xml"]
     #[doc(hidden)]
-    pub autoescape_suffixes: Vec<&'static str>,
+    autoescape_suffixes: Vec<&'static str>,
     #[doc(hidden)]
     escape_fn: EscapeFn,
 }
@@ -92,6 +93,65 @@ impl Tera {
         self.escape_fn = escape_html;
     }
 
+    /// Optimizes the templates when possible and doing some light
+    /// checks like whether blocks/macros/templates all exist when they are used
+    fn finalize_templates(&mut self) -> TeraResult<()> {
+        // {file -> {name -> compiled macro}}
+        let mut compiled_macros_by_file = HashMap::with_capacity(20);
+        let mut tpl_parents = HashMap::new();
+        let mut tpl_size_hint = HashMap::new();
+
+        // 1st loop: we find the parents of each templates with all the block definitions
+        // as well as copying the macro definitions defined in each template
+        for (name, tpl) in &self.templates {
+            let parents = find_parents(&self.templates, tpl, tpl, vec![])?;
+            compiled_macros_by_file.insert(tpl.name.clone(), tpl.macro_definitions.clone());
+
+            let mut size_hint = tpl.raw_content_num_bytes;
+            for parent in &parents {
+                size_hint += &self.templates[parent].raw_content_num_bytes;
+            }
+
+            tpl_parents.insert(name.clone(), parents);
+            tpl_size_hint.insert(name.clone(), size_hint);
+        }
+
+        // 2nd loop: we find the macro definition for each macro calls
+        // {tpl_name: vec![compiled macro]|
+        let mut tpl_macro_definitions = HashMap::new();
+        for (name, tpl) in &self.templates {
+            let mut definitions = Vec::new();
+            for (tpl_name, macro_name) in &tpl.macro_calls {
+                let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
+                    Error::message(format!(
+                        "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"
+                    ))
+                })?;
+
+                let definition = tpl_w_definition
+                    .macro_definitions
+                    .get(macro_name)
+                    .ok_or_else(|| {
+                        Error::message(format!(
+                            "Template `{name}` is using macros {macro_name} from `{tpl_name}` which wasn't found",
+                        ))
+                    })?;
+
+                definitions.push(definition.clone());
+            }
+            tpl_macro_definitions.insert(name.to_string(), definitions);
+        }
+
+        // 3rd loop: we actually set everything we've done on the templates object
+        for (name, tpl) in self.templates.iter_mut() {
+            tpl.raw_content_num_bytes += tpl_size_hint.remove(name.as_str()).unwrap();
+            tpl.parents = tpl_parents.remove(name.as_str()).unwrap();
+            tpl.macro_calls_def = tpl_macro_definitions.remove(name.as_str()).unwrap();
+        }
+
+        Ok(())
+    }
+
     /// Add all the templates given to the Tera instance
     ///
     /// This will error if the inheritance chain can't be built, such as adding a child
@@ -109,18 +169,15 @@ impl Tera {
         N: AsRef<str>,
         C: AsRef<str>,
     {
-        let mut inprogress_templates = Vec::new();
-
         for (name, content) in templates {
-            inprogress_templates.push(
-                InProgressTemplate::new(
-                    name.as_ref().to_string(),
-                    content.as_ref().to_string(),
-                    None,
-                )
-                .map_err(|e| Error::chain(format!("Failed to parse '{}'", name.as_ref()), e))?,
-            );
+            let template = Template::new(name.as_ref(), content.as_ref(), None)
+                // TODO: need to format the error message with source context
+                .map_err(|e| Error::chain(format!("Failed to parse '{}'", name.as_ref()), e))?;
+
+            self.templates.insert(name.as_ref().to_string(), template);
         }
+
+        self.finalize_templates()?;
 
         Ok(())
     }

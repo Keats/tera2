@@ -68,32 +68,29 @@ pub enum ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::Msg(ref message) => write!(f, "{}", message),
+            ErrorKind::Msg(ref message) => write!(f, "{message}"),
             ErrorKind::SyntaxError(s) => write!(f, "{s}"),
             ErrorKind::CircularExtend {
                 ref tpl,
                 ref inheritance_chain,
             } => write!(
                 f,
-                "Circular extend detected for template '{}'. Inheritance chain: `{:?}`",
-                tpl, inheritance_chain
+                "Circular extend detected for template '{tpl}'. Inheritance chain: `{inheritance_chain:?}`",
             ),
             ErrorKind::MissingParent {
                 ref current,
                 ref parent,
             } => write!(
                 f,
-                "Template '{}' is inheriting from '{}', which doesn't exist or isn't loaded.",
-                current, parent
+                "Template '{current}' is inheriting from '{parent}', which doesn't exist or isn't loaded.",
             ),
-            ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{}' not found", name),
+            ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{name}' not found"),
             ErrorKind::NamespaceNotLoaded {
                 ref tpl,
                 ref namespace,
             } => write!(
                 f,
-                "Template '{}' is trying to use namespace `{}` which is not loaded",
-                tpl, namespace
+                "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
             ),
         }
     }
@@ -116,11 +113,19 @@ impl Error {
     pub fn new(kind: ErrorKind) -> Self {
         Self { kind, source: None }
     }
+
     /// Creates generic error with a source
     pub fn chain(value: impl ToString, source: impl Into<Box<dyn StdError + Send + Sync>>) -> Self {
         Self {
             kind: ErrorKind::Msg(value.to_string()),
             source: Some(source.into()),
+        }
+    }
+
+    pub(crate) fn message(message: String) -> Self {
+        Self {
+            kind: ErrorKind::Msg(message),
+            source: None,
         }
     }
 
