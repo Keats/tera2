@@ -5,7 +5,7 @@ use std::fmt;
 use std::fmt::Formatter;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Instruction {
+pub(crate) enum Instruction {
     /// Pushing a value to the stack
     LoadConst(Value),
     /// Reading a variable/function
@@ -124,6 +124,10 @@ impl Chunk {
         self.spans.insert(idx, span);
     }
 
+    pub(crate) fn get(&self, idx: usize) -> Option<&Instruction> {
+        self.instructions.get(idx)
+    }
+
     pub(crate) fn get_mut(&mut self, idx: usize) -> Option<&mut Instruction> {
         self.instructions.get_mut(idx)
     }
@@ -137,7 +141,6 @@ impl fmt::Debug for Chunk {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "=== {} ===", self.name)?;
 
-        // let mut offset = 0;
         for (offset, instr) in self.instructions.iter().enumerate() {
             writeln!(f, "{offset:>04} {instr:?}")?;
         }

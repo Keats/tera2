@@ -63,6 +63,12 @@ pub enum ErrorKind {
     },
     /// A template was missing
     TemplateNotFound(String),
+    /// An IO error occurred
+    Io(std::io::ErrorKind),
+    /// UTF-8 conversion error when converting output to UTF-8
+    ///
+    /// This should not occur unless invalid UTF8 chars are rendered
+    Utf8Conversion,
 }
 
 impl fmt::Display for ErrorKind {
@@ -92,6 +98,10 @@ impl fmt::Display for ErrorKind {
                 f,
                 "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
             ),
+            ErrorKind::Io(ref io_error) => {
+                write!(f, "Io error while writing rendered value to output: {:?}", io_error)
+            }
+            ErrorKind::Utf8Conversion => write!(f, "Invalid UTF-8 characters found while rendering.")
         }
     }
 }
@@ -166,10 +176,24 @@ impl Error {
         }
     }
 
+    pub(crate) fn io_error(error: std::io::Error) -> Self {
+        Self {
+            kind: ErrorKind::Io(error.kind()),
+            source: Some(Box::new(error)),
+        }
+    }
+
     pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
         Self {
             kind: ErrorKind::TemplateNotFound(tpl.to_string()),
             source: None,
+        }
+    }
+
+    pub(crate) fn invalid_utf8(error: std::string::FromUtf8Error) -> Self {
+        Self {
+            kind: ErrorKind::Utf8Conversion,
+            source: Some(Box::new(error)),
         }
     }
 }
@@ -177,6 +201,18 @@ impl Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         self.source.as_ref().map(|e| e.as_ref() as _)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::io_error(error)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        Self::invalid_utf8(error)
     }
 }
 

@@ -50,9 +50,8 @@ TODO:
 
 Ideas:
 
-- Repl
 - Collect all functions/filters/macro call/includes/tests and make sure it's all available at compile time
-- Pre-compute hashes for all keys used in the templates somehow? runtime phf?
+- Pre-compute hashes for all keys used in the templates somehow? runtime phf? https://crates.io/crates/ph ?
 - Pre-render macro calls without arguments?
 - Check whether blocks have super() and if they don't just skip them when rendering
-- Have a way to merge chunks when handling inheritance
+- Have a way to merge chunks when handling inheritance, issue is macros since you need to refer to the right imports

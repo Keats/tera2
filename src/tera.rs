@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use crate::errors::{Error, TeraResult};
 use crate::parsing::Chunk;
 use crate::template::{find_parents, Template};
+use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context};
-use std::collections::HashMap;
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -152,6 +154,35 @@ impl Tera {
         Ok(())
     }
 
+    /// Add a single template to the Tera instance.
+    ///
+    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// template without the parent one.
+    ///
+    /// # Bulk loading
+    ///
+    /// If you want to add several templates, use
+    /// [`add_raw_templates()`](Tera::add_raw_templates).
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template("new.html", "Blabla").unwrap();
+    /// ```
+    pub fn add_raw_template(&mut self, name: &str, content: &str) -> TeraResult<()> {
+        let template = Template::new(name, content, None)
+            // TODO: need to format the error message with source context
+            .map_err(|e| Error::chain(format!("Failed to parse '{}'", name), e))?;
+
+        self.templates.insert(name.to_string(), template);
+        self.finalize_templates()?;
+        Ok(())
+    }
+
     /// Add all the templates given to the Tera instance
     ///
     /// This will error if the inheritance chain can't be built, such as adding a child
@@ -226,10 +257,8 @@ impl Tera {
     /// ```
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
         let template = self.get_template(template_name)?;
-        todo!("")
-
-        // let renderer = Renderer::new(template, self, context);
-        // renderer.render()
+        let mut vm = VirtualMachine::new(self, template);
+        vm.render()
     }
 }
 

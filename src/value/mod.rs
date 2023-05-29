@@ -1,4 +1,6 @@
 use serde::Serialize;
+use std::borrow::Cow;
+use std::cmp::Ordering;
 #[cfg(not(feature = "preserve_order"))]
 use std::collections::HashMap;
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,9 +12,13 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 mod key;
+pub(crate) mod number;
 mod ser;
 mod utils;
 
+use crate::errors::{Error, TeraResult};
+use crate::parsing::lexer::Token::Pipe;
+use crate::value::number::Number;
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
@@ -109,6 +115,34 @@ impl PartialEq for Value {
 
 impl Eq for Value {}
 
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            // First the easy ones
+            (Value::Null, Value::Null) => Some(Ordering::Equal),
+            (Value::Bool(v), Value::Bool(v2)) => v.partial_cmp(v2),
+            (Value::Char(v), Value::Char(v2)) => v.partial_cmp(v2),
+            (Value::Array(v), Value::Array(v2)) => v.partial_cmp(v2),
+            (Value::Bytes(v), Value::Bytes(v2)) => v.partial_cmp(v2),
+            (Value::String(v), Value::String(v2)) => v.partial_cmp(v2),
+            // Then the numbers
+            // First if there's a float we need to convert to float
+            (Value::F64(v), _) => v.partial_cmp(&other.as_f64()?),
+            (_, Value::F64(v)) => v.partial_cmp(&self.as_f64()?),
+            // Then integers
+            (Value::U64(_), _)
+            | (Value::I64(_), _)
+            | (Value::U128(_), _)
+            | (Value::I128(_), _)
+            | (_, Value::U64(_))
+            | (_, Value::I64(_))
+            | (_, Value::U128(_))
+            | (_, Value::I128(_)) => self.as_i128()?.partial_cmp(&other.as_i128()?),
+            (_, _) => None,
+        }
+    }
+}
+
 impl Value {
     pub fn from_serializable<T: Serialize>(value: &T) -> Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
@@ -137,6 +171,24 @@ impl Value {
         }
     }
 
+    fn as_number(&self) -> Option<Number> {
+        match self {
+            Value::U64(v) => Some(Number::Integer(*v as i128)),
+            Value::I64(v) => Some(Number::Integer(*v as i128)),
+            Value::F64(v) => Some(Number::Float(*v)),
+            Value::U128(v) => Some(Number::Integer(*v as i128)),
+            Value::I128(v) => Some(Number::Integer(*v)),
+            _ => None,
+        }
+    }
+
+    fn as_str(&self) -> Option<&str> {
+        match self {
+            Value::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Value::Null => false,
@@ -151,6 +203,37 @@ impl Value {
             Value::Bytes(v) => !v.is_empty(),
             Value::String(v) => !v.is_empty(),
             Value::Map(v) => !v.is_empty(),
+        }
+    }
+
+    pub(crate) fn as_key(&self) -> TeraResult<Key> {
+        let key = match self {
+            Value::Bool(v) => Key::Bool(*v),
+            Value::U64(v) => Key::U64(*v),
+            Value::I64(v) => Key::I64(*v),
+            Value::Char(v) => Key::Char(*v),
+            // TODO: not ideal to clone the actual string.
+            Value::String(v) => Key::String(Cow::Owned(v.as_str().to_string())),
+            _ => return Err(Error::message(format!("Not a valid key type"))),
+        };
+        Ok(key)
+    }
+
+    pub(crate) fn contains(&self, needle: &Value) -> TeraResult<bool> {
+        println!("{needle:?} in {self:?}");
+        match self {
+            Value::Array(arr) => Ok(arr.contains(needle)),
+            Value::String(s) => {
+                if let Some(needle_str) = needle.as_str() {
+                    Ok(s.contains(needle_str))
+                } else {
+                    Ok(false)
+                }
+            }
+            Value::Map(m) => Ok(m.contains_key(&needle.as_key()?)),
+            _ => Err(Error::message(format!(
+                "Cannot check containment on this kind of value"
+            ))),
         }
     }
 }
@@ -185,6 +268,12 @@ impl From<u64> for Value {
     }
 }
 
+impl From<u128> for Value {
+    fn from(value: u128) -> Self {
+        Value::U128(value)
+    }
+}
+
 impl From<i32> for Value {
     fn from(value: i32) -> Self {
         Value::I64(value as i64)
@@ -194,6 +283,12 @@ impl From<i32> for Value {
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
         Value::I64(value)
+    }
+}
+
+impl From<i128> for Value {
+    fn from(value: i128) -> Self {
+        Value::I128(value)
     }
 }
 
@@ -234,15 +329,3 @@ impl<K: Into<Key>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
         Value::Map(Arc::new(map))
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_display() {
-//         let val = Value::from_serializable(&vec![1, 2, 3]);
-//         println!("{val}");
-//         assert!(false);
-//     }
-// }

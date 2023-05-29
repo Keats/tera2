@@ -1,1 +1,1 @@
-mod vm;
+pub(crate) mod interpreter;

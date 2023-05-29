@@ -10,7 +10,7 @@ pub struct Template {
     pub(crate) name: String,
     source: String,
     path: Option<String>,
-    chunk: Chunk,
+    pub(crate) chunk: Chunk,
     // (file, name)
     // Used for its index in instructions
     pub(crate) macro_calls: Vec<(String, String)>,
@@ -84,6 +84,10 @@ impl Template {
             chunk,
             parents,
         })
+    }
+
+    pub(crate) fn size_hint(&self) -> usize {
+        (self.raw_content_num_bytes * 2).next_power_of_two()
     }
 }
 
