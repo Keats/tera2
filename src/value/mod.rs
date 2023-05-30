@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 #[cfg(not(feature = "preserve_order"))]
@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "preserve_order")]
 use indexmap::IndexMap;
+use serde::ser::{SerializeMap, SerializeSeq};
 
 mod key;
 pub(crate) mod number;
@@ -17,7 +18,6 @@ mod ser;
 mod utils;
 
 use crate::errors::{Error, TeraResult};
-use crate::parsing::lexer::Token::Pipe;
 use crate::value::number::Number;
 pub use key::Key;
 
@@ -220,7 +220,6 @@ impl Value {
     }
 
     pub(crate) fn contains(&self, needle: &Value) -> TeraResult<bool> {
-        println!("{needle:?} in {self:?}");
         match self {
             Value::Array(arr) => Ok(arr.contains(needle)),
             Value::String(s) => {
@@ -234,6 +233,60 @@ impl Value {
             _ => Err(Error::message(format!(
                 "Cannot check containment on this kind of value"
             ))),
+        }
+    }
+
+    /// When doing hello.name, name is the attr
+    pub(crate) fn get_attr(&self, attr: &str) -> Option<Value> {
+        match self {
+            Value::Map(m) => m.get(&attr.into()).cloned(),
+            _ => None
+        }
+    }
+
+    /// When doing hello[0], hello[name] etc, item is the value in the brackets
+    pub(crate) fn get_item(&self, item: Value) -> Option<Value> {
+        match self {
+            Value::Map(m) => {
+                let key = item.as_key().expect("TODO: error handling");
+                m.get(&key).cloned()
+            },
+            Value::Array(arr) => {
+                let idx = item.as_i128().expect("TODO: error handling");
+                arr.get(idx as usize).cloned()
+            },
+            _ => None
+        }
+    }
+}
+
+impl Serialize for Value {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        match self {
+            Value::Null => serializer.serialize_unit(),
+            Value::Bool(b) => serializer.serialize_bool(*b),
+            Value::U64(u) => serializer.serialize_u64(*u),
+            Value::I64(i) => serializer.serialize_i64(*i),
+            Value::F64(f) => serializer.serialize_f64(*f),
+            Value::U128(u) => serializer.serialize_u128(*u),
+            Value::I128(i) => serializer.serialize_i128(*i),
+            Value::Char(c) => serializer.serialize_char(*c),
+            Value::Bytes(b) => serializer.serialize_bytes(b),
+            Value::String(s) => serializer.serialize_str(s),
+            Value::Array(arr) => {
+                let mut seq = serializer.serialize_seq(Some(arr.len()))?;
+                for val in arr.iter() {
+                    seq.serialize_element(val)?;
+                }
+                seq.end()
+            }
+            Value::Map(map) => {
+                let mut m = serializer.serialize_map(Some(map.len()))?;
+                for (key, val) in map.iter() {
+                    m.serialize_entry(key, val)?;
+                }
+                m.end()
+            }
         }
     }
 }
@@ -298,6 +351,7 @@ impl From<f64> for Value {
     }
 }
 
+
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
         Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
@@ -322,6 +376,17 @@ impl<K: Into<Key>, T: Into<Value>> From<HashMap<K, T>> for Value {
 
 impl<K: Into<Key>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
     fn from(input: BTreeMap<K, T>) -> Self {
+        let mut map = Map::with_capacity(input.len());
+        for (key, value) in input {
+            map.insert(key.into(), value.into());
+        }
+        Value::Map(Arc::new(map))
+    }
+}
+
+#[cfg(feature = "preserve_order")]
+impl<K: Into<Key>, T: Into<Value>> From<IndexMap<K, T>> for Value {
+    fn from(input: IndexMap<K, T>) -> Self {
         let mut map = Map::with_capacity(input.len());
         for (key, value) in input {
             map.insert(key.into(), value.into());

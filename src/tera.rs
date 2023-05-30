@@ -257,7 +257,7 @@ impl Tera {
     /// ```
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
         let template = self.get_template(template_name)?;
-        let mut vm = VirtualMachine::new(self, template);
+        let mut vm = VirtualMachine::new(self, template, context);
         vm.render()
     }
 }

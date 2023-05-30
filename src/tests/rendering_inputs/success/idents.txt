@@ -1,0 +1,7 @@
+{{ name }}
+{{ age * 2 }}
+{{ product.name }}
+{{ data.names[0] }}
+{{ data.names[1 + 1] }}
+{{ data.weights }}
+{{ data }}

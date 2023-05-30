@@ -1,10 +1,11 @@
+use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::errors::{Error, TeraResult};
 use crate::parsing::Instruction;
 use crate::template::Template;
 use crate::value::Value;
-use crate::Tera;
+use crate::{Context, Tera};
 
 #[derive(Debug, Clone)]
 struct Stack {
@@ -28,39 +29,62 @@ impl Stack {
     }
 }
 
-// TODO: handle set and set_global
+
+// TODO: handle set and set_global + forloop local variables -> idea of a frame
+// TODO: add a method to error that automatically adds span + template source
 pub(crate) struct VirtualMachine<'t> {
     tera: &'t Tera,
     template: &'t Template,
+    context: &'t Context,
+    stack: Stack,
+    /// Any variable set with set_global will be stored here
+    set_globals: BTreeMap<&'t str, Value>,
     ip: usize,
 }
 
 impl<'t> VirtualMachine<'t> {
-    // TODO: add a buffer to write to
-    pub fn new(tera: &'t Tera, template: &'t Template) -> Self {
+    pub fn new(tera: &'t Tera, template: &'t Template, context: &'t Context) -> Self {
         Self {
             tera,
             template,
+            context,
+            stack: Stack::new(),
+            set_globals: BTreeMap::new(),
             ip: 0,
         }
     }
 
-    fn interpret(&mut self, output: &mut impl Write) -> TeraResult<()> {
-        let mut stack = Stack::new();
+    /// Loads the value with the current name on the stack
+    /// It goes in the following order for scopes (TODO):
+    /// 1. All frames from the last to the first
+    /// 2. set_globals
+    /// 3. self.context
+    /// If it still isn't found, error.
+    fn load_name(&mut self, name: &str) -> TeraResult<()> {
+        // TODO: iterate on frames when they are implemented
+        // TODO: check set_globals when implemented
+        if let Some(val) = self.context.data.get(name) {
+            self.stack.push(val.clone());
+            Ok(())
+        } else {
+            Err(Error::message(format!("Variable {name} not found")))
+        }
+    }
 
+    fn interpret(&mut self, output: &mut impl Write) -> TeraResult<()> {
         macro_rules! op_binop {
             ($op:tt) => {{
-                let b = stack.pop();
-                let a = stack.pop();
-                stack.push(Value::from(a $op b));
+                let b = self.stack.pop();
+                let a = self.stack.pop();
+                self.stack.push(Value::from(a $op b));
             }};
         }
 
         macro_rules! math_binop {
             ($fn:ident) => {{
-                let b = stack.pop();
-                let a = stack.pop();
-                stack.push(crate::value::number::$fn(&a, &b)?);
+                let b = self.stack.pop();
+                let a = self.stack.pop();
+                self.stack.push(crate::value::number::$fn(&a, &b)?);
             }};
         }
 
@@ -68,20 +92,27 @@ impl<'t> VirtualMachine<'t> {
         while let Some(instr) = self.template.chunk.get(self.ip) {
             // println!("{:?}", instr);
             match instr {
-                Instruction::LoadConst(v) => stack.push(v.clone()),
-                Instruction::LoadName(_) => {}
+                Instruction::LoadConst(v) => self.stack.push(v.clone()),
+                Instruction::LoadName(n) => self.load_name(n)?,
+                Instruction::LoadAttr(attr) => {
+                    let a = self.stack.pop();
+                    self.stack.push(a.get_attr(attr).expect("TODO: handle error"));
+                }
+                Instruction::BinarySubscript => {
+                    let subscript = self.stack.pop();
+                    let val = self.stack.pop();
+                    self.stack.push(val.get_item(subscript).expect("TODO: handle error"));
+                }
                 Instruction::StoreLocal(_) => {}
                 Instruction::WriteText(t) => {
                     write!(output, "{t}")?;
                 }
                 Instruction::WriteTop => {
-                    write!(output, "{}", stack.pop())?;
+                    write!(output, "{}", self.stack.pop())?;
                 }
                 Instruction::Set(_) => {}
                 Instruction::SetGlobal(_) => {}
                 Instruction::Include(_) => {}
-                Instruction::LoadAttr(_) => {}
-                Instruction::BinarySubscript => {}
                 Instruction::BuildMap(_) => {}
                 Instruction::BuildList(_) => {}
                 Instruction::CallFunction(_) => {}
@@ -114,23 +145,23 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::Equal => op_binop!(==),
                 Instruction::NotEqual => op_binop!(!=),
                 Instruction::StrConcat => {
-                    let b = stack.pop();
-                    let a = stack.pop();
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
                     // TODO: we could push_str if `a` is a string
-                    stack.push(Value::from(format!("{a}{b}")));
+                    self.stack.push(Value::from(format!("{a}{b}")));
                 }
                 Instruction::In => {
-                    let b = stack.pop();
-                    let a = stack.pop();
-                    stack.push(Value::Bool(b.contains(&a)?));
+                    let b = self.stack.pop();
+                    let a = self.stack.pop();
+                    self.stack.push(Value::Bool(b.contains(&a)?));
                 }
                 Instruction::Not => {
-                    let a = stack.pop();
-                    stack.push(Value::from(!a.is_truthy()));
+                    let a = self.stack.pop();
+                    self.stack.push(Value::from(!a.is_truthy()));
                 }
                 Instruction::Negative => {
-                    let a = stack.pop();
-                    stack.push(crate::value::number::negate(&a)?);
+                    let a = self.stack.pop();
+                    self.stack.push(crate::value::number::negate(&a)?);
                 }
             }
 

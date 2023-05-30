@@ -1,0 +1,13 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/idents.txt
+---
+Bob
+36
+Moto G
+Tchoupi
+Fanny
+[50.6, 70.1]
+{weights: [50.6, 70.1], names: [Tchoupi, Pilou, Fanny]}
+

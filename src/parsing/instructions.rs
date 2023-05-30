@@ -10,6 +10,10 @@ pub(crate) enum Instruction {
     LoadConst(Value),
     /// Reading a variable/function
     LoadName(String),
+    /// Get the named field of the top stack value (`person.name`)
+    LoadAttr(String),
+    /// Handles `a[b]`. `b` is the top stack value, `a` the one before
+    BinarySubscript,
     /// Store a value for key/value in a for loop
     StoreLocal(String),
     /// Write the raw string given
@@ -22,10 +26,6 @@ pub(crate) enum Instruction {
     SetGlobal(String),
     /// Include the given template
     Include(String),
-    /// Get the named field of the top stack value (`person.name`)
-    LoadAttr(String),
-    /// Handles `a[b]`. `b` is the top stack value, `a` the one before
-    BinarySubscript,
 
     /// Create a map for the kwargs of a function or for inline maps.
     /// Inner field is the number of values

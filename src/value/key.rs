@@ -28,6 +28,19 @@ impl fmt::Display for Key {
         }
     }
 }
+
+impl Serialize for Key {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        match self {
+            Key::Bool(b) => serializer.serialize_bool(*b),
+            Key::Char(c) => serializer.serialize_char(*c),
+            Key::U64(u) => serializer.serialize_u64(*u),
+            Key::I64(i) => serializer.serialize_i64(*i),
+            Key::String(s) => serializer.serialize_str(s),
+        }
+    }
+}
+
 impl From<bool> for Key {
     fn from(key: bool) -> Self {
         Key::Bool(key)

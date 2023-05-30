@@ -10,7 +10,7 @@ use crate::value::Value;
 /// values
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Context {
-    data: BTreeMap<String, Value>,
+    pub(crate) data: BTreeMap<String, Value>,
 }
 
 impl Context {
@@ -28,7 +28,7 @@ impl Context {
     /// let mut context = tera::Context::new();
     /// context.insert("number_users", &42);
     /// ```
-    pub fn insert<T: Serialize, S: Into<String>>(&mut self, key: S, val: &T) {
+    pub fn insert<S: Into<String>, T: Serialize>(&mut self, key: S, val: &T) {
         self.data.insert(key.into(), Value::from_serializable(val));
     }
 

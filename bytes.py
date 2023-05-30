@@ -1,12 +1,7 @@
 import dis
 
 text = """
-res = 0
-for a, b in c:
-    res = 1
-else:
-    res = 10
-res = 2
+object.call
 """
 
 print(dis.dis(text))

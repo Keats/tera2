@@ -11,6 +11,7 @@ pub use context::Context;
 pub use parsing::parser::Parser;
 pub use crate::tera::{EscapeFn, Tera};
 pub use utils::escape_html;
+pub use value::Value;
 
 #[cfg(test)]
 mod tests;
