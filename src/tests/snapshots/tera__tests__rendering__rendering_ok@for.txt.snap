@@ -1,0 +1,9 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/for.txt
+---
+Tchoupi||Pilou||Fanny||
+name -> Moto G||manufacturer -> Motorala||summary -> A phone||price -> 100||
+1.0: true? false?||2.1: false? false?||3.2: false? true?||
+036147

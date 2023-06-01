@@ -67,9 +67,9 @@ input_file: src/tests/parser_inputs/success/for.txt
     },
     ForLoop {
         key: Some(
-            "v",
+            "k",
         ),
-        value: "k",
+        value: "v",
         target: Var {
             name: "obj",
         } @ 5:15-5:18 (219..222),

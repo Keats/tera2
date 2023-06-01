@@ -13,5 +13,5 @@ input_file: src/tests/compiler_inputs/success/for.txt
 0006 LoadName("v")
 0007 WriteTop
 0008 Jump(4)
-0009 PopFrame
+0009 PopLoop
 

@@ -30,7 +30,10 @@ impl fmt::Display for Key {
 }
 
 impl Serialize for Key {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         match self {
             Key::Bool(b) => serializer.serialize_bool(*b),
             Key::Char(c) => serializer.serialize_char(*c),

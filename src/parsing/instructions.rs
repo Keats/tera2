@@ -66,9 +66,9 @@ pub(crate) enum Instruction {
     StartIterate(bool),
     /// Start to iterate on the value at the top of the stack
     Iterate(usize),
-    /// At the end of an iteration we want to pop the top frame
+    /// At the end of a loop we want to remove it
     /// TODO: do we need that?
-    PopFrame,
+    PopLoop,
 
     // math
     Mul,

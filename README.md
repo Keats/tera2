@@ -34,6 +34,7 @@ TODO:
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Port all the tests from Tera v1 + some more
   - [ ] Fix bytecode generation because it's likely wrong
+  - [ ] Iterating on strings should require a `unic_segment` feature for unicode
   - [ ] Ensure that runtime errors point to the right thing
   - [ ] Finish VM without filters/functions
 - [ ] Parsing errors should report with the source context like Rust errors

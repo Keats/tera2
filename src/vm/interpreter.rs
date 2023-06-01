@@ -5,6 +5,7 @@ use crate::errors::{Error, TeraResult};
 use crate::parsing::Instruction;
 use crate::template::Template;
 use crate::value::Value;
+use crate::vm::for_loop::ForLoop;
 use crate::{Context, Tera};
 
 #[derive(Debug, Clone)]
@@ -29,7 +30,6 @@ impl Stack {
     }
 }
 
-
 // TODO: handle set and set_global + forloop local variables -> idea of a frame
 // TODO: add a method to error that automatically adds span + template source
 pub(crate) struct VirtualMachine<'t> {
@@ -37,6 +37,7 @@ pub(crate) struct VirtualMachine<'t> {
     template: &'t Template,
     context: &'t Context,
     stack: Stack,
+    for_loops: Vec<ForLoop>,
     /// Any variable set with set_global will be stored here
     set_globals: BTreeMap<&'t str, Value>,
     ip: usize,
@@ -49,6 +50,7 @@ impl<'t> VirtualMachine<'t> {
             template,
             context,
             stack: Stack::new(),
+            for_loops: Vec::new(),
             set_globals: BTreeMap::new(),
             ip: 0,
         }
@@ -56,13 +58,19 @@ impl<'t> VirtualMachine<'t> {
 
     /// Loads the value with the current name on the stack
     /// It goes in the following order for scopes (TODO):
-    /// 1. All frames from the last to the first
+    /// 1. All loops from the last to the first
     /// 2. set_globals
     /// 3. self.context
     /// If it still isn't found, error.
     fn load_name(&mut self, name: &str) -> TeraResult<()> {
-        // TODO: iterate on frames when they are implemented
         // TODO: check set_globals when implemented
+        for forloop in &self.for_loops {
+            if let Some(v) = forloop.get_by_name(name) {
+                self.stack.push(v);
+                return Ok(());
+            }
+        }
+
         if let Some(val) = self.context.data.get(name) {
             self.stack.push(val.clone());
             Ok(())
@@ -89,6 +97,7 @@ impl<'t> VirtualMachine<'t> {
         }
 
         // TODO: load from context, loops, set
+        // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {
             // println!("{:?}", instr);
             match instr {
@@ -96,14 +105,15 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::LoadName(n) => self.load_name(n)?,
                 Instruction::LoadAttr(attr) => {
                     let a = self.stack.pop();
-                    self.stack.push(a.get_attr(attr).expect("TODO: handle error"));
+                    self.stack
+                        .push(a.get_attr(attr).expect("TODO: handle error"));
                 }
                 Instruction::BinarySubscript => {
                     let subscript = self.stack.pop();
                     let val = self.stack.pop();
-                    self.stack.push(val.get_item(subscript).expect("TODO: handle error"));
+                    self.stack
+                        .push(val.get_item(subscript).expect("TODO: handle error"));
                 }
-                Instruction::StoreLocal(_) => {}
                 Instruction::WriteText(t) => {
                     write!(output, "{t}")?;
                 }
@@ -123,14 +133,40 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::JumpIfFalse(_) => {}
                 Instruction::PopJumpIfFalse(_) => {}
                 Instruction::PopJumpIfTrue(_) => {}
-                Instruction::Jump(_) => {}
+                Instruction::Jump(new_ip) => {
+                    self.ip = *new_ip;
+                    continue;
+                }
                 Instruction::JumpIfFalseOrPop(_) => {}
                 Instruction::JumpIfTrueOrPop(_) => {}
                 Instruction::Capture => {}
                 Instruction::EndCapture => {}
-                Instruction::StartIterate(_) => {}
-                Instruction::Iterate(_) => {}
-                Instruction::PopFrame => {}
+                Instruction::StartIterate(is_key_value) => {
+                    let container = self.stack.pop();
+                    self.for_loops.push(ForLoop::new(*is_key_value, container));
+                }
+                Instruction::Iterate(end_ip) => {
+                    if let Some(for_loop) = self.for_loops.last_mut() {
+                        if for_loop.is_over() {
+                            self.ip = *end_ip;
+                            continue;
+                        }
+                        for_loop.advance();
+                        for_loop.end_ip = *end_ip;
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Instruction::StoreLocal(name) => {
+                    if let Some(for_loop) = self.for_loops.last_mut() {
+                        for_loop.store_local(name.as_str());
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Instruction::PopLoop => {
+                    self.for_loops.pop();
+                }
                 Instruction::Mul => math_binop!(mul),
                 Instruction::Div => math_binop!(div),
                 Instruction::FloorDiv => math_binop!(floor_div),

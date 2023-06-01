@@ -72,7 +72,10 @@ impl fmt::Display for Value {
             Value::String(v) => write!(f, "{v}"),
             Value::Map(v) => {
                 write!(f, "{{")?;
-                for (i, (key, value)) in v.iter().enumerate() {
+                let mut key_val: Vec<_> = v.iter().collect();
+                // Keys are sorted to have deterministic output
+                key_val.sort_by(|a, b| a.0.cmp(b.0));
+                for (i, (key, value)) in key_val.into_iter().enumerate() {
                     if i > 0 && i != v.len() {
                         write!(f, ", ")?;
                     }
@@ -240,7 +243,7 @@ impl Value {
     pub(crate) fn get_attr(&self, attr: &str) -> Option<Value> {
         match self {
             Value::Map(m) => m.get(&attr.into()).cloned(),
-            _ => None
+            _ => None,
         }
     }
 
@@ -250,18 +253,21 @@ impl Value {
             Value::Map(m) => {
                 let key = item.as_key().expect("TODO: error handling");
                 m.get(&key).cloned()
-            },
+            }
             Value::Array(arr) => {
                 let idx = item.as_i128().expect("TODO: error handling");
                 arr.get(idx as usize).cloned()
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 }
 
 impl Serialize for Value {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         match self {
             Value::Null => serializer.serialize_unit(),
             Value::Bool(b) => serializer.serialize_bool(*b),
@@ -351,6 +357,17 @@ impl From<f64> for Value {
     }
 }
 
+impl From<Key> for Value {
+    fn from(value: Key) -> Self {
+        match value {
+            Key::Bool(b) => Value::Bool(b),
+            Key::Char(c) => Value::Char(c),
+            Key::U64(u) => Value::U64(u),
+            Key::I64(i) => Value::I64(i),
+            Key::String(s) => Value::String(Arc::new(s.to_string())),
+        }
+    }
+}
 
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {

@@ -597,13 +597,14 @@ impl<'a> Parser<'a> {
 
     fn parse_for_loop(&mut self) -> TeraResult<ForLoop> {
         self.body_contexts.push(BodyContext::ForLoop);
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let (mut name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         // Do we have a key?
         let mut key = None;
         if matches!(self.next, Some(Ok((Token::Comma, _)))) {
             self.next_or_error()?;
             let (val, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            key = Some(val.to_string());
+            key = Some(name.to_string());
+            name = val;
         }
         expect_token!(self, Token::Ident("in"), "in")?;
         let target = self.parse_expression(0)?;

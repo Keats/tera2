@@ -280,11 +280,11 @@ impl<'s> Compiler<'s> {
                 let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
                 self.processing_bodies.push(ProcessingBody::Loop(start_idx));
 
-                // TODO: use UNPACK_SEQUENCE like python instead?
+                // The value is sent before the key to be consistent with a value only loop
+                self.chunk.add(Instruction::StoreLocal(forloop.value));
                 if let Some(key_var) = forloop.key {
                     self.chunk.add(Instruction::StoreLocal(key_var));
                 }
-                self.chunk.add(Instruction::StoreLocal(forloop.value));
 
                 for node in forloop.body {
                     self.compile_node(node);
@@ -292,10 +292,11 @@ impl<'s> Compiler<'s> {
 
                 match self.processing_bodies.pop() {
                     Some(ProcessingBody::Loop(start_idx)) => {
+                        // TODO: handle key value
                         self.chunk.add(Instruction::Jump(start_idx));
                         let loop_end = self.chunk.len();
 
-                        self.chunk.add(Instruction::PopFrame);
+                        self.chunk.add(Instruction::PopLoop);
                         // TODO: handle else by pushing something
                         if let Some(Instruction::Iterate(ref mut jump_target)) =
                             self.chunk.get_mut(start_idx)
