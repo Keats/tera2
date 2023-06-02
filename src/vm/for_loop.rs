@@ -1,6 +1,8 @@
 use crate::value::Key;
 use crate::Value;
-use serde_derive::Serialize;
+
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -16,7 +18,7 @@ pub enum ForLoopValues {
     Object(Vec<(Key, Value)>),
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 struct Loop {
     index: usize,
     index0: usize,
@@ -31,6 +33,21 @@ impl Loop {
         self.index0 += 1;
         self.first = false;
         self.last = self.index == self.length;
+    }
+}
+
+impl Serialize for Loop {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut s = serializer.serialize_struct("Loop", 5)?;
+        s.serialize_field("index", &self.index)?;
+        s.serialize_field("index0", &self.index0)?;
+        s.serialize_field("first", &self.first)?;
+        s.serialize_field("last", &self.last)?;
+        s.serialize_field("length", &self.length)?;
+        s.end()
     }
 }
 

@@ -96,7 +96,8 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: load from context, loops, set
+        // TODO: set/set_global, and/or, ifs, includes
+        // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {
             // println!("{:?}", instr);

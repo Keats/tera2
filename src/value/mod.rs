@@ -1,4 +1,3 @@
-use serde::{Serialize, Serializer};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 #[cfg(not(feature = "preserve_order"))]
@@ -10,7 +9,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "preserve_order")]
 use indexmap::IndexMap;
-use serde::ser::{SerializeMap, SerializeSeq};
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 mod key;
 pub(crate) mod number;
