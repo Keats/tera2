@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 serde = "1"
 # TODO: make it optional?
-#ariadne = "0.1.5"
+#ariadne = "0.2"
 #codespan-reporting = "0.11"
-indexmap = {version = "1.9.2", optional = true}
+indexmap = {version = "1.9.3", optional = true}
 
 [features]
 preserve_order = ["dep:indexmap"]
@@ -32,4 +32,8 @@ harness = false
 
 [[bench]]
 name = "escape"
+harness = false
+
+[[bench]]
+name = "templates"
 harness = false

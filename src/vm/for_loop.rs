@@ -143,10 +143,10 @@ impl ForLoop {
             self.loop_data.advance();
             self.context.clear();
             // TODO: not great to have to serialize it every loop even if we don't use it...
-            self.context.insert(
-                "loop".to_string(),
-                Value::from_serializable(&self.loop_data),
-            );
+            // self.context.insert(
+            //     "loop".to_string(),
+            //     Value::from_serializable(&self.loop_data),
+            // );
         }
     }
 

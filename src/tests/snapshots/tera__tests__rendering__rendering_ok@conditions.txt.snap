@@ -1,0 +1,8 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/conditions.txt
+---
+false
+true
+0

@@ -4,7 +4,7 @@ use std::io::Write;
 use crate::errors::{Error, TeraResult};
 use crate::parsing::Instruction;
 use crate::template::Template;
-use crate::value::{Value};
+use crate::value::Value;
 use crate::vm::for_loop::ForLoop;
 use crate::{Context, Tera};
 
@@ -27,6 +27,10 @@ impl Stack {
 
     fn pop(&mut self) -> Value {
         self.values.pop().expect("to have a value")
+    }
+
+    fn peek(&mut self) -> &Value {
+        self.values.last().expect("to peek a value")
     }
 }
 
@@ -116,7 +120,7 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: inline map/lists, and/or, ifs, includes
+        // TODO: ifs, and/or, includes, capture
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {
@@ -172,15 +176,35 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::ApplyFilter(_) => {}
                 Instruction::RunTest(_) => {}
                 Instruction::CallBlock(_) => {}
-                Instruction::JumpIfFalse(_) => {}
-                Instruction::PopJumpIfFalse(_) => {}
-                Instruction::PopJumpIfTrue(_) => {}
-                Instruction::Jump(new_ip) => {
-                    self.ip = *new_ip;
+                Instruction::Jump(target_ip) => {
+                    self.ip = *target_ip;
                     continue;
                 }
-                Instruction::JumpIfFalseOrPop(_) => {}
-                Instruction::JumpIfTrueOrPop(_) => {}
+                Instruction::PopJumpIfFalse(target_ip) => {
+                    let val = self.stack.pop();
+                    if !val.is_truthy() {
+                        self.ip = *target_ip;
+                        continue;
+                    }
+                }
+                Instruction::JumpIfFalseOrPop(target_ip) => {
+                    let peeked = self.stack.peek();
+                    if !peeked.is_truthy() {
+                        self.ip = *target_ip;
+                        continue;
+                    } else {
+                        self.stack.pop();
+                    }
+                }
+                Instruction::JumpIfTrueOrPop(target_ip) => {
+                    let peeked = self.stack.peek();
+                    if peeked.is_truthy() {
+                        self.ip = *target_ip;
+                        continue;
+                    } else {
+                        self.stack.pop();
+                    }
+                }
                 Instruction::Capture => {}
                 Instruction::EndCapture => {}
                 Instruction::StartIterate(is_key_value) => {
@@ -188,6 +212,7 @@ impl<'t> VirtualMachine<'t> {
                     self.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
                 Instruction::Iterate(end_ip) => {
+                    // TODO: something very very very slow happening with forloop
                     if let Some(for_loop) = self.for_loops.last_mut() {
                         if for_loop.is_over() {
                             self.ip = *end_ip;
