@@ -4,6 +4,8 @@ expression: "&out"
 input_file: src/tests/rendering_inputs/success/for.txt
 ---
 Tchoupi||Pilou||Fanny||
-name -> Moto G||manufacturer -> Motorala||summary -> A phone||price -> 100||
+name:Moto G||
 1.0: true? false?||2.1: false? false?||3.2: false? true?||
 036147
+123
+123 -> 3

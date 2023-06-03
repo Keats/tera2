@@ -5,3 +5,5 @@
 {{ data.names[1 + 1] }}
 {{ data.weights }}
 {{ data }}
+{% set hello = 1 %}{{ hello }}
+{% set_global world = 2 %}{{ world }}

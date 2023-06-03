@@ -38,8 +38,9 @@ pub(crate) struct VirtualMachine<'t> {
     context: &'t Context,
     stack: Stack,
     for_loops: Vec<ForLoop>,
+    set_locals: BTreeMap<String, Value>,
     /// Any variable set with set_global will be stored here
-    set_globals: BTreeMap<&'t str, Value>,
+    set_globals: BTreeMap<String, Value>,
     ip: usize,
 }
 
@@ -52,6 +53,7 @@ impl<'t> VirtualMachine<'t> {
             stack: Stack::new(),
             for_loops: Vec::new(),
             set_globals: BTreeMap::new(),
+            set_locals: BTreeMap::new(),
             ip: 0,
         }
     }
@@ -59,8 +61,9 @@ impl<'t> VirtualMachine<'t> {
     /// Loads the value with the current name on the stack
     /// It goes in the following order for scopes (TODO):
     /// 1. All loops from the last to the first
-    /// 2. set_globals
-    /// 3. self.context
+    /// 2. set_locals
+    /// 3. set_globals
+    /// 4. self.context
     /// If it still isn't found, error.
     fn load_name(&mut self, name: &str) -> TeraResult<()> {
         // TODO: check set_globals when implemented
@@ -71,11 +74,29 @@ impl<'t> VirtualMachine<'t> {
             }
         }
 
+        if let Some(val) = self.set_locals.get(name) {
+            self.stack.push(val.clone());
+            return Ok(());
+        }
+
+        if let Some(val) = self.set_globals.get(name) {
+            self.stack.push(val.clone());
+            return Ok(());
+        }
+
         if let Some(val) = self.context.data.get(name) {
             self.stack.push(val.clone());
             Ok(())
         } else {
             Err(Error::message(format!("Variable {name} not found")))
+        }
+    }
+
+    fn store_local(&mut self, name: &str, value: Value) {
+        if let Some(forloop) = self.for_loops.last_mut() {
+            forloop.store_named(name, value);
+        } else {
+            self.set_locals.insert(name.to_string(), value);
         }
     }
 
@@ -96,7 +117,7 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: set/set_global, and/or, ifs, includes
+        // TODO: inline map/lists, and/or, ifs, includes
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {
@@ -121,8 +142,13 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::WriteTop => {
                     write!(output, "{}", self.stack.pop())?;
                 }
-                Instruction::Set(_) => {}
-                Instruction::SetGlobal(_) => {}
+                Instruction::Set(name) => {
+                    let val = self.stack.pop();
+                    self.store_local(name, val);
+                }
+                Instruction::SetGlobal(name) => {
+                    self.set_globals.insert(name.to_string(), self.stack.pop());
+                }
                 Instruction::Include(_) => {}
                 Instruction::BuildMap(_) => {}
                 Instruction::BuildList(_) => {}

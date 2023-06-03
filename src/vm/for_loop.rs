@@ -130,6 +130,10 @@ impl ForLoop {
         }
     }
 
+    pub(crate) fn store_named(&mut self, name: &str, value: Value) {
+        self.context.insert(name.to_string(), value);
+    }
+
     /// Advance the counter only after the end ip has been set (eg we start incrementing only from the
     /// second time we see the loop)
     pub(crate) fn advance(&mut self) {
