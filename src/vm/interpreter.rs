@@ -4,7 +4,7 @@ use std::io::Write;
 use crate::errors::{Error, TeraResult};
 use crate::parsing::Instruction;
 use crate::template::Template;
-use crate::value::Value;
+use crate::value::{Value};
 use crate::vm::for_loop::ForLoop;
 use crate::{Context, Tera};
 
@@ -59,14 +59,13 @@ impl<'t> VirtualMachine<'t> {
     }
 
     /// Loads the value with the current name on the stack
-    /// It goes in the following order for scopes (TODO):
+    /// It goes in the following order for scopes:
     /// 1. All loops from the last to the first
     /// 2. set_locals
     /// 3. set_globals
     /// 4. self.context
     /// If it still isn't found, error.
     fn load_name(&mut self, name: &str) -> TeraResult<()> {
-        // TODO: check set_globals when implemented
         for forloop in &self.for_loops {
             if let Some(v) = forloop.get_by_name(name) {
                 self.stack.push(v);
@@ -150,8 +149,24 @@ impl<'t> VirtualMachine<'t> {
                     self.set_globals.insert(name.to_string(), self.stack.pop());
                 }
                 Instruction::Include(_) => {}
-                Instruction::BuildMap(_) => {}
-                Instruction::BuildList(_) => {}
+                Instruction::BuildMap(num_elem) => {
+                    let mut elems = Vec::with_capacity(*num_elem);
+                    for _ in 0..*num_elem {
+                        let val = self.stack.pop();
+                        let key = self.stack.pop();
+                        elems.push((key.as_key()?, val));
+                    }
+                    let map: BTreeMap<_, _> = elems.into_iter().collect();
+                    self.stack.push(Value::from(map))
+                }
+                Instruction::BuildList(num_elem) => {
+                    let mut elems = Vec::with_capacity(*num_elem);
+                    for _ in 0..*num_elem {
+                        elems.push(self.stack.pop());
+                    }
+                    elems.reverse();
+                    self.stack.push(Value::from(elems));
+                }
                 Instruction::CallFunction(_) => {}
                 Instruction::CallMacro(_) => {}
                 Instruction::ApplyFilter(_) => {}

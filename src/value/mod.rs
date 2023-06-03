@@ -21,10 +21,10 @@ use crate::value::number::Number;
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
-pub(crate) type Map = HashMap<Key, Value>;
+pub type Map = HashMap<Key, Value>;
 
 #[cfg(feature = "preserve_order")]
-pub(crate) type Map = IndexMap<Key, Value>;
+pub type Map = IndexMap<Key, Value>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
