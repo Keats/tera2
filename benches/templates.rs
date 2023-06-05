@@ -37,7 +37,7 @@ static TEAMS_TEMPLATE: &str = r#"
 "#;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("big table", |b| {
+    c.bench_function("big-table", |b| {
         let mut table = Vec::with_capacity(100);
         for _ in 0..100 {
             let mut inner = Vec::with_capacity(100);
@@ -87,10 +87,10 @@ fn criterion_benchmark(c: &mut Criterion) {
             ],
         );
 
-        // b.iter(|| {
-        //     let res = tera.render("teams.html", &ctx);
-        //     black_box(res).unwrap();
-        // })
+        b.iter(|| {
+            let res = tera.render("teams.html", &ctx);
+            black_box(res).unwrap();
+        })
     });
 }
 
