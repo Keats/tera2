@@ -97,7 +97,7 @@ impl<'t> VirtualMachine<'t> {
 
     fn store_local(&mut self, name: &str, value: Value) {
         if let Some(forloop) = self.for_loops.last_mut() {
-            forloop.store_named(name, value);
+            forloop.store(name, value);
         } else {
             self.set_locals.insert(name.to_string(), value);
         }

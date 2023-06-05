@@ -1,0 +1,12 @@
+---
+source: src/tests/rendering.rs
+assertion_line: 46
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/for.txt
+---
+Tchoupi||Tchoupi||Tchoupi||
+name:Moto G||
+1.0: true? false?||2.1: false? false?||3.2: false? true?||
+000000
+123
+123 -> 3
