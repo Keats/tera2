@@ -213,9 +213,8 @@ impl Tera {
         Ok(())
     }
 
-    #[doc(hidden)]
     #[inline]
-    fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
+    pub(crate) fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
         match self.templates.get(template_name) {
             Some(tpl) => Ok(tpl),
             None => Err(Error::template_not_found(template_name)),

@@ -46,3 +46,16 @@ fn rendering_ok() {
         insta::assert_display_snapshot!(&out);
     });
 }
+
+#[test]
+fn rendering_include_ok() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("world", r#"{% set a = "world" %}[Include => (a={{a}}, name={{ name }}, b={{ b }})]"#),
+        ("hello", "<h1>Hello {% set b = 1 %} {% include \"world\" %} {% if a %}shouldfail{% endif %}name={{name}}</h1>"),
+    ]).unwrap();
+    let mut context = Context::new();
+    context.insert("name", &"Bob");
+    let out = tera.render("hello", &context).unwrap();
+    insta::assert_display_snapshot!(&out);
+}

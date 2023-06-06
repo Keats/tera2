@@ -46,6 +46,7 @@ pub(crate) struct VirtualMachine<'t> {
     /// Any variable set with set_global will be stored here
     set_globals: BTreeMap<String, Value>,
     ip: usize,
+    context_fn: Option<Box<dyn Fn(&str) -> Value + 't>>,
 }
 
 impl<'t> VirtualMachine<'t> {
@@ -59,6 +60,21 @@ impl<'t> VirtualMachine<'t> {
             set_globals: BTreeMap::new(),
             set_locals: BTreeMap::new(),
             ip: 0,
+            context_fn: None
+        }
+    }
+
+    pub fn sub_vm_include(&'t self, template: &'t Template) -> Self {
+        Self {
+            tera: self.tera,
+            template,
+            context: self.context,
+            stack: Stack::new(),
+            for_loops: Vec::new(),
+            set_globals: BTreeMap::new(),
+            set_locals: BTreeMap::new(),
+            ip: 0,
+            context_fn: Some(Box::new(|name| self.get_value(name)))
         }
     }
 
@@ -68,31 +84,37 @@ impl<'t> VirtualMachine<'t> {
     /// 2. set_locals
     /// 3. set_globals
     /// 4. self.context
-    /// If it still isn't found, error.
-    fn load_name(&mut self, name: &str) -> TeraResult<()> {
+    /// 5. return undefined
+    fn get_value(&self, name: &str) -> Value {
         for forloop in &self.for_loops {
             if let Some(v) = forloop.get_by_name(name) {
-                self.stack.push(v);
-                return Ok(());
+                return v;
             }
         }
 
         if let Some(val) = self.set_locals.get(name) {
-            self.stack.push(val.clone());
-            return Ok(());
+            return val.clone();
         }
 
         if let Some(val) = self.set_globals.get(name) {
-            self.stack.push(val.clone());
-            return Ok(());
+            return val.clone();
         }
 
         if let Some(val) = self.context.data.get(name) {
-            self.stack.push(val.clone());
-            Ok(())
-        } else {
-            Err(Error::message(format!("Variable {name} not found")))
+            return val.clone();
         }
+
+        if let Some(ref func) = self.context_fn {
+            return func(name);
+        }
+
+        // TODO: we do need undefined to differentiate from null do we
+        // TODO: in practice we want to only return undefined if it's in a if?
+        Value::Null
+    }
+
+    fn load_name(&mut self, name: &str) {
+        self.stack.push(self.get_value(name));
     }
 
     fn store_local(&mut self, name: &str, value: Value) {
@@ -120,14 +142,14 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: includes, capture
+        // TODO: capture
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {
             // println!("{:?}", instr);
             match instr {
                 Instruction::LoadConst(v) => self.stack.push(v.clone()),
-                Instruction::LoadName(n) => self.load_name(n)?,
+                Instruction::LoadName(n) => self.load_name(n),
                 Instruction::LoadAttr(attr) => {
                     let a = self.stack.pop();
                     self.stack
@@ -152,7 +174,10 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::SetGlobal(name) => {
                     self.set_globals.insert(name.to_string(), self.stack.pop());
                 }
-                Instruction::Include(_) => {}
+                Instruction::Include(name) => {
+                    let val = self.render_include(name)?;
+                    write!(output, "{val}")?;
+                }
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
@@ -272,6 +297,13 @@ impl<'t> VirtualMachine<'t> {
         }
 
         Ok(())
+    }
+
+    fn render_include(&mut self, name: &str) -> TeraResult<String> {
+        let tpl = self.tera.get_template(name)?;
+        // TODO: do we pass the buffer rather than creating one and concatenating?
+        let mut include_vm = self.sub_vm_include(tpl);
+        include_vm.render()
     }
 
     pub(crate) fn render(&mut self) -> TeraResult<String> {

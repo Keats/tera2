@@ -3,3 +3,4 @@
 {% if name == "john" %}John{% elif name == "Bob" %}Bob{% endif %}
 {% if age and name %}everything{% endif %}
 {% if age == 0 %}A{% elif age == 1 %}B{% else %}Oops{% endif %}
+{% if a %}shouldfail{% endif %}
