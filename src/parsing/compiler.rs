@@ -310,25 +310,23 @@ impl<'s> Compiler<'s> {
                 }
             }
             Node::If(i) => {
-                for (expr, body) in i.conditions {
-                    self.compile_expr(expr);
-                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
-                    self.processing_bodies.push(ProcessingBody::Branch(idx));
-                    for node in body {
-                        self.compile_node(node);
-                    }
-                    self.end_branch(self.chunk.len());
+                self.compile_expr(i.expr);
+                let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                self.processing_bodies.push(ProcessingBody::Branch(idx));
+                for node in i.body {
+                    self.compile_node(node);
                 }
 
-                if let Some(else_body) = i.else_body {
+                if !i.false_body.is_empty() {
                     let idx = self.chunk.add(Instruction::Jump(0)) as usize;
+                    self.end_branch(self.chunk.len());
                     self.processing_bodies.push(ProcessingBody::Branch(idx));
-                    for node in else_body {
+
+                    for node in i.false_body {
                         self.compile_node(node);
                     }
-
-                    self.end_branch(self.chunk.len());
                 }
+                self.end_branch(self.chunk.len());
             }
             Node::FilterSection(f) => {
                 self.chunk.add(Instruction::Capture);

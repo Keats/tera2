@@ -7,13 +7,14 @@ input_file: src/tests/compiler_inputs/success/ifs_else.txt
 0000 LoadName("a")
 0001 LoadConst(I64(0))
 0002 Equal
-0003 PopJumpIfFalse(5)
+0003 PopJumpIfFalse(6)
 0004 WriteText("A")
-0005 LoadName("a")
-0006 LoadConst(I64(1))
-0007 Equal
-0008 PopJumpIfFalse(10)
-0009 WriteText("B")
-0010 Jump(12)
-0011 WriteText("Oops")
+0005 Jump(13)
+0006 LoadName("a")
+0007 LoadConst(I64(1))
+0008 Equal
+0009 PopJumpIfFalse(12)
+0010 WriteText("B")
+0011 Jump(13)
+0012 WriteText("Oops")
 

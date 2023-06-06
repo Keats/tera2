@@ -32,13 +32,13 @@ TODO:
 - [x] Add a Tera object that holds all the templates
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
 - [ ] Implement basic VM without filters/functions/tests
-  - [ ] Port all the tests from Tera v1 + some more
+  - [ ] Port all the corresponding tests from Tera v1 + some more
   - [ ] Fix bytecode generation because it's likely wrong
   - [ ] Iterating on strings should require a `unic_segment` feature for unicode
-  - [ ] Make sure strings are escaped automatically (Value::String should an enum with safe/unsafe string)
+  - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string?)
+  - [ ] Improve perf till it's better than Tera v1
   - [ ] Ensure that runtime errors point to the right thing
   - [ ] Finish VM without filters/functions
-  - [ ] Improve perf till it's better than Tera
 - [ ] Parsing errors should report with the source context like Rust errors
 - [ ] Nice reporting with Ariadne (make it optional)
 - [ ] Design filters/functions/tests types

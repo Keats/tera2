@@ -632,21 +632,25 @@ impl<'a> Parser<'a> {
 
     fn parse_if(&mut self) -> TeraResult<If> {
         self.body_contexts.push(BodyContext::If);
-        let mut conditions = Vec::new();
-        let mut else_body = None;
         let expr = self.parse_expression(0)?;
         expect_token!(self, Token::TagEnd(..), "%}")?;
-        let if_body = self.parse_until(|tok| {
+        let body = self.parse_until(|tok| {
             matches!(
                 tok,
                 Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
             )
         })?;
-        conditions.push((expr, if_body));
 
+        let mut false_body = Vec::new();
+
+        let mut elif = None;
         loop {
             match &self.next {
                 Some(Ok((Token::Ident("elif"), _))) => {
+                    if elif.is_some() {
+                        false_body.push(Node::If(elif.unwrap()));
+                        elif = None;
+                    }
                     self.next_or_error()?;
                     let expr = self.parse_expression(0)?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
@@ -656,14 +660,27 @@ impl<'a> Parser<'a> {
                             Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
                         )
                     })?;
-                    conditions.push((expr, elif_body));
+                    elif = Some(If {
+                        expr,
+                        body: elif_body,
+                        false_body: Vec::new(),
+                    });
                 }
                 Some(Ok((Token::Ident("else"), _))) => {
                     self.next_or_error()?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
-                    else_body = Some(self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?);
+                    let else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+                    if let Some(ref mut current_elif) = elif {
+                        current_elif.false_body = else_body;
+                    } else {
+                        false_body = else_body;
+                    }
                 }
                 Some(Ok((Token::Ident("endif"), _))) => {
+                    if elif.is_some() {
+                        false_body.push(Node::If(elif.unwrap()));
+                        elif = None;
+                    }
                     self.next_or_error()?;
                     break;
                 }
@@ -685,8 +702,9 @@ impl<'a> Parser<'a> {
 
         self.body_contexts.pop();
         Ok(If {
-            conditions,
-            else_body,
+            expr,
+            body,
+            false_body,
         })
     }
 

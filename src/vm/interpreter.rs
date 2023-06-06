@@ -120,7 +120,7 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: ifs, and/or, includes, capture
+        // TODO: includes, capture
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {

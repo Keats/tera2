@@ -5,64 +5,51 @@ input_file: src/tests/parser_inputs/success/if.txt
 ---
 [
     If {
-        conditions: [
-            (
-                true @ 1:6-1:10 (6..10),
-                [
-                    "Hello",
-                ],
-            ),
-            (
-                false @ 1:30-1:35 (30..35),
-                [
+        expr: true @ 1:6-1:10 (6..10),
+        body: [
+            "Hello",
+        ],
+        false_body: [
+            If {
+                expr: false @ 1:30-1:35 (30..35),
+                body: [
                     "otherwise",
                 ],
-            ),
-            (
-                Var {
+                false_body: [],
+            },
+            If {
+                expr: Var {
                     name: "b",
                 } @ 1:57-1:58 (57..58),
-                [
+                body: [
                     "ELIF",
                 ],
-            ),
+                false_body: [
+                    Var {
+                        name: "world",
+                    } @ 1:79-1:84 (79..84),
+                ],
+            },
         ],
-        else_body: Some(
-            [
-                Var {
-                    name: "world",
-                } @ 1:79-1:84 (79..84),
-            ],
-        ),
     },
     If {
-        conditions: [
-            (
-                Var {
-                    name: "something",
-                } @ 2:6-2:15 (106..115),
-                [
-                    "hello",
-                ],
-            ),
+        expr: Var {
+            name: "something",
+        } @ 2:6-2:15 (106..115),
+        body: [
+            "hello",
         ],
-        else_body: None,
+        false_body: [],
     },
     If {
-        conditions: [
-            (
-                Var {
-                    name: "something",
-                } @ 3:6-3:15 (141..150),
-                [
-                    "hello",
-                ],
-            ),
+        expr: Var {
+            name: "something",
+        } @ 3:6-3:15 (141..150),
+        body: [
+            "hello",
         ],
-        else_body: Some(
-            [
-                "arr",
-            ],
-        ),
+        false_body: [
+            "arr",
+        ],
     },
 ]

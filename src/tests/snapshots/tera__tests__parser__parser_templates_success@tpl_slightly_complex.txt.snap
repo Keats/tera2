@@ -28,29 +28,23 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                 } @ 9:24-9:29 (198..203),
                 body: [
                     If {
-                        conditions: [
-                            (
-                                GetAttr {
-                                    expr: Var {
-                                        name: "item",
-                                    } @ 10:19-10:23 (227..231),
-                                    name: "show",
-                                } @ 10:19-10:28 (227..236),
-                                [
-                                    GetAttr {
-                                        expr: Var {
-                                            name: "item",
-                                        } @ 10:34-10:38 (242..246),
-                                        name: "name",
-                                    } @ 10:34-10:43 (242..251),
-                                ],
-                            ),
+                        expr: GetAttr {
+                            expr: Var {
+                                name: "item",
+                            } @ 10:19-10:23 (227..231),
+                            name: "show",
+                        } @ 10:19-10:28 (227..236),
+                        body: [
+                            GetAttr {
+                                expr: Var {
+                                    name: "item",
+                                } @ 10:34-10:38 (242..246),
+                                name: "name",
+                            } @ 10:34-10:43 (242..251),
                         ],
-                        else_body: Some(
-                            [
-                                "-",
-                            ],
-                        ),
+                        false_body: [
+                            "-",
+                        ],
                     },
                     "Price: $",
                     Filter {

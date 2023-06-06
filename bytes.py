@@ -1,7 +1,7 @@
 import dis
 
 text = """
-for key, val in data:
+if a == b:
     pass
 """
 

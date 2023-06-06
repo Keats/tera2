@@ -6,7 +6,6 @@ use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
-
 // TODO: perf improvements, still twice slower than Tera v1 for some reasons
 
 /// Enumerates on the types of values to be iterated, scalars and pairs

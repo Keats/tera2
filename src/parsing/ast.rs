@@ -478,10 +478,12 @@ pub struct Block {
 /// An if/elif/else condition with their respective body
 #[derive(Clone, Debug, PartialEq)]
 pub struct If {
-    /// First item if the if, all the ones after are elif
-    pub conditions: Vec<(Expression, Vec<Node>)>,
-    /// The optional `else` block
-    pub else_body: Option<Vec<Node>>,
+    pub expr: Expression,
+    /// The body to render in if the expr is truthy
+    pub body: Vec<Node>,
+    /// The body to render in if the expr is not truthy.
+    /// Will also contain the elifs
+    pub false_body: Vec<Node>,
 }
 
 /// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`

@@ -27,15 +27,11 @@ input_file: src/tests/parser_inputs/success/filter_section.txt
         },
         body: [
             If {
-                conditions: [
-                    (
-                        true @ 3:32-3:36 (122..126),
-                        [
-                            "a",
-                        ],
-                    ),
+                expr: true @ 3:32-3:36 (122..126),
+                body: [
+                    "a",
                 ],
-                else_body: None,
+                false_body: [],
             },
         ],
     },
