@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::errors::{Error, TeraResult};
-use crate::parsing::Chunk;
 use crate::template::{find_parents, Template};
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context};

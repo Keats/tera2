@@ -131,7 +131,6 @@ impl<'t> VirtualMachine<'t> {
         }
     }
 
-
     fn interpret(&mut self, output: &mut impl Write) -> TeraResult<()> {
         macro_rules! op_binop {
             ($op:tt) => {{
@@ -159,7 +158,6 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO: capture
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = self.template.chunk.get(self.ip) {

@@ -647,8 +647,8 @@ impl<'a> Parser<'a> {
         loop {
             match &self.next {
                 Some(Ok((Token::Ident("elif"), _))) => {
-                    if elif.is_some() {
-                        false_body.push(Node::If(elif.unwrap()));
+                    if let Some(existing_elif) = elif {
+                        false_body.push(Node::If(existing_elif));
                     }
                     self.next_or_error()?;
                     let expr = self.parse_expression(0)?;

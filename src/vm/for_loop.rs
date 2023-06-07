@@ -4,7 +4,6 @@ use crate::Value;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, VecDeque};
-use std::sync::Arc;
 
 // TODO: perf improvements, still twice slower than Tera v1 for some reasons
 
@@ -189,18 +188,14 @@ impl ForLoop {
             return Some(Value::from_serializable(&self.loop_data));
         }
 
-        if self.value_name.as_ref().map(|s| s.as_str()) == Some(name) {
+        if self.value_name.as_deref() == Some(name) {
             return Some(self.current_values.1.clone());
         }
 
-        if self.key_name.as_ref().map(|s| s.as_str()) == Some(name) {
+        if self.key_name.as_deref() == Some(name) {
             return Some(self.current_values.0.clone());
         }
 
-        if let Some(val) = self.context.get(name) {
-            Some(val.clone())
-        } else {
-            None
-        }
+        self.context.get(name).cloned()
     }
 }
