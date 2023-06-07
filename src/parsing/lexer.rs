@@ -3,7 +3,7 @@ use std::fmt;
 use crate::errors::Error;
 use crate::utils::Span;
 
-// handwritten lexer, peekable iterator taken from minijinja
+// handwritten lexer, peekable iterator/tokenization taken from minijinja
 
 fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack

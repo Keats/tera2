@@ -10,7 +10,6 @@ use crate::value::utils::SerializationFailed;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Key {
     Bool(bool),
-    // TODO: do we need char?
     Char(char),
     U64(u64),
     I64(i64),

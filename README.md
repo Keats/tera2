@@ -16,9 +16,9 @@ TODO:
   - [x] Handle all custom errors from previous parser
   - [x] Handle extends not being the first tag as error
   - [x] Handle nodes not allowed in certain places (eg macro def inside a macro def)
-- [x] Fuzz like there's no tomorrow
+- [x] Fuzz _a lot_
 - [x] Polish lexer + parser until it's perfect
-- [x] Fuzz like there's no tomorrow
+- [x] More fuzzing
 - [x] Generate bytecode
 - [x] Decide where to calculate byte size hint, probably compiler
 - [x] Fix blocks/macros AST -> bytecode generation
@@ -33,14 +33,16 @@ TODO:
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Port all the corresponding tests from Tera v1 + some more
-  - [ ] Fix bytecode generation because it's likely wrong
-  - [ ] Iterating on strings should require a `unic_segment` feature for unicode
-  - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string?)
+  - [ ] Fix bytecode generation when it's wrong
+  - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
+  - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string like marksupsafe in python?)
   - [ ] Improve perf till it's better than Tera v1
   - [ ] Ensure that runtime errors point to the right thing
   - [ ] Finish VM without filters/functions
-- [ ] Parsing errors should report with the source context like Rust errors
-- [ ] Nice reporting with Ariadne (make it optional)
+- [ ] Parsing errors should report with the source context like Rust errors with the right spans
+- [ ] Try out nice reporting with Ariadne (make it optional)
+- [ ] Add more helpful errors when loading templates (eg a forloop with for key, key in value/missing includes etcd)
+- [ ] Allow anything that can be converted to a key as a key for inline maps
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
 - [ ] Add filters/functions/tests to VM
@@ -55,7 +57,9 @@ Ideas:
 
 - Collect all functions/filters/macro call/includes/tests and make sure it's all available at compile time
 - Pre-compute hashes for all keys used in the templates somehow? runtime phf? https://crates.io/crates/ph ?
+- string interning for Key/Value?
 - Pre-render macro calls without arguments?
-- Check whether blocks have super() and if they don't just skip them when rendering
+- Check whether blocks have super() and if they don't just skip them when rendering and they are in the middle of the ancestry
 - Have a way to merge chunks when handling inheritance, issue is macros since you need to refer to the right imports
 - Collect include templates so we know whether we have all of them or not and error otherwise
+- Make raw template keep spans rather String to avoid cloning it?
