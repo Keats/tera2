@@ -1,0 +1,4 @@
+{%- set hello -%}
+A string with {{ name }}
+{%- endset -%}
+From set: {{ hello }}

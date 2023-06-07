@@ -1,6 +1,5 @@
 ---
 source: src/tests/rendering.rs
-assertion_line: 60
 expression: "&out"
 ---
 <h1>Hello  [Include => (a=world, name=Bob, b=1)] name=Bob</h1>

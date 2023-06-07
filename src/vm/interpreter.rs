@@ -47,6 +47,8 @@ pub(crate) struct VirtualMachine<'t> {
     set_globals: BTreeMap<String, Value>,
     ip: usize,
     context_fn: Option<Box<dyn Fn(&str) -> Value + 't>>,
+    /// To handle the capture instructions
+    capture_buffers: Vec<Vec<u8>>,
 }
 
 impl<'t> VirtualMachine<'t> {
@@ -60,7 +62,8 @@ impl<'t> VirtualMachine<'t> {
             set_globals: BTreeMap::new(),
             set_locals: BTreeMap::new(),
             ip: 0,
-            context_fn: None
+            context_fn: None,
+            capture_buffers: Vec::with_capacity(2),
         }
     }
 
@@ -74,7 +77,8 @@ impl<'t> VirtualMachine<'t> {
             set_globals: BTreeMap::new(),
             set_locals: BTreeMap::new(),
             ip: 0,
-            context_fn: Some(Box::new(|name| self.get_value(name)))
+            context_fn: Some(Box::new(|name| self.get_value(name))),
+            capture_buffers: Vec::with_capacity(2),
         }
     }
 
@@ -109,7 +113,9 @@ impl<'t> VirtualMachine<'t> {
         }
 
         // TODO: we do need undefined to differentiate from null do we
-        // TODO: in practice we want to only return undefined if it's in a if?
+        // TODO: in practice we want to only return undefined if it's in a if/condition and error
+        // otherwise like in Tera v1? To consider. In those case we could emit a different
+        // instruction that will not error if not found and make this return an Option
         Value::Null
     }
 
@@ -125,6 +131,7 @@ impl<'t> VirtualMachine<'t> {
         }
     }
 
+
     fn interpret(&mut self, output: &mut impl Write) -> TeraResult<()> {
         macro_rules! op_binop {
             ($op:tt) => {{
@@ -139,6 +146,16 @@ impl<'t> VirtualMachine<'t> {
                 let b = self.stack.pop();
                 let a = self.stack.pop();
                 self.stack.push(crate::value::number::$fn(&a, &b)?);
+            }};
+        }
+
+        macro_rules! write_to_buffer {
+            ($val:expr) => {{
+                if let Some(captured) = self.capture_buffers.last_mut() {
+                    write!(captured, "{}", $val)?;
+                } else {
+                    write!(output, "{}", $val)?;
+                }
             }};
         }
 
@@ -162,10 +179,10 @@ impl<'t> VirtualMachine<'t> {
                         .push(val.get_item(subscript).expect("TODO: handle error"));
                 }
                 Instruction::WriteText(t) => {
-                    write!(output, "{t}")?;
+                    write_to_buffer!(t);
                 }
                 Instruction::WriteTop => {
-                    write!(output, "{}", self.stack.pop())?;
+                    write_to_buffer!(self.stack.pop());
                 }
                 Instruction::Set(name) => {
                     let val = self.stack.pop();
@@ -176,7 +193,7 @@ impl<'t> VirtualMachine<'t> {
                 }
                 Instruction::Include(name) => {
                     let val = self.render_include(name)?;
-                    write!(output, "{val}")?;
+                    write_to_buffer!(val);
                 }
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
@@ -230,8 +247,14 @@ impl<'t> VirtualMachine<'t> {
                         self.stack.pop();
                     }
                 }
-                Instruction::Capture => {}
-                Instruction::EndCapture => {}
+                Instruction::Capture => {
+                    self.capture_buffers.push(Vec::with_capacity(128));
+                }
+                Instruction::EndCapture => {
+                    let captured = self.capture_buffers.pop().unwrap();
+                    let val = Value::from(String::from_utf8(captured)?);
+                    self.stack.push(val);
+                }
                 Instruction::StartIterate(is_key_value) => {
                     let container = self.stack.pop();
                     self.for_loops.push(ForLoop::new(*is_key_value, container));
