@@ -37,6 +37,12 @@ impl Context {
         self.data.insert(key.into(), val.clone());
     }
 
+    /// In case you already have a `Value` you want to insert and are ok with moving it inside the
+    /// context
+    pub fn move_value<S: Into<String>>(&mut self, key: S, val: Value) {
+        self.data.insert(key.into(), val);
+    }
+
     /// Remove a key from the context, returning the value at the key if the key was previously inserted into the context.
     pub fn remove(&mut self, index: &str) -> Option<Value> {
         self.data.remove(index)

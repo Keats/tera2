@@ -18,7 +18,7 @@ enum ProcessingBody {
 pub struct CompiledMacroDefinition {
     pub name: String,
     pub kwargs: HashMap<String, Option<Value>>,
-    pub body: Chunk,
+    pub chunk: Chunk,
 }
 
 pub(crate) struct Compiler<'s> {

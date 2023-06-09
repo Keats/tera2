@@ -483,13 +483,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                 // strings and numbers will get returned inside the match so only operators are returned
                 let op = match rest.as_bytes().first() {
                     Some(b'+') => Some(Token::Plus),
-                    Some(b'-') => {
-                        if rest.as_bytes().get(1).map_or(false, |x| x.is_ascii_digit()) {
-                            advance!(1);
-                            lex_number!(true);
-                        }
-                        Some(Token::Minus)
-                    }
+                    Some(b'-') => Some(Token::Minus),
                     Some(b'*') => Some(Token::Mul),
                     Some(b'/') => Some(Token::Div),
                     Some(b'%') => Some(Token::Mod),

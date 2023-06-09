@@ -38,13 +38,18 @@ impl Template {
 
         // We are going to convert macro calls {namespace -> name} to {filename -> name}
         let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
-        for (namespace, name) in body_compiler.macro_calls {
+        for (namespace, macro_name) in body_compiler.macro_calls {
+            if &namespace == "self" {
+                macro_calls.push((name.to_string(), macro_name));
+                continue;
+            }
+
             if let Some((filename, _)) = parser_output
                 .macro_imports
                 .iter()
                 .find(|(n, _)| n == &namespace)
             {
-                macro_calls.push((filename.to_string(), name));
+                macro_calls.push((filename.to_string(), macro_name));
             } else {
                 return Err(Error::namespace_not_loaded(&name, namespace));
             }
@@ -67,7 +72,7 @@ impl Template {
                 CompiledMacroDefinition {
                     name,
                     kwargs,
-                    body: compiler.chunk,
+                    chunk: compiler.chunk,
                 },
             );
         }

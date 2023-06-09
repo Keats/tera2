@@ -3,14 +3,15 @@ source: src/tests/parser.rs
 expression: Expressions(expr_nodes)
 input_file: src/tests/parser_inputs/success/expressions.txt
 ---
--1
+(- 1)
 1
 'hello'
 true
--1.2
+(- 1.2)
 1.2
 a
 (- a)
+(* (- a) 2)
 (- (* a 2))
 [1, 1.2, a, 'b', true]
 [1, 1.2, a, 'b', true]
@@ -24,7 +25,7 @@ hello.data[var].hey
 [(+ 1 1), 2, (* 3 2)]
 (~ hey ho)
 (~ 1 ho)
-(~ -1.2 ho)
+(~ (- 1.2) ho)
 (~ [] ho)
 (~ 'hey' ho)
 (~ (~ 'hello' ident) 'ho')
@@ -84,4 +85,5 @@ get_url{}
 (and (or (and a (is a containing{'a'})) b) (is b containing{'b'}))
 macros::input{label='Name', type='text'}
 (| macros::input{} safe{})
+macros::input{n=(- a 1)}
 

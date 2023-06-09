@@ -191,6 +191,20 @@ impl Value {
         }
     }
 
+    pub fn as_map(&self) -> Option<&Map> {
+        match self {
+            Value::Map(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn into_map(self) -> Option<Arc<Map>> {
+        match self {
+            Value::Map(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Value::Null => false,

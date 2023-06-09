@@ -59,3 +59,122 @@ fn rendering_include_ok() {
     let out = tera.render("hello", &context).unwrap();
     insta::assert_display_snapshot!(&out);
 }
+
+#[test]
+fn render_macros() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("macros", "{% macro hello()%}Hello{% endmacro hello %}"),
+        (
+            "tpl",
+            "{% import \"macros\" as macros %}{{macros::hello()}}",
+        ),
+    ])
+    .unwrap();
+
+    let result = tera.render("tpl", &Context::new());
+    assert_eq!(result.unwrap(), "Hello".to_string());
+}
+
+#[test]
+fn render_macros_defined_in_template() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![(
+        "tpl",
+        "{% macro hello()%}Hello{% endmacro hello %}{{self::hello()}}",
+    )])
+    .unwrap();
+
+    let result = tera.render("tpl", &Context::new());
+    assert_eq!(result.unwrap(), "Hello".to_string());
+}
+
+#[test]
+fn render_macros_expression_arg() {
+    let mut context = Context::new();
+    context.insert("pages", &vec![1, 2, 3, 4, 5]);
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("macros", "{% macro hello(val)%}{{val}}{% endmacro hello %}"),
+        (
+            "tpl",
+            "{% import \"macros\" as macros %}{{macros::hello(val=pages[0])}}",
+        ),
+    ])
+    .unwrap();
+
+    let result = tera.render("tpl", &context);
+    assert_eq!(result.unwrap(), "1".to_string());
+}
+
+#[test]
+fn render_set_tag_macro() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("macros", "{% macro hello()%}Hello{% endmacro hello %}"),
+        (
+            "hello.html",
+            "{% import \"macros\" as macros %}{% set my_var = macros::hello() %}{{my_var}}",
+        ),
+    ])
+    .unwrap();
+    let result = tera.render("hello.html", &Context::new());
+
+    assert_eq!(result.unwrap(), "Hello".to_string());
+}
+
+#[test]
+fn render_macros_with_default_args() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        (
+            "macros",
+            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
+        ),
+        (
+            "hello.html",
+            "{% import \"macros\" as macros %}{{macros::hello()}}",
+        ),
+    ])
+    .unwrap();
+    let result = tera.render("hello.html", &Context::new());
+
+    assert_eq!(result.unwrap(), "1".to_string());
+}
+
+#[test]
+fn render_macros_override_default_args() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        (
+            "macros",
+            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
+        ),
+        (
+            "hello.html",
+            "{% import \"macros\" as macros %}{{macros::hello(val=2)}}",
+        ),
+    ])
+    .unwrap();
+    let result = tera.render("hello.html", &Context::new());
+
+    assert_eq!(result.unwrap(), "2".to_string());
+}
+
+#[test]
+fn render_recursive_macro() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        (
+            "macros",
+            "{% macro factorial(n) %}{% if n > 1 %}{{ n }} - {{ self::factorial(n=n-1) }}{% else %}1{% endif %}{{ n }}{% endmacro factorial %}",
+        ),
+        ("hello.html", "{% import \"macros\" as macros %}{{macros::factorial(n=7)}}"),
+    ]).unwrap();
+    let result = tera.render("hello.html", &Context::new());
+
+    assert_eq!(
+        result.unwrap(),
+        "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string()
+    );
+}

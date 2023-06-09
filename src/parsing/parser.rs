@@ -26,7 +26,7 @@ fn unary_binding_power(op: UnaryOperator) -> ((), u8) {
 
     match op {
         Not => ((), 3),
-        Minus => ((), 7),
+        Minus => ((), 20),
     }
 }
 
@@ -457,6 +457,7 @@ impl<'a> Parser<'a> {
                     }
                     _ => (),
                 }
+
                 let (_, r_bp) = unary_binding_power(op);
                 let expr = self.inner_parse_expression(r_bp)?;
                 span.expand(&self.current_span);

@@ -1,8 +1,10 @@
-use std::collections::BTreeMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 
 use crate::errors::{Error, TeraResult};
-use crate::parsing::Instruction;
+use crate::parsing::compiler::CompiledMacroDefinition;
+use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::Value;
 use crate::vm::for_loop::ForLoop;
@@ -34,12 +36,11 @@ impl Stack {
     }
 }
 
-// TODO: handle set and set_global + forloop local variables -> idea of a frame
 // TODO: add a method to error that automatically adds span + template source
 pub(crate) struct VirtualMachine<'t> {
     tera: &'t Tera,
     template: &'t Template,
-    context: &'t Context,
+    context: Cow<'t, Context>,
     stack: Stack,
     for_loops: Vec<ForLoop>,
     set_locals: BTreeMap<String, Value>,
@@ -56,7 +57,7 @@ impl<'t> VirtualMachine<'t> {
         Self {
             tera,
             template,
-            context,
+            context: Cow::Borrowed(context),
             stack: Stack::new(),
             for_loops: Vec::new(),
             set_globals: BTreeMap::new(),
@@ -71,7 +72,7 @@ impl<'t> VirtualMachine<'t> {
         Self {
             tera: self.tera,
             template,
-            context: self.context,
+            context: Cow::Borrowed(&self.context),
             stack: Stack::new(),
             for_loops: Vec::new(),
             set_globals: BTreeMap::new(),
@@ -131,7 +132,7 @@ impl<'t> VirtualMachine<'t> {
         }
     }
 
-    fn interpret(&mut self, output: &mut impl Write) -> TeraResult<()> {
+    fn interpret(&mut self, chunk: &Chunk, output: &mut impl Write) -> TeraResult<()> {
         macro_rules! op_binop {
             ($op:tt) => {{
                 let b = self.stack.pop();
@@ -160,7 +161,7 @@ impl<'t> VirtualMachine<'t> {
 
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
-        while let Some(instr) = self.template.chunk.get(self.ip) {
+        while let Some(instr) = chunk.get(self.ip) {
             // println!("{:?}", instr);
             match instr {
                 Instruction::LoadConst(v) => self.stack.push(v.clone()),
@@ -212,7 +213,33 @@ impl<'t> VirtualMachine<'t> {
                     self.stack.push(Value::from(elems));
                 }
                 Instruction::CallFunction(_) => {}
-                Instruction::CallMacro(_) => {}
+                Instruction::CallMacro(idx) => {
+                    let kwargs = self.stack.pop().into_map().expect("to have kwargs");
+                    // TODO: fill in the default value if not present in kwargs
+                    println!("{:?}", self.template.macro_calls);
+                    println!("{:?}", self.template.macro_calls_def.len());
+                    let compiled_macro_def = &self.template.macro_calls_def[*idx];
+                    let mut context = Context::new();
+                    for (key, value) in &compiled_macro_def.kwargs {
+                        match kwargs.get(&key.as_str().into()) {
+                            Some(kwarg_val) => {
+                                context.insert(key, kwarg_val);
+                            }
+                            None => match value {
+                                Some(kwarg_val) => {
+                                    context.insert(key, kwarg_val);
+                                }
+                                None => todo!("Missing arg macro error"),
+                            },
+                        }
+                    }
+                    let val = self.render_macro(
+                        &self.template.macro_calls[*idx],
+                        &compiled_macro_def,
+                        context,
+                    )?;
+                    self.stack.push(Value::from(val));
+                }
                 Instruction::ApplyFilter(_) => {}
                 Instruction::RunTest(_) => {}
                 Instruction::CallBlock(_) => {}
@@ -320,16 +347,42 @@ impl<'t> VirtualMachine<'t> {
         Ok(())
     }
 
+    fn render_macro(
+        &'t self,
+        info: &(String, String),
+        macro_def: &CompiledMacroDefinition,
+        context: Context,
+    ) -> TeraResult<String> {
+        let tpl = self.tera.get_template(&info.0)?;
+        let mut vm = Self {
+            tera: self.tera,
+            template: tpl,
+            context: Cow::Owned(context),
+            stack: Stack::new(),
+            for_loops: Vec::new(),
+            set_globals: BTreeMap::new(),
+            set_locals: BTreeMap::new(),
+            ip: 0,
+            context_fn: None,
+            capture_buffers: Vec::with_capacity(2),
+        };
+
+        let mut output = Vec::with_capacity(1024);
+        vm.interpret(&macro_def.chunk, &mut output)?;
+
+        Ok(String::from_utf8(output)?)
+    }
+
     fn render_include(&mut self, name: &str) -> TeraResult<String> {
         let tpl = self.tera.get_template(name)?;
-        // TODO: do we pass the buffer rather than creating one and concatenating?
+        // TODO: do we pass the buffer rather than creating one and concatenating? benchmark it
         let mut include_vm = self.sub_vm_include(tpl);
         include_vm.render()
     }
 
     pub(crate) fn render(&mut self) -> TeraResult<String> {
         let mut output = Vec::with_capacity(self.template.size_hint());
-        self.interpret(&mut output)?;
+        self.interpret(&self.template.chunk, &mut output)?;
         Ok(String::from_utf8(output)?)
     }
 }
