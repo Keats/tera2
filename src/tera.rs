@@ -123,6 +123,7 @@ impl Tera {
         for (name, tpl) in &self.templates {
             let mut definitions = Vec::new();
             for (tpl_name, macro_name) in &tpl.macro_calls {
+                println!("{}: {tpl_name}::{macro_name}", tpl.name);
                 let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
                     Error::message(format!(
                         "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"

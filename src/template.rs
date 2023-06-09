@@ -24,7 +24,7 @@ pub struct Template {
 }
 
 impl Template {
-    pub(crate) fn new(name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
+    pub(crate) fn new(tpl_name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
         let parser = Parser::new(source);
         let parser_output = parser.parse()?;
         let parents = if let Some(p) = parser_output.parent {
@@ -33,44 +33,54 @@ impl Template {
             vec![]
         };
 
-        let mut body_compiler = Compiler::new(name, source);
+        let mut body_compiler = Compiler::new(tpl_name, source);
         body_compiler.compile(parser_output.nodes);
 
         // We are going to convert macro calls {namespace -> name} to {filename -> name}
         let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
-        for (namespace, macro_name) in body_compiler.macro_calls {
+
+        // We need the macro handling logic both for the template and for each macroc
+        let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
             if &namespace == "self" {
-                macro_calls.push((name.to_string(), macro_name));
-                continue;
+                macro_calls.push((tpl_name.to_string(), macro_name));
+                return Ok(());
             }
 
             if let Some((filename, _)) = parser_output
                 .macro_imports
                 .iter()
-                .find(|(n, _)| n == &namespace)
+                .find(|(_, n)| n == &namespace)
             {
                 macro_calls.push((filename.to_string(), macro_name));
+                Ok(())
             } else {
-                return Err(Error::namespace_not_loaded(&name, namespace));
+                Err(Error::namespace_not_loaded(&tpl_name, namespace))
             }
+        };
+
+        for (namespace, macro_name) in body_compiler.macro_calls {
+            handle_macro_call(namespace, macro_name)?;
         }
 
         let chunk = body_compiler.chunk;
         let blocks = body_compiler.blocks;
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
 
-        // TODO: What do we do with macro calls in macros?
-        // TODO: add tests for it + recursive macros
         let mut macro_definitions = HashMap::with_capacity(parser_output.macro_definitions.len());
         for macro_def in parser_output.macro_definitions {
-            let name = macro_def.name;
+            let macro_def_name = macro_def.name;
             let kwargs = macro_def.kwargs;
-            let mut compiler = Compiler::new(&name, source);
+            let mut compiler = Compiler::new(&macro_def_name, source);
             compiler.compile(macro_def.body);
+
+            for (namespace, macro_name) in compiler.macro_calls {
+                handle_macro_call(namespace, macro_name)?;
+            }
+
             macro_definitions.insert(
-                name.clone(),
+                macro_def_name.clone(),
                 CompiledMacroDefinition {
-                    name,
+                    name: macro_def_name,
                     kwargs,
                     chunk: compiler.chunk,
                 },
@@ -78,7 +88,7 @@ impl Template {
         }
 
         Ok(Self {
-            name: name.to_string(),
+            name: tpl_name.to_string(),
             source: source.to_string(),
             path,
             blocks,

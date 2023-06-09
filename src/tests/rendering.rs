@@ -178,3 +178,42 @@ fn render_recursive_macro() {
         "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string()
     );
 }
+
+// https://github.com/Keats/tera/issues/250
+#[test]
+fn render_macros_in_included() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("macros", "{% macro my_macro() %}my macro{% endmacro %}"),
+        (
+            "includeme",
+            r#"{% import "macros" as macros %}{{ macros::my_macro() }}"#,
+        ),
+        ("example", r#"{% include "includeme" %}"#),
+    ])
+    .unwrap();
+    let result = tera.render("example", &Context::new());
+
+    assert_eq!(result.unwrap(), "my macro".to_string());
+}
+
+// https://github.com/Keats/tera/issues/255
+#[test]
+fn import_macros_into_other_macro_files() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("submacros", "{% macro test() %}Success!{% endmacro %}"),
+        (
+            "macros",
+            r#"{% import "submacros" as sub %}{% macro test() %}{{ sub::test() }}{% endmacro %}"#,
+        ),
+        (
+            "index",
+            r#"{% import "macros" as macros %}{{ macros::test() }}"#,
+        ),
+    ])
+    .unwrap();
+    let result = tera.render("index", &Context::new());
+
+    assert_eq!(result.unwrap(), "Success!".to_string());
+}
