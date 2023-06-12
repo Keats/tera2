@@ -217,3 +217,16 @@ fn import_macros_into_other_macro_files() {
 
     assert_eq!(result.unwrap(), "Success!".to_string());
 }
+
+#[test]
+fn render_simple_inheritance() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        ("top", "{% block pre %}{% endblock pre %}{% block main %}{% endblock main %}"),
+        ("bottom", "{% extends \"top\" %}{% block main %}MAIN{% endblock %}"),
+    ])
+        .unwrap();
+    let result = tera.render("bottom", &Context::new());
+
+    assert_eq!(result.unwrap(), "MAIN".to_string());
+}

@@ -35,9 +35,9 @@ TODO:
   - [ ] Port all the corresponding tests from Tera v1 + some more
   - [ ] Fix bytecode generation when it's wrong
   - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
-  - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string like marksupsafe in python?)
+  - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string like marksupsafe in python?) when printing
   - [ ] Improve perf till it's better than Tera v1
-  - [ ] Ensure that runtime errors point to the right thing
+  - [ ] Ensure that errors point to the right thing
   - [ ] Finish VM without filters/functions
 - [ ] Parsing errors should report with the source context like Rust errors with the right spans
 - [ ] Try out nice reporting with Ariadne (make it optional)

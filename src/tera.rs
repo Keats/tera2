@@ -117,13 +117,12 @@ impl Tera {
             tpl_size_hint.insert(name.clone(), size_hint);
         }
 
-        // 2nd loop: we find the macro definition for each macro calls
+        // 2nd loop: we find the macro definition for each macro calls in each template
         // {tpl_name: vec![compiled macro]|
         let mut tpl_macro_definitions = HashMap::new();
         for (name, tpl) in &self.templates {
             let mut definitions = Vec::new();
             for (tpl_name, macro_name) in &tpl.macro_calls {
-                println!("{}: {tpl_name}::{macro_name}", tpl.name);
                 let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
                     Error::message(format!(
                         "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"
@@ -149,6 +148,27 @@ impl Tera {
             tpl.raw_content_num_bytes += tpl_size_hint.remove(name.as_str()).unwrap();
             tpl.parents = tpl_parents.remove(name.as_str()).unwrap();
             tpl.macro_calls_def = tpl_macro_definitions.remove(name.as_str()).unwrap();
+
+            // TODO: can we avoid cloning the chunk?
+            // Can we just point to things while avoiding hashmap lookups
+            // let mut blocks = HashMap::with_capacity(tpl.blocks.len());
+            // for (block_name, chunk) in &tpl.blocks {
+            //     if chunk.is_calling_function("super") {
+            //         let mut all_blocks = vec![];
+            //         for parent_tpl_name in tpl.parents.iter().rev() {
+            //             let parent_tpl = self.get_template(parent_tpl_name)?;
+            //             if let Some(parent_chunk) = parent_tpl.blocks.get(block_name) {
+            //                 all_blocks.push(parent_chunk.clone());
+            //                 if !parent_chunk.is_calling_function("super") {
+            //                     break;
+            //                 }
+            //             }
+            //         }
+            //         blocks.insert(block_name.clone(), all_blocks);
+            //     } else {
+            //         blocks.insert(block_name.clone(), vec![chunk.clone()]);
+            //     }
+            // }
         }
 
         Ok(())

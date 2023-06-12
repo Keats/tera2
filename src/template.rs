@@ -11,13 +11,16 @@ pub struct Template {
     source: String,
     path: Option<String>,
     pub(crate) chunk: Chunk,
-    // (file, name)
-    // Used for its index in instructions
+    /// (file, name)
+    /// Used for its index in instructions
     pub(crate) macro_calls: Vec<(String, String)>,
-    // Same as above, but just the definition directly
+    /// Same as above, but just the definition directly
     pub(crate) macro_calls_def: Vec<CompiledMacroDefinition>,
+    /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
+    /// The macros defined in this template only
     pub(crate) macro_definitions: HashMap<String, CompiledMacroDefinition>,
+    /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
     pub(crate) parents: Vec<String>,
