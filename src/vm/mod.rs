@@ -1,3 +1,5 @@
 mod for_loop;
-mod frame;
+mod stack;
+mod state;
+
 pub(crate) mod interpreter;

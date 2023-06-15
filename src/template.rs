@@ -24,6 +24,7 @@ pub struct Template {
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
     pub(crate) parents: Vec<String>,
+    pub(crate) block_lineage: HashMap<String, Vec<Chunk>>,
 }
 
 impl Template {
@@ -101,6 +102,7 @@ impl Template {
             raw_content_num_bytes,
             chunk,
             parents,
+            block_lineage: HashMap::new(),
         })
     }
 

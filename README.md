@@ -33,6 +33,7 @@ TODO:
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
 - [ ] Implement basic VM without filters/functions/tests
   - [ ] Port all the corresponding tests from Tera v1 + some more
+  - [ ] Ensure variables used in {{ }} are defined (vs if/tests where undefined are just falsy?)
   - [ ] Fix bytecode generation when it's wrong
   - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [ ] Make sure strings are escaped automatically (Value::String should be an enum with safe/unsafe string like marksupsafe in python?) when printing

@@ -8,150 +8,55 @@ use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::Value;
 use crate::vm::for_loop::ForLoop;
+use crate::vm::stack::Stack;
+use crate::vm::state::State;
 use crate::{Context, Tera};
-
-#[derive(Debug, Clone)]
-struct Stack {
-    values: Vec<Value>,
-}
-
-impl Stack {
-    fn new() -> Self {
-        Self {
-            // TODO: check the size of the stack of an average template
-            values: Vec::with_capacity(64),
-        }
-    }
-
-    fn push(&mut self, val: Value) {
-        self.values.push(val);
-    }
-
-    fn pop(&mut self) -> Value {
-        self.values.pop().expect("to have a value")
-    }
-
-    fn peek(&mut self) -> &Value {
-        self.values.last().expect("to peek a value")
-    }
-}
 
 // TODO: add a method to error that automatically adds span + template source
 pub(crate) struct VirtualMachine<'t> {
     tera: &'t Tera,
     template: &'t Template,
-    context: Cow<'t, Context>,
-    stack: Stack,
-    for_loops: Vec<ForLoop>,
-    set_locals: BTreeMap<String, Value>,
-    /// Any variable set with set_global will be stored here
-    set_globals: BTreeMap<String, Value>,
-    ip: usize,
     context_fn: Option<Box<dyn Fn(&str) -> Value + 't>>,
-    /// To handle the capture instructions
-    capture_buffers: Vec<Vec<u8>>,
 }
 
 impl<'t> VirtualMachine<'t> {
-    pub fn new(tera: &'t Tera, template: &'t Template, context: &'t Context) -> Self {
+    pub fn new(tera: &'t Tera, template: &'t Template) -> Self {
         Self {
             tera,
             template,
-            context: Cow::Borrowed(context),
-            stack: Stack::new(),
-            for_loops: Vec::new(),
-            set_globals: BTreeMap::new(),
-            set_locals: BTreeMap::new(),
-            ip: 0,
             context_fn: None,
-            capture_buffers: Vec::with_capacity(2),
         }
     }
 
-    pub fn sub_vm_include(&'t self, template: &'t Template) -> Self {
+    pub fn sub_vm_include(&'t self, template: &'t Template, state: &'t State<'t>) -> Self {
         Self {
             tera: self.tera,
             template,
-            context: Cow::Borrowed(&self.context),
-            stack: Stack::new(),
-            for_loops: Vec::new(),
-            set_globals: BTreeMap::new(),
-            set_locals: BTreeMap::new(),
-            ip: 0,
-            context_fn: Some(Box::new(|name| self.get_value(name))),
-            capture_buffers: Vec::with_capacity(2),
+            context_fn: Some(Box::new(|name| state.get(name))),
         }
     }
 
-    /// Loads the value with the current name on the stack
-    /// It goes in the following order for scopes:
-    /// 1. All loops from the last to the first
-    /// 2. set_locals
-    /// 3. set_globals
-    /// 4. self.context
-    /// 5. return undefined
-    fn get_value(&self, name: &str) -> Value {
-        for forloop in &self.for_loops {
-            if let Some(v) = forloop.get_by_name(name) {
-                return v;
-            }
-        }
-
-        if let Some(val) = self.set_locals.get(name) {
-            return val.clone();
-        }
-
-        if let Some(val) = self.set_globals.get(name) {
-            return val.clone();
-        }
-
-        if let Some(val) = self.context.data.get(name) {
-            return val.clone();
-        }
-
-        if let Some(ref func) = self.context_fn {
-            return func(name);
-        }
-
-        // TODO: we do need undefined to differentiate from null do we
-        // TODO: in practice we want to only return undefined if it's in a if/condition and error
-        // otherwise like in Tera v1? To consider. In those case we could emit a different
-        // instruction that will not error if not found and make this return an Option
-        Value::Null
-    }
-
-    fn load_name(&mut self, name: &str) {
-        self.stack.push(self.get_value(name));
-    }
-
-    fn store_local(&mut self, name: &str, value: Value) {
-        if let Some(forloop) = self.for_loops.last_mut() {
-            forloop.store(name, value);
-        } else {
-            self.set_locals.insert(name.to_string(), value);
-        }
-    }
-
-    fn interpret(&mut self, chunk: &Chunk, output: &mut impl Write) -> TeraResult<()> {
+    fn interpret(&self, state: &mut State, output: &mut impl Write) -> TeraResult<()> {
+        let mut ip = 0;
         macro_rules! op_binop {
             ($op:tt) => {{
-                let b = self.stack.pop();
-                let a = self.stack.pop();
-                self.stack.push(Value::from(a $op b));
+                let b = state.stack.pop();
+                let a = state.stack.pop();
+                state.stack.push(Value::from(a $op b));
             }};
         }
 
         macro_rules! math_binop {
             ($fn:ident) => {{
-                let b = self.stack.pop();
-                let a = self.stack.pop();
-                self.stack.push(crate::value::number::$fn(&a, &b)?);
+                let b = state.stack.pop();
+                let a = state.stack.pop();
+                state.stack.push(crate::value::number::$fn(&a, &b)?);
             }};
         }
 
         macro_rules! write_to_buffer {
             ($val:expr) => {{
-                if let Some(captured) = self.capture_buffers.last_mut() {
+                if let Some(captured) = state.capture_buffers.last_mut() {
                     write!(captured, "{}", $val)?;
                 } else {
                     write!(output, "{}", $val)?;
@@ -161,63 +66,64 @@ impl<'t> VirtualMachine<'t> {
 
         // TODO later: macros/blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
-        while let Some(instr) = chunk.get(self.ip) {
+        while let Some(instr) = state.chunk.get(ip) {
             // println!("{:?}", instr);
             match instr {
-                Instruction::LoadConst(v) => self.stack.push(v.clone()),
-                Instruction::LoadName(n) => self.load_name(n),
+                Instruction::LoadConst(v) => state.stack.push(v.clone()),
+                Instruction::LoadName(n) => state.load_name(n),
                 Instruction::LoadAttr(attr) => {
-                    let a = self.stack.pop();
-                    self.stack
+                    let a = state.stack.pop();
+                    state
+                        .stack
                         .push(a.get_attr(attr).expect("TODO: handle error"));
                 }
                 Instruction::BinarySubscript => {
-                    let subscript = self.stack.pop();
-                    let val = self.stack.pop();
-                    self.stack
+                    let subscript = state.stack.pop();
+                    let val = state.stack.pop();
+                    state
+                        .stack
                         .push(val.get_item(subscript).expect("TODO: handle error"));
                 }
                 Instruction::WriteText(t) => {
                     write_to_buffer!(t);
                 }
                 Instruction::WriteTop => {
-                    write_to_buffer!(self.stack.pop());
+                    write_to_buffer!(state.stack.pop());
                 }
                 Instruction::Set(name) => {
-                    let val = self.stack.pop();
-                    self.store_local(name, val);
+                    let val = state.stack.pop();
+                    state.store_local(name, val);
                 }
                 Instruction::SetGlobal(name) => {
-                    self.set_globals.insert(name.to_string(), self.stack.pop());
+                    let val = state.stack.pop();
+                    state.store_global(name, val);
                 }
                 Instruction::Include(name) => {
-                    let val = self.render_include(name)?;
-                    write_to_buffer!(val);
+                    self.render_include(name, state, output)?;
                 }
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        let val = self.stack.pop();
-                        let key = self.stack.pop();
+                        let val = state.stack.pop();
+                        let key = state.stack.pop();
                         elems.push((key.as_key()?, val));
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
-                    self.stack.push(Value::from(map))
+                    state.stack.push(Value::from(map))
                 }
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        elems.push(self.stack.pop());
+                        elems.push(state.stack.pop());
                     }
                     elems.reverse();
-                    self.stack.push(Value::from(elems));
+                    state.stack.push(Value::from(elems));
                 }
                 Instruction::CallFunction(_) => {}
+                Instruction::ApplyFilter(_) => {}
+                Instruction::RunTest(_) => {}
                 Instruction::CallMacro(idx) => {
-                    let kwargs = self.stack.pop().into_map().expect("to have kwargs");
-                    // TODO: fill in the default value if not present in kwargs
-                    println!("{:?}", self.template.macro_calls);
-                    println!("{:?}", self.template.macro_calls_def.len());
+                    let kwargs = state.stack.pop().into_map().expect("to have kwargs");
                     let compiled_macro_def = &self.template.macro_calls_def[*idx];
                     let mut context = Context::new();
                     for (key, value) in &compiled_macro_def.kwargs {
@@ -238,57 +144,57 @@ impl<'t> VirtualMachine<'t> {
                         &compiled_macro_def,
                         context,
                     )?;
-                    self.stack.push(Value::from(val));
+                    state.stack.push(Value::from(val));
                 }
-                Instruction::ApplyFilter(_) => {}
-                Instruction::RunTest(_) => {}
-                Instruction::CallBlock(_) => {}
+                Instruction::CallBlock(block_name) => {
+                    self.render_block(block_name, output)?;
+                }
                 Instruction::Jump(target_ip) => {
-                    self.ip = *target_ip;
+                    ip = *target_ip;
                     continue;
                 }
                 Instruction::PopJumpIfFalse(target_ip) => {
-                    let val = self.stack.pop();
+                    let val = state.stack.pop();
                     if !val.is_truthy() {
-                        self.ip = *target_ip;
+                        ip = *target_ip;
                         continue;
                     }
                 }
                 Instruction::JumpIfFalseOrPop(target_ip) => {
-                    let peeked = self.stack.peek();
+                    let peeked = state.stack.peek();
                     if !peeked.is_truthy() {
-                        self.ip = *target_ip;
+                        ip = *target_ip;
                         continue;
                     } else {
-                        self.stack.pop();
+                        state.stack.pop();
                     }
                 }
                 Instruction::JumpIfTrueOrPop(target_ip) => {
-                    let peeked = self.stack.peek();
+                    let peeked = state.stack.peek();
                     if peeked.is_truthy() {
-                        self.ip = *target_ip;
+                        ip = *target_ip;
                         continue;
                     } else {
-                        self.stack.pop();
+                        state.stack.pop();
                     }
                 }
                 Instruction::Capture => {
-                    self.capture_buffers.push(Vec::with_capacity(128));
+                    state.capture_buffers.push(Vec::with_capacity(128));
                 }
                 Instruction::EndCapture => {
-                    let captured = self.capture_buffers.pop().unwrap();
+                    let captured = state.capture_buffers.pop().unwrap();
                     let val = Value::from(String::from_utf8(captured)?);
-                    self.stack.push(val);
+                    state.stack.push(val);
                 }
                 Instruction::StartIterate(is_key_value) => {
-                    let container = self.stack.pop();
-                    self.for_loops.push(ForLoop::new(*is_key_value, container));
+                    let container = state.stack.pop();
+                    state.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
                 Instruction::Iterate(end_ip) => {
                     // TODO: something very very very slow happening with forloop
-                    if let Some(for_loop) = self.for_loops.last_mut() {
+                    if let Some(for_loop) = state.for_loops.last_mut() {
                         if for_loop.is_over() {
-                            self.ip = *end_ip;
+                            ip = *end_ip;
                             continue;
                         }
                         for_loop.advance();
@@ -298,14 +204,14 @@ impl<'t> VirtualMachine<'t> {
                     }
                 }
                 Instruction::StoreLocal(name) => {
-                    if let Some(for_loop) = self.for_loops.last_mut() {
+                    if let Some(for_loop) = state.for_loops.last_mut() {
                         for_loop.store_local(name.as_str());
                     } else {
                         unreachable!()
                     }
                 }
                 Instruction::PopLoop => {
-                    self.for_loops.pop();
+                    state.for_loops.pop();
                 }
                 Instruction::Mul => math_binop!(mul),
                 Instruction::Div => math_binop!(div),
@@ -321,30 +227,60 @@ impl<'t> VirtualMachine<'t> {
                 Instruction::Equal => op_binop!(==),
                 Instruction::NotEqual => op_binop!(!=),
                 Instruction::StrConcat => {
-                    let b = self.stack.pop();
-                    let a = self.stack.pop();
+                    let b = state.stack.pop();
+                    let a = state.stack.pop();
                     // TODO: we could push_str if `a` is a string
-                    self.stack.push(Value::from(format!("{a}{b}")));
+                    state.stack.push(Value::from(format!("{a}{b}")));
                 }
                 Instruction::In => {
-                    let b = self.stack.pop();
-                    let a = self.stack.pop();
-                    self.stack.push(Value::Bool(b.contains(&a)?));
+                    let b = state.stack.pop();
+                    let a = state.stack.pop();
+                    state.stack.push(Value::Bool(b.contains(&a)?));
                 }
                 Instruction::Not => {
-                    let a = self.stack.pop();
-                    self.stack.push(Value::from(!a.is_truthy()));
+                    let a = state.stack.pop();
+                    state.stack.push(Value::from(!a.is_truthy()));
                 }
                 Instruction::Negative => {
-                    let a = self.stack.pop();
-                    self.stack.push(crate::value::number::negate(&a)?);
+                    let a = state.stack.pop();
+                    state.stack.push(crate::value::number::negate(&a)?);
                 }
             }
 
-            self.ip += 1;
+            ip += 1;
         }
 
         Ok(())
+    }
+
+    fn render_block(&'t self, block_name: &str, output: &mut impl Write) -> TeraResult<()> {
+        todo!("")
+        // TODO: just a call to interpret with the chunk?
+        // TODO: how it does interact with super and macros
+        // let mut block_lineages = None;
+        // // The block is present in the template we are rendering
+        // if let Some(bl) = self.template.block_lineage.get(block_name) {
+        //     block_lineages = Some(bl);
+        // } else {
+        //     // the block is not present, we go up the lineage by 1 until we find a template that has it
+        //     for parent_tpl_name in self.template.parents.iter().rev() {
+        //         let parent_tpl = self.tera.get_template(parent_tpl_name)?;
+        //         if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
+        //             block_lineages = Some(bl);
+        //             break;
+        //         }
+        //     }
+        // }
+        //
+        // if block_lineages.is_none() {
+        //     todo!("Handle error")
+        // }
+        //
+        // let block_lineage = block_lineages.unwrap();
+        // for block in block_lineage {
+        //     // self.interpret(block, output)?;
+        // }
+        // Ok(())
     }
 
     fn render_macro(
@@ -357,32 +293,48 @@ impl<'t> VirtualMachine<'t> {
         let mut vm = Self {
             tera: self.tera,
             template: tpl,
-            context: Cow::Owned(context),
-            stack: Stack::new(),
-            for_loops: Vec::new(),
-            set_globals: BTreeMap::new(),
-            set_locals: BTreeMap::new(),
-            ip: 0,
             context_fn: None,
-            capture_buffers: Vec::with_capacity(2),
         };
 
+        let mut state = State::new(&context, &macro_def.chunk);
         let mut output = Vec::with_capacity(1024);
-        vm.interpret(&macro_def.chunk, &mut output)?;
+        vm.interpret(&mut state, &mut output)?;
 
         Ok(String::from_utf8(output)?)
     }
 
-    fn render_include(&mut self, name: &str) -> TeraResult<String> {
+    fn render_include(
+        &self,
+        name: &str,
+        state: &State<'t>,
+        output: &mut impl Write,
+    ) -> TeraResult<()> {
         let tpl = self.tera.get_template(name)?;
-        // TODO: do we pass the buffer rather than creating one and concatenating? benchmark it
-        let mut include_vm = self.sub_vm_include(tpl);
-        include_vm.render()
+        let mut vm = Self {
+            tera: self.tera,
+            template: tpl,
+            context_fn: None,
+        };
+
+        // We create a dummy state for variables to be written to, but we don't keep it around
+        let mut include_state = State::new(state.context, &tpl.chunk);
+        include_state.parent = Some(state);
+        vm.interpret(&mut include_state, output)?;
+        Ok(())
     }
 
-    pub(crate) fn render(&mut self) -> TeraResult<String> {
+    pub(crate) fn render(&mut self, context: &Context) -> TeraResult<String> {
         let mut output = Vec::with_capacity(self.template.size_hint());
-        self.interpret(&self.template.chunk, &mut output)?;
+        // TODO(perf): can we optimize this at the bytecode level to avoid hashmap lookups?
+        let chunk = if let Some(base_tpl_name) = self.template.parents.first() {
+            let tpl = self.tera.get_template(base_tpl_name)?;
+            &tpl.chunk
+        } else {
+            &self.template.chunk
+        };
+        let mut state = State::new(&context, chunk);
+
+        self.interpret(&mut state, &mut output)?;
         Ok(String::from_utf8(output)?)
     }
 }

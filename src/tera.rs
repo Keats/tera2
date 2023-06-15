@@ -119,7 +119,8 @@ impl Tera {
 
         // 2nd loop: we find the macro definition for each macro calls in each template
         // {tpl_name: vec![compiled macro]|
-        let mut tpl_macro_definitions = HashMap::new();
+        let mut tpl_macro_definitions = HashMap::with_capacity(self.templates.len());
+        let mut tpl_blocks = HashMap::with_capacity(self.templates.len());
         for (name, tpl) in &self.templates {
             let mut definitions = Vec::new();
             for (tpl_name, macro_name) in &tpl.macro_calls {
@@ -141,6 +142,26 @@ impl Tera {
                 definitions.push(definition.clone());
             }
             tpl_macro_definitions.insert(name.to_string(), definitions);
+
+            // TODO: can we avoid cloning the chunk?
+            // Can we just point to things while avoiding hashmap lookups
+            let mut blocks = HashMap::with_capacity(tpl.blocks.len());
+            for (block_name, chunk) in &tpl.blocks {
+                let mut all_blocks = vec![chunk.clone()];
+                if chunk.is_calling_function("super") {
+                    for parent_tpl_name in tpl_parents[name].iter().rev() {
+                        let parent_tpl = self.get_template(parent_tpl_name)?;
+                        if let Some(parent_chunk) = parent_tpl.blocks.get(block_name) {
+                            all_blocks.push(parent_chunk.clone());
+                            if !parent_chunk.is_calling_function("super") {
+                                break;
+                            }
+                        }
+                    }
+                }
+                blocks.insert(block_name.clone(), all_blocks);
+            }
+            tpl_blocks.insert(name.clone(), blocks);
         }
 
         // 3rd loop: we actually set everything we've done on the templates object
@@ -148,27 +169,7 @@ impl Tera {
             tpl.raw_content_num_bytes += tpl_size_hint.remove(name.as_str()).unwrap();
             tpl.parents = tpl_parents.remove(name.as_str()).unwrap();
             tpl.macro_calls_def = tpl_macro_definitions.remove(name.as_str()).unwrap();
-
-            // TODO: can we avoid cloning the chunk?
-            // Can we just point to things while avoiding hashmap lookups
-            // let mut blocks = HashMap::with_capacity(tpl.blocks.len());
-            // for (block_name, chunk) in &tpl.blocks {
-            //     if chunk.is_calling_function("super") {
-            //         let mut all_blocks = vec![];
-            //         for parent_tpl_name in tpl.parents.iter().rev() {
-            //             let parent_tpl = self.get_template(parent_tpl_name)?;
-            //             if let Some(parent_chunk) = parent_tpl.blocks.get(block_name) {
-            //                 all_blocks.push(parent_chunk.clone());
-            //                 if !parent_chunk.is_calling_function("super") {
-            //                     break;
-            //                 }
-            //             }
-            //         }
-            //         blocks.insert(block_name.clone(), all_blocks);
-            //     } else {
-            //         blocks.insert(block_name.clone(), vec![chunk.clone()]);
-            //     }
-            // }
+            tpl.block_lineage = tpl_blocks.remove(name.as_str()).unwrap();
         }
 
         Ok(())
@@ -276,8 +277,8 @@ impl Tera {
     /// ```
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
         let template = self.get_template(template_name)?;
-        let mut vm = VirtualMachine::new(self, template, context);
-        vm.render()
+        let mut vm = VirtualMachine::new(self, template);
+        vm.render(context)
     }
 }
 

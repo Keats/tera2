@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, VecDeque};
 // TODO: perf improvements, still twice slower than Tera v1 for some reasons
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ForLoopValues {
     /// Values for an array style iteration
     Array(VecDeque<Value>),
@@ -44,7 +44,7 @@ impl ForLoopValues {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct Loop {
     index: usize,
     index0: usize,
@@ -77,7 +77,7 @@ impl Serialize for Loop {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct ForLoop {
     current_idx: usize,
     values: ForLoopValues,
@@ -182,7 +182,7 @@ impl ForLoop {
         self.context.insert(name.to_string(), value);
     }
 
-    pub(crate) fn get_by_name(&self, name: &str) -> Option<Value> {
+    pub(crate) fn get(&self, name: &str) -> Option<Value> {
         // Special casing the loop variable
         if name == "loop" {
             return Some(Value::from_serializable(&self.loop_data));
