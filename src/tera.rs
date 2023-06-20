@@ -144,7 +144,7 @@ impl Tera {
             tpl_macro_definitions.insert(name.to_string(), definitions);
 
             // TODO: can we avoid cloning the chunk?
-            // Can we just point to things while avoiding hashmap lookups
+            // TODO: Can we just point to things while avoiding hashmap lookups
             let mut blocks = HashMap::with_capacity(tpl.blocks.len());
             for (block_name, chunk) in &tpl.blocks {
                 let mut all_blocks = vec![chunk.clone()];

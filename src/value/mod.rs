@@ -230,7 +230,7 @@ impl Value {
             Value::Char(v) => Key::Char(*v),
             // TODO: not ideal to clone the actual string.
             Value::String(v) => Key::String(Cow::Owned(v.as_str().to_string())),
-            _ => return Err(Error::message(format!("Not a valid key type"))),
+            _ => return Err(Error::message("Not a valid key type".to_string())),
         };
         Ok(key)
     }
@@ -246,9 +246,9 @@ impl Value {
                 }
             }
             Value::Map(m) => Ok(m.contains_key(&needle.as_key()?)),
-            _ => Err(Error::message(format!(
-                "Cannot check containment on this kind of value"
-            ))),
+            _ => Err(Error::message(
+                "Cannot check containment on this kind of value".to_string(),
+            )),
         }
     }
 

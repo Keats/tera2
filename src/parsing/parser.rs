@@ -81,6 +81,12 @@ enum BodyContext {
     FilterSection,
 }
 
+impl BodyContext {
+    fn can_contain_blocks(&self) -> bool {
+        matches!(self, BodyContext::Block | BodyContext::FilterSection)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ParserOutput {
     // filled when we encounter a {% extends %}
@@ -881,9 +887,10 @@ impl<'a> Parser<'a> {
                 Ok(None)
             }
             Token::Ident("block") => {
-                if self.body_contexts.iter().any(|b| b != &BodyContext::Block) {
+                if self.body_contexts.iter().any(|b| !b.can_contain_blocks()) {
                     return Err(Error::syntax_error(
-                        "Blocks cannot be written in another tag.".to_string(),
+                        "Blocks cannot be written in a tag other than block or filter section."
+                            .to_string(),
                         &self.current_span,
                     ));
                 }

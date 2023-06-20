@@ -2,24 +2,29 @@ use crate::parsing::Chunk;
 use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
-use std::borrow::Cow;
+
 use std::collections::BTreeMap;
 
 /// The state of the interpreter.
 /// We pass it around rather than put it on the VM to avoid multiple borrow issues
 /// when dealing with inheritance.
 #[derive(Debug, PartialEq)]
-pub(crate) struct State<'t> {
+pub(crate) struct State<'tera> {
     pub(crate) stack: Stack,
-    pub(crate) chunk: &'t Chunk,
+    pub(crate) chunk: &'tera Chunk,
     pub(crate) for_loops: Vec<ForLoop>,
     /// Any variables with {% set %} outside a for loop or {% set_global %} will be stored here
+    /// Locals set in a for loop are set in `for_loops`
     set_variables: BTreeMap<String, Value>,
-    pub(crate) context: &'t Context,
+    pub(crate) context: &'tera Context,
     /// To handle the capture instructions
     pub(crate) capture_buffers: Vec<Vec<u8>>,
-    /// Used in includes
-    pub(crate) parent: Option<&'t State<'t>>,
+    /// Used in includes only
+    pub(crate) include_parent: Option<&'tera State<'tera>>,
+
+    /// (block name, (all_chunks, level))
+    pub(crate) blocks: BTreeMap<&'tera str, (Vec<&'tera Chunk>, usize)>,
+    pub(crate) current_block_name: Option<&'tera str>,
 }
 
 impl<'t> State<'t> {
@@ -31,7 +36,9 @@ impl<'t> State<'t> {
             context,
             chunk,
             capture_buffers: Vec::with_capacity(4),
-            parent: None,
+            include_parent: None,
+            blocks: BTreeMap::new(),
+            current_block_name: None,
         }
     }
 
@@ -70,9 +77,9 @@ impl<'t> State<'t> {
 
         // TODO: we do need undefined to differentiate from null do we
         // TODO: in practice we want to only return undefined if it's in a if/condition and error
-        // otherwise like in Tera v1? To consider. In those case we could emit a different
-        // instruction that will not error if not found and make this return an Option
-        if let Some(parent) = self.parent {
+        // TODO: otherwise like in Tera v1? To consider. In those case we could emit a different
+        // TODO: instruction that will not error if not found and make this return an Option
+        if let Some(parent) = self.include_parent {
             parent.get(name)
         } else {
             Value::Null

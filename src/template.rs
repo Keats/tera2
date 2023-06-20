@@ -58,7 +58,7 @@ impl Template {
                 macro_calls.push((filename.to_string(), macro_name));
                 Ok(())
             } else {
-                Err(Error::namespace_not_loaded(&tpl_name, namespace))
+                Err(Error::namespace_not_loaded(tpl_name, namespace))
             }
         };
 

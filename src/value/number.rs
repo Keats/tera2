@@ -72,7 +72,7 @@ pub(crate) fn div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
     match (lhs.as_number(), rhs.as_number()) {
         (Some(left), Some(right)) => {
             if right.is_zero() {
-                return Err(Error::message(format!("Cannot divide by 0")));
+                return Err(Error::message("Cannot divide by 0".to_string()));
             }
 
             Ok((left.as_float() / right.as_float()).into())
@@ -87,7 +87,7 @@ pub(crate) fn floor_div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
     match (lhs.as_number(), rhs.as_number()) {
         (Some(mut left), Some(mut right)) => {
             if right.is_zero() {
-                return Err(Error::message(format!("Cannot divide by 0")));
+                return Err(Error::message("Cannot divide by 0".to_string()));
             }
 
             if left.is_float() || right.is_float() {

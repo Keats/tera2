@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::errors::{Error, TeraResult};
@@ -8,35 +7,47 @@ use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::Value;
 use crate::vm::for_loop::ForLoop;
-use crate::vm::stack::Stack;
+
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
 // TODO: add a method to error that automatically adds span + template source
-pub(crate) struct VirtualMachine<'t> {
-    tera: &'t Tera,
-    template: &'t Template,
-    context_fn: Option<Box<dyn Fn(&str) -> Value + 't>>,
+pub(crate) struct VirtualMachine<'tera> {
+    tera: &'tera Tera,
+    template: &'tera Template,
 }
 
-impl<'t> VirtualMachine<'t> {
-    pub fn new(tera: &'t Tera, template: &'t Template) -> Self {
-        Self {
-            tera,
-            template,
-            context_fn: None,
-        }
+impl<'tera> VirtualMachine<'tera> {
+    pub fn new(tera: &'tera Tera, template: &'tera Template) -> Self {
+        Self { tera, template }
     }
 
-    pub fn sub_vm_include(&'t self, template: &'t Template, state: &'t State<'t>) -> Self {
-        Self {
-            tera: self.tera,
-            template,
-            context_fn: Some(Box::new(|name| state.get(name))),
+    // TODO: do that at compile time so we don't need to do it at runtime
+    fn get_block_lineage(&self, block_name: &str) -> TeraResult<Vec<&'tera Chunk>> {
+        // We first get all the chunks we might need to render
+        let mut blocks = Vec::with_capacity(10);
+        // The block is present in the template we are rendering
+        if let Some(bl) = self.template.block_lineage.get(block_name) {
+            for c in bl {
+                blocks.push(c);
+            }
+        } else {
+            // the block is not present, we go up the lineage by 1 until we find a template that has it
+            for parent_tpl_name in self.template.parents.iter().rev() {
+                let parent_tpl = self.tera.get_template(parent_tpl_name)?;
+                if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
+                    for c in bl {
+                        blocks.push(c);
+                    }
+                    break;
+                }
+            }
         }
+
+        Ok(blocks)
     }
 
-    fn interpret(&self, state: &mut State, output: &mut impl Write) -> TeraResult<()> {
+    fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
         let mut ip = 0;
         macro_rules! op_binop {
             ($op:tt) => {{
@@ -64,10 +75,10 @@ impl<'t> VirtualMachine<'t> {
             }};
         }
 
-        // TODO later: macros/blocks/tests/filters/fns
+        // TODO later: blocks/tests/filters/fns
         // println!("{:?}", self.template.chunk);
         while let Some(instr) = state.chunk.get(ip) {
-            // println!("{:?}", instr);
+            // println!("{}. {:?}", state.chunk.name, instr);
             match instr {
                 Instruction::LoadConst(v) => state.stack.push(v.clone()),
                 Instruction::LoadName(n) => state.load_name(n),
@@ -119,13 +130,38 @@ impl<'t> VirtualMachine<'t> {
                     elems.reverse();
                     state.stack.push(Value::from(elems));
                 }
-                Instruction::CallFunction(_) => {}
+                Instruction::CallFunction(fn_name) => {
+                    let kwargs = state.stack.pop();
+                    if fn_name == "super" {
+                        let current_block_name =
+                            state.current_block_name.expect("no current block");
+                        let (blocks, level) = state
+                            .blocks
+                            .remove(current_block_name)
+                            .expect("no lineage found");
+                        if blocks.len() == 1 {
+                            return Err(Error::message(
+                                "Tried to use super() in the top level block".into(),
+                            ));
+                        }
+
+                        let block_chunk = blocks[level + 1];
+                        let old_chunk = std::mem::replace(&mut state.chunk, block_chunk);
+                        state.blocks.insert(current_block_name, (blocks, level + 1));
+                        let res = self.interpret(state, output);
+                        state.chunk = old_chunk;
+                        res?;
+                        state.stack.push(Value::Null);
+                    } else {
+                        println!("Calling {fn_name} with {kwargs:?}");
+                    }
+                }
                 Instruction::ApplyFilter(_) => {}
                 Instruction::RunTest(_) => {}
                 Instruction::CallMacro(idx) => {
                     let kwargs = state.stack.pop().into_map().expect("to have kwargs");
-                    let compiled_macro_def = &self.template.macro_calls_def[*idx];
                     let mut context = Context::new();
+                    let compiled_macro_def = &self.template.macro_calls_def[*idx];
                     for (key, value) in &compiled_macro_def.kwargs {
                         match kwargs.get(&key.as_str().into()) {
                             Some(kwarg_val) => {
@@ -139,15 +175,25 @@ impl<'t> VirtualMachine<'t> {
                             },
                         }
                     }
+
                     let val = self.render_macro(
                         &self.template.macro_calls[*idx],
-                        &compiled_macro_def,
+                        compiled_macro_def,
                         context,
                     )?;
                     state.stack.push(Value::from(val));
                 }
                 Instruction::CallBlock(block_name) => {
-                    self.render_block(block_name, output)?;
+                    let block_lineage = self.get_block_lineage(block_name)?;
+                    let block_chunk = block_lineage[0];
+                    let old_chunk = std::mem::replace(&mut state.chunk, block_chunk);
+                    state.blocks.insert(block_name, (block_lineage, 0));
+                    let old_block_name =
+                        std::mem::replace(&mut state.current_block_name, Some(block_name));
+                    let res = self.interpret(state, output);
+                    state.chunk = old_chunk;
+                    state.current_block_name = old_block_name;
+                    res?;
                 }
                 Instruction::Jump(target_ip) => {
                     ip = *target_ip;
@@ -253,47 +299,57 @@ impl<'t> VirtualMachine<'t> {
         Ok(())
     }
 
-    fn render_block(&'t self, block_name: &str, output: &mut impl Write) -> TeraResult<()> {
-        todo!("")
-        // TODO: just a call to interpret with the chunk?
-        // TODO: how it does interact with super and macros
-        // let mut block_lineages = None;
+    fn render_block(
+        &self,
+        _block_name: &'tera str,
+        _level: usize,
+        _state: &mut State<'tera>,
+        _output: &mut impl Write,
+    ) -> TeraResult<()> {
+        // We can be in 2 situations:
+        // 1. the block is present in the current template then we're good
+        // 2. the block is not present in the current template, which means we need to look
+        //  in the parents
+
+        // // We first get all the chunks we might need to render
+        // let mut blocks = Vec::with_capacity(10);
         // // The block is present in the template we are rendering
         // if let Some(bl) = self.template.block_lineage.get(block_name) {
-        //     block_lineages = Some(bl);
+        //     for c in bl {
+        //         blocks.push(c);
+        //     }
         // } else {
         //     // the block is not present, we go up the lineage by 1 until we find a template that has it
         //     for parent_tpl_name in self.template.parents.iter().rev() {
         //         let parent_tpl = self.tera.get_template(parent_tpl_name)?;
         //         if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
-        //             block_lineages = Some(bl);
+        //             for c in bl {
+        //                 blocks.push(c);
+        //             }
         //             break;
         //         }
         //     }
         // }
         //
-        // if block_lineages.is_none() {
-        //     todo!("Handle error")
+        // for block in blocks {
+        //     state.blocks.push((block_name, block, level));
+        //     self.interpret(state, output)?;
+        //     state.blocks.pop();
         // }
-        //
-        // let block_lineage = block_lineages.unwrap();
-        // for block in block_lineage {
-        //     // self.interpret(block, output)?;
-        // }
-        // Ok(())
+
+        Ok(())
     }
 
     fn render_macro(
-        &'t self,
+        &self,
         info: &(String, String),
         macro_def: &CompiledMacroDefinition,
         context: Context,
     ) -> TeraResult<String> {
         let tpl = self.tera.get_template(&info.0)?;
-        let mut vm = Self {
+        let vm = Self {
             tera: self.tera,
             template: tpl,
-            context_fn: None,
         };
 
         let mut state = State::new(&context, &macro_def.chunk);
@@ -306,19 +362,18 @@ impl<'t> VirtualMachine<'t> {
     fn render_include(
         &self,
         name: &str,
-        state: &State<'t>,
+        state: &State<'tera>,
         output: &mut impl Write,
     ) -> TeraResult<()> {
         let tpl = self.tera.get_template(name)?;
-        let mut vm = Self {
+        let vm = Self {
             tera: self.tera,
             template: tpl,
-            context_fn: None,
         };
 
         // We create a dummy state for variables to be written to, but we don't keep it around
         let mut include_state = State::new(state.context, &tpl.chunk);
-        include_state.parent = Some(state);
+        include_state.include_parent = Some(state);
         vm.interpret(&mut include_state, output)?;
         Ok(())
     }
@@ -332,7 +387,7 @@ impl<'t> VirtualMachine<'t> {
         } else {
             &self.template.chunk
         };
-        let mut state = State::new(&context, chunk);
+        let mut state = State::new(context, chunk);
 
         self.interpret(&mut state, &mut output)?;
         Ok(String::from_utf8(output)?)
