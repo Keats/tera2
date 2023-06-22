@@ -3,7 +3,7 @@ use std::fmt;
 use crate::errors::Error;
 use crate::utils::Span;
 
-// handwritten lexer, peekable iterator/tokenization taken from minijinja
+// handwritten lexer, peekable iterator/tokenization mostly taken from minijinja
 
 fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
@@ -360,7 +360,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                             let body_start_offset = offset;
                             // Then we see whether we find the start of the tag
                             while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {
-                                let body_end_offset = offset;
+                                let body_end_offset = offset + block;
                                 offset += block + 2;
                                 // Check if the tag starts with a {%- so we know we need to end trim the body
                                 let start_ws_end_tag =

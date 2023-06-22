@@ -299,47 +299,6 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    fn render_block(
-        &self,
-        _block_name: &'tera str,
-        _level: usize,
-        _state: &mut State<'tera>,
-        _output: &mut impl Write,
-    ) -> TeraResult<()> {
-        // We can be in 2 situations:
-        // 1. the block is present in the current template then we're good
-        // 2. the block is not present in the current template, which means we need to look
-        //  in the parents
-
-        // // We first get all the chunks we might need to render
-        // let mut blocks = Vec::with_capacity(10);
-        // // The block is present in the template we are rendering
-        // if let Some(bl) = self.template.block_lineage.get(block_name) {
-        //     for c in bl {
-        //         blocks.push(c);
-        //     }
-        // } else {
-        //     // the block is not present, we go up the lineage by 1 until we find a template that has it
-        //     for parent_tpl_name in self.template.parents.iter().rev() {
-        //         let parent_tpl = self.tera.get_template(parent_tpl_name)?;
-        //         if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
-        //             for c in bl {
-        //                 blocks.push(c);
-        //             }
-        //             break;
-        //         }
-        //     }
-        // }
-        //
-        // for block in blocks {
-        //     state.blocks.push((block_name, block, level));
-        //     self.interpret(state, output)?;
-        //     state.blocks.pop();
-        // }
-
-        Ok(())
-    }
-
     fn render_macro(
         &self,
         info: &(String, String),

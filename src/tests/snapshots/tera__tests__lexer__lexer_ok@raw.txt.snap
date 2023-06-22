@@ -5,8 +5,8 @@ input_file: src/tests/lexer_inputs/success/raw.txt
 ---
 [
     CONTENT("Hello"),
-    CONTENT("Some ignored {{ content }}  {% if true %} hello {%"),
+    CONTENT("Some ignored {{ content }}  {% if true %} hello {%\n"),
     CONTENT("World\n\nInline as well "),
-    CONTENT(""),
+    CONTENT(" {{ hey }} "),
     CONTENT("\n"),
 ]

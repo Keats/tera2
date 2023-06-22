@@ -28,7 +28,7 @@ impl Context {
     /// let mut context = tera::Context::new();
     /// context.insert("number_users", &42);
     /// ```
-    pub fn insert<S: Into<String>, T: Serialize>(&mut self, key: S, val: &T) {
+    pub fn insert<S: Into<String>, T: Serialize + ?Sized>(&mut self, key: S, val: &T) {
         self.data.insert(key.into(), Value::from_serializable(val));
     }
 

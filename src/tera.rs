@@ -280,6 +280,48 @@ impl Tera {
         let mut vm = VirtualMachine::new(self, template);
         vm.render(context)
     }
+
+    /// Renders a one off template (for example a template coming from a user
+    /// input) given a `Context` and an instance of Tera. This allows you to
+    /// render templates using custom filters or functions.
+    ///
+    /// Any errors will mention the `__tera_one_off` template: this is the name
+    /// given to the template by Tera.
+    ///
+    /// ```no_compile
+    /// let mut context = Context::new();
+    /// context.insert("greeting", &"Hello");
+    /// let string = tera.render_str("{{ greeting }} World!", &context)?;
+    /// assert_eq!(string, "Hello World!");
+    /// ```
+    pub fn render_str(&mut self, input: &str, context: &Context) -> TeraResult<String> {
+        self.add_raw_template(ONE_OFF_TEMPLATE_NAME, input)?;
+        let result = self.render(ONE_OFF_TEMPLATE_NAME, context);
+        self.templates.remove(ONE_OFF_TEMPLATE_NAME);
+        result
+    }
+
+    /// Renders a one off template (for example a template coming from a user input) given a `Context`
+    ///
+    /// This creates a separate instance of Tera with no possibilities of adding custom filters
+    /// or testers, parses the template and render it immediately.
+    /// Any errors will mention the `__tera_one_off` template: this is the name given to the template by
+    /// Tera
+    ///
+    /// ```no_compile
+    /// let mut context = Context::new();
+    /// context.insert("greeting", &"hello");
+    /// Tera::one_off("{{ greeting }} world", &context, true);
+    /// ```
+    pub fn one_off(input: &str, context: &Context, autoescape: bool) -> TeraResult<String> {
+        let mut tera = Tera::default();
+
+        if autoescape {
+            tera.autoescape_on(vec![ONE_OFF_TEMPLATE_NAME]);
+        }
+
+        tera.render_str(input, context)
+    }
 }
 
 impl Default for Tera {

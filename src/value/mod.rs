@@ -146,7 +146,7 @@ impl PartialOrd for Value {
 }
 
 impl Value {
-    pub fn from_serializable<T: Serialize>(value: &T) -> Value {
+    pub fn from_serializable<T: Serialize + ?Sized>(value: &T) -> Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
     }
 
