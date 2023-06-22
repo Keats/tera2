@@ -3,6 +3,7 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
+use crate::template::Template;
 use std::collections::BTreeMap;
 
 /// The state of the interpreter.
@@ -40,6 +41,10 @@ impl<'t> State<'t> {
             blocks: BTreeMap::new(),
             current_block_name: None,
         }
+    }
+
+    pub(crate) fn current_tpl_name(&self) -> &str {
+        &self.chunk.name
     }
 
     pub(crate) fn store_local(&mut self, name: &str, value: Value) {

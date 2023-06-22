@@ -120,6 +120,7 @@ impl<'s> Compiler<'s> {
                     let len = self.macro_calls.len();
                     self.macro_calls
                         .insert((macro_call.namespace, macro_call.name));
+                    println!("Inserting macro_calls {:?}", self.macro_calls);
                     len
                 };
 
@@ -206,9 +207,11 @@ impl<'s> Compiler<'s> {
 
     fn compile_block(&mut self, block: Block) {
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
+        compiler.macro_calls = std::mem::replace(&mut self.macro_calls, BTreeSet::new());
         for node in block.body {
             compiler.compile_node(node);
         }
+        self.macro_calls = compiler.macro_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks.into_iter());
         self.blocks.insert(block.name.clone(), compiler.chunk);

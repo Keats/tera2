@@ -60,160 +60,20 @@ fn rendering_include_ok() {
     insta::assert_display_snapshot!(&out);
 }
 
+// https://github.com/Keats/tera/issues/754
 #[test]
-fn render_macros() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro hello()%}Hello{% endmacro hello %}"),
-        (
-            "tpl",
-            "{% import \"macros\" as macros %}{{macros::hello()}}",
-        ),
-    ])
-    .unwrap();
-
-    let result = tera.render("tpl", &Context::new());
-    assert_eq!(result.unwrap(), "Hello".to_string());
-}
-
-#[test]
-fn render_macros_defined_in_template() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![(
-        "tpl",
-        "{% macro hello()%}Hello{% endmacro hello %}{{self::hello()}}",
-    )])
-    .unwrap();
-
-    let result = tera.render("tpl", &Context::new());
-    assert_eq!(result.unwrap(), "Hello".to_string());
-}
-
-#[test]
-fn render_macros_expression_arg() {
+fn can_get_value_if_key_contains_period() {
     let mut context = Context::new();
-    context.insert("pages", &vec![1, 2, 3, 4, 5]);
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro hello(val)%}{{val}}{% endmacro hello %}"),
-        (
-            "tpl",
-            "{% import \"macros\" as macros %}{{macros::hello(val=pages[0])}}",
-        ),
-    ])
-    .unwrap();
-
-    let result = tera.render("tpl", &context);
-    assert_eq!(result.unwrap(), "1".to_string());
-}
-
-#[test]
-fn render_set_tag_macro() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro hello()%}Hello{% endmacro hello %}"),
-        (
-            "hello.html",
-            "{% import \"macros\" as macros %}{% set my_var = macros::hello() %}{{my_var}}",
-        ),
-    ])
-    .unwrap();
-    let result = tera.render("hello.html", &Context::new());
-
-    assert_eq!(result.unwrap(), "Hello".to_string());
-}
-
-#[test]
-fn render_macros_with_default_args() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
-        ),
-        (
-            "hello.html",
-            "{% import \"macros\" as macros %}{{macros::hello()}}",
-        ),
-    ])
-    .unwrap();
-    let result = tera.render("hello.html", &Context::new());
-
-    assert_eq!(result.unwrap(), "1".to_string());
-}
-
-#[test]
-fn render_macros_override_default_args() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro hello(val=1) %}{{val}}{% endmacro hello %}",
-        ),
-        (
-            "hello.html",
-            "{% import \"macros\" as macros %}{{macros::hello(val=2)}}",
-        ),
-    ])
-    .unwrap();
-    let result = tera.render("hello.html", &Context::new());
-
-    assert_eq!(result.unwrap(), "2".to_string());
-}
-
-#[test]
-fn render_recursive_macro() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        (
-            "macros",
-            "{% macro factorial(n) %}{% if n > 1 %}{{ n }} - {{ self::factorial(n=n-1) }}{% else %}1{% endif %}{{ n }}{% endmacro factorial %}",
-        ),
-        ("hello.html", "{% import \"macros\" as macros %}{{macros::factorial(n=7)}}"),
-    ]).unwrap();
-    let result = tera.render("hello.html", &Context::new());
-
-    assert_eq!(
-        result.unwrap(),
-        "7 - 6 - 5 - 4 - 3 - 2 - 11234567".to_string()
+    context.insert("name", "Mt. Robson Provincial Park");
+    let mut map = HashMap::new();
+    map.insert(
+        "Mt. Robson Provincial Park".to_string(),
+        "hello".to_string(),
     );
-}
+    context.insert("tag_info", &map);
 
-// https://github.com/Keats/tera/issues/250
-#[test]
-fn render_macros_in_included() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro my_macro() %}my macro{% endmacro %}"),
-        (
-            "includeme",
-            r#"{% import "macros" as macros %}{{ macros::my_macro() }}"#,
-        ),
-        ("example", r#"{% include "includeme" %}"#),
-    ])
-    .unwrap();
-    let result = tera.render("example", &Context::new());
-
-    assert_eq!(result.unwrap(), "my macro".to_string());
-}
-
-// https://github.com/Keats/tera/issues/255
-#[test]
-fn import_macros_into_other_macro_files() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("submacros", "{% macro test() %}Success!{% endmacro %}"),
-        (
-            "macros",
-            r#"{% import "submacros" as sub %}{% macro test() %}{{ sub::test() }}{% endmacro %}"#,
-        ),
-        (
-            "index",
-            r#"{% import "macros" as macros %}{{ macros::test() }}"#,
-        ),
-    ])
-    .unwrap();
-    let result = tera.render("index", &Context::new());
-
-    assert_eq!(result.unwrap(), "Success!".to_string());
+    let res = Tera::one_off(r#"{{ tag_info[name] }}"#, &context, true);
+    assert!(res.is_ok());
+    let res = res.unwrap();
+    assert_eq!(res, "hello");
 }

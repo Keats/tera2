@@ -163,6 +163,7 @@ impl Tera {
             }
             tpl_blocks.insert(name.clone(), blocks);
         }
+        println!("{:?}", tpl_macro_definitions);
 
         // 3rd loop: we actually set everything we've done on the templates object
         for (name, tpl) in self.templates.iter_mut() {

@@ -43,7 +43,7 @@ impl Template {
         // We are going to convert macro calls {namespace -> name} to {filename -> name}
         let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
 
-        // We need the macro handling logic both for the template and for each macroc
+        // We need the macro handling logic both for the template and for each macro
         let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
             if &namespace == "self" {
                 macro_calls.push((tpl_name.to_string(), macro_name));
