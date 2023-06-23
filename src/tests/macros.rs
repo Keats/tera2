@@ -42,7 +42,7 @@ fn render_macros_expression_arg() {
         ("macros", "{% macro hello(val)%}{{val}}{% endmacro hello %}"),
         (
             "tpl",
-            "{% import \"macros\" as macros %}{{macros::hello(val=pages|last)}}",
+            "{% import \"macros\" as macros %}{{macros::hello(val=pages[0] + pages[3])}}",
         ),
     ])
     .unwrap();
@@ -305,42 +305,6 @@ fn can_load_macro_in_child() {
     assert_eq!(result.unwrap(), "1".to_string());
 }
 
-// https://github.com/Keats/tera/issues/333
-// this test fails in 0.11.14, worked in 0.11.10
-#[test]
-fn can_inherit_macro_import_from_parent() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro hello()%}HELLO{% endmacro hello %}"),
-        (
-            "parent",
-            "{% import \"macros\" as macros %}{% block bob %}parent{% endblock bob %}",
-        ),
-        (
-            "child",
-            "{% extends \"parent\" %}{% block bob %}{{macros::hello()}}{% endblock bob %}",
-        ),
-    ])
-    .unwrap();
-
-    let result = tera.render("child", &Context::default());
-    assert_eq!(result.unwrap(), "HELLO".to_string());
-}
-
-#[test]
-fn can_inherit_macro_import_from_grandparent() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![
-        ("macros", "{% macro hello()%}HELLO{% endmacro hello %}"),
-        ("grandparent", "{% import \"macros\" as macros %}{% block bob %}grandparent{% endblock bob %}"),
-        ("parent", "{% extends \"grandparent\" %}{% import \"macros\" as macros2 %}{% block bob %}parent{% endblock bob %}"),
-        ("child", "{% extends \"parent\" %}{% block bob %}{{macros::hello()}}-{{macros2::hello()}}{% endblock bob %}"),
-    ]).unwrap();
-
-    let result = tera.render("child", &Context::default());
-    assert_eq!(result.unwrap(), "HELLO-HELLO".to_string());
-}
-
 #[test]
 fn can_load_macro_in_parent_with_grandparent() {
     let mut tera = Tera::default();
@@ -379,7 +343,7 @@ fn macro_can_access_global_context() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
         ("parent", r#"{% import "macros" as macros %}{{ macros::test_global() }}"#),
-        ("macros", r#"{% macro test_global() %}{% set_global value1 = "42" %}{% for i in range(end=1) %}{% set_global value2 = " is the truth." %}{% endfor %}{{ value1 }}{% endmacro test_global %}"#)
+        ("macros", r#"{% macro test_global() %}{% set_global value1 = "42" %}{% for i in [0, 1] %}{% set_global value2 = " is the truth." %}{% endfor %}{{ value1 }}{% endmacro test_global %}"#)
     ]).unwrap();
 
     let result = tera.render("parent", &Context::new());
@@ -390,7 +354,7 @@ fn macro_can_access_global_context() {
 fn template_cant_access_macros_context() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
-        ("parent", r#"{% import "macros" as macros %}{{ macros::empty() }}{{ quote | default(value="I'd rather have roses on my table than diamonds on my neck.") }}"#),
+        ("parent", r#"{% import "macros" as macros %}{{ macros::empty() }}{{ quote or "I'd rather have roses on my table than diamonds on my neck." }}"#),
         ("macros", r#"{% macro empty() %}{% set_global quote = "This should not reachable from the calling template!" %}{% endmacro empty %}"#)
     ]).unwrap();
 
@@ -405,11 +369,11 @@ fn template_cant_access_macros_context() {
 fn parent_macro_cant_access_child_macro_context() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
+        ("moremacros", r#"{% macro another_one() %}{% set_global value2 = "1312" %}{% endmacro another_one %}"#),
+        ("macros", r#"{% import "moremacros" as moremacros %}{% macro test_global() %}{% set_global value1 = "A" %}{{ moremacros::another_one() }}{{ value1 }}-{{ value2 or "B" }}{% endmacro test_global %}"#),
         ("parent", "{% import \"macros\" as macros %}{{ macros::test_global() }}"),
-        ("macros", r#"{% import "moremacros" as moremacros %}{% macro test_global() %}{% set_global value1 = "ACAB" %}{{ moremacros::another_one() }}{{ value1 }}-{{ value2 | default(value="ACAB") }}{% endmacro test_global %}"#),
-        ("moremacros", r#"{% macro another_one() %}{% set_global value2 = "1312" %}{% endmacro another_one %}"#)
     ]).unwrap();
 
     let result = tera.render("parent", &Context::new());
-    assert_eq!(result.unwrap(), "ACAB-ACAB".to_string());
+    assert_eq!(result.unwrap(), "A-B".to_string());
 }

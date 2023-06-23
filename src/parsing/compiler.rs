@@ -120,7 +120,7 @@ impl<'s> Compiler<'s> {
                     let len = self.macro_calls.len();
                     self.macro_calls
                         .insert((macro_call.namespace, macro_call.name));
-                    println!("Inserting macro_calls {:?}", self.macro_calls);
+                    // println!("Inserting macro_calls {:?}", self.macro_calls);
                     len
                 };
 

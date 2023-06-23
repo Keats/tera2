@@ -5,7 +5,7 @@ use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, VecDeque};
 
-// TODO: perf improvements, still twice slower than Tera v1 for some reasons
+// TODO: perf improvements, less to_string
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
 #[derive(Debug, PartialEq)]

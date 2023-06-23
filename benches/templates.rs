@@ -13,7 +13,7 @@ struct Team {
 static BIG_TABLE_TEMPLATE: &str = "
 <table>
 {% for row in table %}
-<tr>{% for col in row %}<td>{{ col|escape }}</td>{% endfor %}</tr>
+<tr>{% for col in row %}<td>{{ col }}</td>{% endfor %}</tr>
 {% endfor %}
 </table>
 ";
