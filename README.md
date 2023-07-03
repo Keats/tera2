@@ -47,6 +47,7 @@ TODO:
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
 - [ ] Add filters/functions/tests to VM
+- [ ] Uncomment all tests using filters/functions/tests
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Feature to load templates from a glob with optional dep
 - [ ] Add a way to add global variables to the Tera struct that are passed on every render

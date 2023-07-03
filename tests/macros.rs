@@ -1,7 +1,14 @@
-use crate::context::Context;
-use crate::tera::Tera;
+use serde_derive::Serialize;
 
-use super::NestedObject;
+use tera::{Context, Tera};
+
+#[allow(dead_code)]
+#[derive(Debug, Serialize)]
+pub struct NestedObject {
+    pub label: String,
+    pub parent: Option<Box<NestedObject>>,
+    pub numbers: Vec<usize>,
+}
 
 #[test]
 fn render_macros() {

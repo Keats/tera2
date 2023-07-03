@@ -1,5 +1,4 @@
-use crate::context::Context;
-use crate::tera::Tera;
+use tera::{Context, Tera};
 
 // TODO: convert to insta test
 // #[test]

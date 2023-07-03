@@ -1,5 +1,4 @@
-use crate::tera::Tera;
-use crate::Context;
+use tera::{Context, Tera};
 
 #[test]
 fn render_simple_inheritance() {
