@@ -36,8 +36,6 @@ pub enum Value {
     F64(f64),
     U128(u128),
     I128(i128),
-    // TODO: do we need char?
-    Char(char),
     Array(Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     String(Arc<String>),
@@ -56,7 +54,6 @@ impl fmt::Display for Value {
             Value::F64(v) => write!(f, "{v}"),
             Value::U128(v) => write!(f, "{v}"),
             Value::I128(v) => write!(f, "{v}"),
-            Value::Char(v) => write!(f, "{v}"),
             Value::Array(v) => {
                 write!(f, "[")?;
                 for (i, elem) in v.iter().enumerate() {
@@ -92,7 +89,6 @@ impl PartialEq for Value {
             // First the easy ones
             (Value::Null, Value::Null) => true,
             (Value::Bool(v), Value::Bool(v2)) => v == v2,
-            (Value::Char(v), Value::Char(v2)) => v == v2,
             (Value::Array(v), Value::Array(v2)) => v == v2,
             (Value::Bytes(v), Value::Bytes(v2)) => v == v2,
             (Value::String(v), Value::String(v2)) => v == v2,
@@ -123,7 +119,6 @@ impl PartialOrd for Value {
             // First the easy ones
             (Value::Null, Value::Null) => Some(Ordering::Equal),
             (Value::Bool(v), Value::Bool(v2)) => v.partial_cmp(v2),
-            (Value::Char(v), Value::Char(v2)) => v.partial_cmp(v2),
             (Value::Array(v), Value::Array(v2)) => v.partial_cmp(v2),
             (Value::Bytes(v), Value::Bytes(v2)) => v.partial_cmp(v2),
             (Value::String(v), Value::String(v2)) => v.partial_cmp(v2),
@@ -214,7 +209,6 @@ impl Value {
             Value::F64(v) => *v != 0.0,
             Value::U128(v) => *v != 0,
             Value::I128(v) => *v != 0,
-            Value::Char(v) => v != &'\x00',
             Value::Array(v) => !v.is_empty(),
             Value::Bytes(v) => !v.is_empty(),
             Value::String(v) => !v.is_empty(),
@@ -227,7 +221,6 @@ impl Value {
             Value::Bool(v) => Key::Bool(*v),
             Value::U64(v) => Key::U64(*v),
             Value::I64(v) => Key::I64(*v),
-            Value::Char(v) => Key::Char(*v),
             // TODO: not ideal to clone the actual string.
             Value::String(v) => Key::String(Cow::Owned(v.as_str().to_string())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
@@ -289,7 +282,6 @@ impl Serialize for Value {
             Value::F64(f) => serializer.serialize_f64(*f),
             Value::U128(u) => serializer.serialize_u128(*u),
             Value::I128(i) => serializer.serialize_i128(*i),
-            Value::Char(c) => serializer.serialize_char(*c),
             Value::Bytes(b) => serializer.serialize_bytes(b),
             Value::String(s) => serializer.serialize_str(s),
             Value::Array(arr) => {
@@ -374,7 +366,6 @@ impl From<Key> for Value {
     fn from(value: Key) -> Self {
         match value {
             Key::Bool(b) => Value::Bool(b),
-            Key::Char(c) => Value::Char(c),
             Key::U64(u) => Value::U64(u),
             Key::I64(i) => Value::I64(i),
             Key::String(s) => Value::String(Arc::new(s.to_string())),

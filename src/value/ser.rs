@@ -74,7 +74,7 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::Char(v))
+        Ok(Value::String(Arc::new(v.to_string())))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {

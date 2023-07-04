@@ -196,7 +196,6 @@ impl fmt::Display for Expression {
                             write!(f, ", ")?;
                         }
                         match elem {
-                            Value::Char(t) => write!(f, "'{t}'"),
                             Value::String(t) => write!(f, r#""{t}""#),
                             _ => write!(f, "{elem}"),
                         }?;

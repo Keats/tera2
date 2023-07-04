@@ -10,7 +10,6 @@ use crate::value::utils::SerializationFailed;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Key {
     Bool(bool),
-    Char(char),
     U64(u64),
     I64(i64),
     String(Cow<'static, str>),
@@ -20,7 +19,6 @@ impl fmt::Display for Key {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Key::Bool(v) => write!(f, "{v}"),
-            Key::Char(v) => write!(f, "{v}"),
             Key::U64(v) => write!(f, "{v}"),
             Key::I64(v) => write!(f, "{v}"),
             Key::String(v) => write!(f, "{v}"),
@@ -35,7 +33,6 @@ impl Serialize for Key {
     {
         match self {
             Key::Bool(b) => serializer.serialize_bool(*b),
-            Key::Char(c) => serializer.serialize_char(*c),
             Key::U64(u) => serializer.serialize_u64(*u),
             Key::I64(i) => serializer.serialize_i64(*i),
             Key::String(s) => serializer.serialize_str(s),
@@ -144,7 +141,7 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        Ok(Key::Char(v))
+        Ok(Key::String(Cow::Owned(v.to_string())))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {

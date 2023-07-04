@@ -4,6 +4,7 @@ use crate::Value;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 
 // TODO: perf improvements, less to_string
 
@@ -23,7 +24,10 @@ impl ForLoopValues {
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
             ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
-            ForLoopValues::String(a) => (Value::Null, Value::Char(a.pop_front().unwrap())),
+            ForLoopValues::String(a) => (
+                Value::Null,
+                Value::String(Arc::new(a.pop_front().unwrap().to_string())),
+            ),
             ForLoopValues::Object(a) => {
                 let (key, value) = a.pop_front().unwrap();
                 (key.into(), value)
