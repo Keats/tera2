@@ -314,6 +314,7 @@ impl<'s> Compiler<'s> {
             }
             Node::If(i) => {
                 self.compile_expr(i.expr);
+
                 let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
                 self.processing_bodies.push(ProcessingBody::Branch(idx));
                 for node in i.body {

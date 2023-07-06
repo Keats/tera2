@@ -3,7 +3,6 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
-use crate::template::Template;
 use std::collections::BTreeMap;
 
 /// The state of the interpreter.
@@ -64,7 +63,7 @@ impl<'t> State<'t> {
     /// 1. All loops from the inner to the outer
     /// 2. set_variables
     /// 3. self.context
-    /// 4. return undefined
+    /// 4. return Value::Undefined
     pub(crate) fn get(&self, name: &str) -> Value {
         for forloop in &self.for_loops {
             if let Some(v) = forloop.get(name) {
@@ -80,14 +79,10 @@ impl<'t> State<'t> {
             return val.clone();
         }
 
-        // TODO: we do need undefined to differentiate from null do we
-        // TODO: in practice we want to only return undefined if it's in a if/condition and error
-        // TODO: otherwise like in Tera v1? To consider. In those case we could emit a different
-        // TODO: instruction that will not error if not found and make this return an Option
         if let Some(parent) = self.include_parent {
             parent.get(name)
         } else {
-            Value::Null
+            Value::Undefined
         }
     }
 

@@ -84,22 +84,34 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::LoadName(n) => state.load_name(n),
                 Instruction::LoadAttr(attr) => {
                     let a = state.stack.pop();
-                    state
-                        .stack
-                        .push(a.get_attr(attr).expect("TODO: handle error"));
+                    if a == Value::Undefined {
+                        return Err(Error::message(
+                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
+                        ));
+                    }
+                    state.stack.push(a.get_attr(attr));
                 }
                 Instruction::BinarySubscript => {
                     let subscript = state.stack.pop();
                     let val = state.stack.pop();
-                    state
-                        .stack
-                        .push(val.get_item(subscript).expect("TODO: handle error"));
+                    if val == Value::Undefined {
+                        return Err(Error::message(
+                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
+                        ));
+                    }
+                    state.stack.push(val.get_item(subscript));
                 }
                 Instruction::WriteText(t) => {
                     write_to_buffer!(t);
                 }
                 Instruction::WriteTop => {
-                    write_to_buffer!(state.stack.pop());
+                    let top = state.stack.pop();
+                    if top == Value::Undefined {
+                        return Err(Error::message(
+                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
+                        ));
+                    }
+                    write_to_buffer!(top);
                 }
                 Instruction::Set(name) => {
                     let val = state.stack.pop();

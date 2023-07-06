@@ -63,7 +63,6 @@ pub(crate) enum Instruction {
     /// Start to iterate on the value at the top of the stack
     Iterate(usize),
     /// At the end of a loop we want to remove it
-    /// TODO: do we need that?
     PopLoop,
 
     // math

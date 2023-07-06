@@ -28,7 +28,7 @@ pub type Map = IndexMap<Key, Value>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    // TODO: differentiate Undefined and Null?
+    Undefined,
     Null,
     Bool(bool),
     U64(u64),
@@ -47,6 +47,7 @@ pub enum Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            Value::Undefined => Ok(()),
             Value::Null => Ok(()),
             Value::Bool(v) => write!(f, "{v}"),
             Value::U64(v) => write!(f, "{v}"),
@@ -87,6 +88,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // First the easy ones
+            (Value::Undefined, Value::Undefined) => true,
             (Value::Null, Value::Null) => true,
             (Value::Bool(v), Value::Bool(v2)) => v == v2,
             (Value::Array(v), Value::Array(v2)) => v == v2,
@@ -117,6 +119,7 @@ impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             // First the easy ones
+            (Value::Undefined, Value::Undefined) => Some(Ordering::Equal),
             (Value::Null, Value::Null) => Some(Ordering::Equal),
             (Value::Bool(v), Value::Bool(v2)) => v.partial_cmp(v2),
             (Value::Array(v), Value::Array(v2)) => v.partial_cmp(v2),
@@ -202,6 +205,7 @@ impl Value {
 
     pub fn is_truthy(&self) -> bool {
         match self {
+            Value::Undefined => false,
             Value::Null => false,
             Value::Bool(v) => *v,
             Value::U64(v) => *v != 0,
@@ -246,25 +250,25 @@ impl Value {
     }
 
     /// When doing hello.name, name is the attr
-    pub(crate) fn get_attr(&self, attr: &str) -> Option<Value> {
+    pub(crate) fn get_attr(&self, attr: &str) -> Value {
         match self {
-            Value::Map(m) => m.get(&attr.into()).cloned(),
-            _ => None,
+            Value::Map(m) => m.get(&attr.into()).cloned().unwrap_or(Value::Undefined),
+            _ => Value::Undefined,
         }
     }
 
     /// When doing hello[0], hello[name] etc, item is the value in the brackets
-    pub(crate) fn get_item(&self, item: Value) -> Option<Value> {
+    pub(crate) fn get_item(&self, item: Value) -> Value {
         match self {
             Value::Map(m) => {
                 let key = item.as_key().expect("TODO: error handling");
-                m.get(&key).cloned()
+                m.get(&key).cloned().unwrap_or(Value::Undefined)
             }
             Value::Array(arr) => {
                 let idx = item.as_i128().expect("TODO: error handling");
-                arr.get(idx as usize).cloned()
+                arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)
             }
-            _ => None,
+            _ => Value::Undefined,
         }
     }
 }
@@ -275,7 +279,7 @@ impl Serialize for Value {
         S: Serializer,
     {
         match self {
-            Value::Null => serializer.serialize_unit(),
+            Value::Null | Value::Undefined => serializer.serialize_unit(),
             Value::Bool(b) => serializer.serialize_bool(*b),
             Value::U64(u) => serializer.serialize_u64(*u),
             Value::I64(i) => serializer.serialize_i64(*i),
