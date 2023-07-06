@@ -699,9 +699,8 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Some(Ok((Token::Ident("endif"), _))) => {
-                    if elif.is_some() {
-                        false_body.push(Node::If(elif.unwrap()));
-                        elif = None;
+                    if let Some(el) = elif {
+                        false_body.push(Node::If(el));
                     }
                     self.next_or_error()?;
                     break;

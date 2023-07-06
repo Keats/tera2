@@ -207,7 +207,7 @@ impl<'s> Compiler<'s> {
 
     fn compile_block(&mut self, block: Block) {
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
-        compiler.macro_calls = std::mem::replace(&mut self.macro_calls, BTreeSet::new());
+        compiler.macro_calls = std::mem::take(&mut self.macro_calls);
         for node in block.body {
             compiler.compile_node(node);
         }

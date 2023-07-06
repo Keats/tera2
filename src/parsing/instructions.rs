@@ -133,9 +133,10 @@ impl Chunk {
     }
 
     pub(crate) fn is_calling_function(&self, fn_name: &str) -> bool {
-        self.instructions
-            .iter()
-            .any(|i| matches!(&i, Instruction::CallFunction(fn_name)))
+        self.instructions.iter().any(|i| match i {
+            Instruction::CallFunction(s) => s == fn_name,
+            _ => false,
+        })
     }
 }
 
