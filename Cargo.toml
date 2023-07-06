@@ -8,7 +8,7 @@ serde = "1"
 # TODO: make it optional?
 #ariadne = "0.2"
 #codespan-reporting = "0.11"
-indexmap = {version = "1.9.3", optional = true}
+indexmap = {version = "2", optional = true}
 
 [features]
 preserve_order = ["dep:indexmap"]

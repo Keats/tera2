@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Peekable;
 
@@ -377,22 +378,37 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let (key, _) = expect_token!(self, Token::String(key) => key, "key")?;
-            expect_token!(self, Token::Colon, ",")?;
+            let key = match self.next_or_error()? {
+                // TODO: can we borrow there?
+                (Token::String(key), _) => Key::String(Cow::Owned(key.to_string())),
+                (Token::Integer(key), _) => Key::I64(key),
+                (Token::Bool(key), _) => Key::Bool(key),
+                (token, span) => {
+                    return Err(Error::syntax_error(
+                        format!(
+                            "Found {} but expected a string, an integer or a bool.",
+                            token
+                        ),
+                        &span,
+                    ));
+                }
+            };
+
+            expect_token!(self, Token::Colon, ":")?;
             let value = self.inner_parse_expression(0)?;
             if !value.is_literal() {
                 literal_only = false;
             }
-            items.insert(key.to_string(), value);
+            items.insert(key, value);
         }
-        expect_token!(self, Token::RightBrace, ",")?;
+        expect_token!(self, Token::RightBrace, "}")?;
         span.expand(&self.current_span);
 
         if literal_only {
             let mut out = crate::value::Map::with_capacity(items.len());
             for (k, v) in items {
                 if let Expression::Const(val) = v {
-                    out.insert(Key::String(k.into()), val.into_parts().0);
+                    out.insert(k, val.into_parts().0);
                 }
             }
             Ok(Expression::Const(Spanned::new(Value::from(out), span)))

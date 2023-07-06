@@ -38,8 +38,8 @@ pub enum Value {
     I128(i128),
     Array(Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
-    String(Arc<String>),
     // TODO: string interning?
+    String(Arc<String>),
     // TODO: change the hash alg feature? rustc-hash/ahash after testing
     Map(Arc<Map>),
 }

@@ -10,3 +10,5 @@
 {% set_global body | upper(with=1) | trans(lang='fr') %}Hello{% endset %}
 {% set value = {"hello": 0} %}
 {% set value = {"hello": data} %}
+{% set value = {1: data} %}
+{% set value = {true: data} %}

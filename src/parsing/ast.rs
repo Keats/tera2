@@ -3,7 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
-use crate::value::Value;
+use crate::value::{Key, Value};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -272,7 +272,7 @@ impl fmt::Display for BinaryOperation {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Map {
-    pub items: BTreeMap<String, Expression>,
+    pub items: BTreeMap<Key, Expression>,
 }
 
 impl fmt::Display for Map {

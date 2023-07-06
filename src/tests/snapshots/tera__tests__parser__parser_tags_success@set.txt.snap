@@ -140,11 +140,39 @@ input_file: src/tests/parser_inputs/success/set.txt
         name: "value",
         value: Map {
             items: {
-                "hello": Var {
+                String(
+                    "hello",
+                ): Var {
                     name: "data",
                 } @ 12:25-12:29 (379..383),
             },
         } @ 12:15-12:30 (369..384),
+        global: false,
+    },
+    Set {
+        name: "value",
+        value: Map {
+            items: {
+                I64(
+                    1,
+                ): Var {
+                    name: "data",
+                } @ 13:19-13:23 (407..411),
+            },
+        } @ 13:15-13:24 (403..412),
+        global: false,
+    },
+    Set {
+        name: "value",
+        value: Map {
+            items: {
+                Bool(
+                    true,
+                ): Var {
+                    name: "data",
+                } @ 14:22-14:26 (438..442),
+            },
+        } @ 14:15-14:27 (431..443),
         global: false,
     },
 ]
