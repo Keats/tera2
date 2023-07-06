@@ -124,7 +124,7 @@ impl<'s> Compiler<'s> {
                     len
                 };
 
-                self.chunk.add(Instruction::CallMacro(call_idx));
+                self.chunk.add(Instruction::RenderMacro(call_idx));
             }
             Expression::FunctionCall(e) => {
                 let (func, _) = e.into_parts();
@@ -215,7 +215,7 @@ impl<'s> Compiler<'s> {
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks.into_iter());
         self.blocks.insert(block.name.clone(), compiler.chunk);
-        self.chunk.add(Instruction::CallBlock(block.name));
+        self.chunk.add(Instruction::RenderBlock(block.name));
     }
 
     fn end_branch(&mut self, idx: usize) {

@@ -10,6 +10,7 @@ use crate::value::Value;
 /// values
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Context {
+    // TODO: have keys be Cow<'static, str>
     pub(crate) data: BTreeMap<String, Value>,
 }
 
@@ -21,8 +22,6 @@ impl Context {
 
     /// Converts the `val` parameter to `Value` and insert it into the context.
     ///
-    /// Panics if the serialization fails.
-    ///
     /// ```rust
     /// # use tera::Context;
     /// let mut context = tera::Context::new();
@@ -32,14 +31,8 @@ impl Context {
         self.data.insert(key.into(), Value::from_serializable(val));
     }
 
-    /// In case you already have a `Value` you want to insert, we are going to clone it.
-    pub fn insert_value<S: Into<String>>(&mut self, key: S, val: &Value) {
-        self.data.insert(key.into(), val.clone());
-    }
-
-    /// In case you already have a `Value` you want to insert and are ok with moving it inside the
-    /// context
-    pub fn move_value<S: Into<String>>(&mut self, key: S, val: Value) {
+    /// In case you already have a `Value` you want to insert
+    pub fn insert_value<S: Into<String>>(&mut self, key: S, val: Value) {
         self.data.insert(key.into(), val);
     }
 

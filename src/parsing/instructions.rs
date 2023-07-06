@@ -34,14 +34,14 @@ pub(crate) enum Instruction {
     BuildList(usize),
     /// Call the named Tera function
     CallFunction(String),
-    /// Call the macro at the given index in the macro_calls vec
-    CallMacro(usize),
+    /// Render the macro at the given index in the macro_calls vec
+    RenderMacro(usize),
     /// Apply the given filter
     ApplyFilter(String),
     /// Run the given test
     RunTest(String),
-    /// Call the given block
-    CallBlock(String),
+    /// Render the given block
+    RenderBlock(String),
 
     /// Jump to the instruction at the given idx
     Jump(usize),
@@ -60,7 +60,8 @@ pub(crate) enum Instruction {
 
     /// Start an iteration. `true` if it's iterating on (key, value)
     StartIterate(bool),
-    /// Start to iterate on the value at the top of the stack
+    /// Start to iterate on the value at the top of the stack. The integer is the ip to jump to
+    /// when the for loop is over
     Iterate(usize),
     /// At the end of a loop we want to remove it
     PopLoop,

@@ -170,7 +170,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::ApplyFilter(_) => {}
                 Instruction::RunTest(_) => {}
-                Instruction::CallMacro(idx) => {
+                Instruction::RenderMacro(idx) => {
                     let kwargs = state.stack.pop().into_map().expect("to have kwargs");
                     let mut context = Context::new();
                     // TODO: inheritance loads macros
@@ -204,7 +204,7 @@ impl<'tera> VirtualMachine<'tera> {
                     )?;
                     state.stack.push(Value::from(val));
                 }
-                Instruction::CallBlock(block_name) => {
+                Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
                     let block_chunk = block_lineage[0];
                     let old_chunk = std::mem::replace(&mut state.chunk, block_chunk);
@@ -258,7 +258,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
                 Instruction::Iterate(end_ip) => {
-                    // TODO: something very very very slow happening with forloop
+                    // TODO: something very slow happening with forloop
                     if let Some(for_loop) = state.for_loops.last_mut() {
                         if for_loop.is_over() {
                             ip = *end_ip;

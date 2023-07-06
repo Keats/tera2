@@ -4,9 +4,9 @@ expression: s
 input_file: src/tests/compiler_inputs/blocks/simple.txt
 ---
 === simple.txt ===
-0000 CallBlock("hello")
+0000 RenderBlock("hello")
 0001 WriteText("\n")
-0002 CallBlock("other")
+0002 RenderBlock("other")
 0003 WriteText("\n")
 
 

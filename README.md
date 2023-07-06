@@ -66,6 +66,7 @@ Ideas:
 - Have a way to merge chunks when handling inheritance, issue is macros since you need to refer to the right imports
 - Collect include templates so we know whether we have all of them or not and error otherwise
 - Make raw template keep spans rather String to avoid cloning it?
+- Use Arc<str> in Value
 
 
 

@@ -8,7 +8,7 @@ input_file: src/tests/compiler_inputs/success/macro_usage.txt
 0001 LoadConst(String("arg"))
 0002 LoadConst(I64(1))
 0003 BuildMap(1)
-0004 CallMacro(0)
+0004 RenderMacro(0)
 0005 WriteTop
 0006 WriteText("\n")
 

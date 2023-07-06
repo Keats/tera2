@@ -4,13 +4,13 @@ expression: s
 input_file: src/tests/compiler_inputs/blocks/in_extend.txt
 ---
 === in_extend.txt ===
-0000 CallBlock("content")
+0000 RenderBlock("content")
 
 
 >> Block: content
 === in_extend.txt ===
 0000 WriteText("\n1. ")
-0001 CallBlock("nested")
+0001 RenderBlock("nested")
 0002 WriteText("\n")
 ---
 >> Block: nested

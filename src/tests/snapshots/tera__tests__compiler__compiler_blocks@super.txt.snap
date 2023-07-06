@@ -4,7 +4,7 @@ expression: s
 input_file: src/tests/compiler_inputs/blocks/super.txt
 ---
 === super.txt ===
-0000 CallBlock("content")
+0000 RenderBlock("content")
 
 
 >> Block: content
