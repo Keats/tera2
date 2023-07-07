@@ -8,6 +8,7 @@
 {{ a }}
 {{ -a }}
 {{ - a * 2 }}
+{{ - (a * 2) }}
 {{ [1, 1.2, a, 'b', true] }}
 {{ [1, 1.2, a, 'b', true,] }}
 {{ [[1], [2], [c, d]] }}
@@ -107,4 +108,5 @@
 // Macro calls
 {{ macros::input(label='Name', type='text') }}
 {{ macros::input() | safe }}
+{{ macros::input(n=a -1) }}
 

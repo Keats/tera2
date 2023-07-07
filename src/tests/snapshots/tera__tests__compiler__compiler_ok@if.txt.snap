@@ -1,0 +1,10 @@
+---
+source: src/tests/compiler.rs
+expression: compiler.chunk
+input_file: src/tests/compiler_inputs/success/if.txt
+---
+=== if.txt ===
+0000 LoadName("user")
+0001 PopJumpIfFalse(3)
+0002 WriteText("A")
+

@@ -1,19 +1,24 @@
-use std::collections::HashMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, Expression, FilterSection, ForLoop, FunctionCall, GetAttr,
-    GetItem, If, Include, MacroCall, MacroDefinition, Set, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Test,
+    UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
+use crate::value::{Key, Value};
 
 /// parse_expression can call itself max 100 times, after that it's an error
 const MAX_EXPR_RECURSION: usize = 100;
 /// We only allow that many dimensions in an array literal
 const MAX_DIMENSION_ARRAY: usize = 2;
+/// How many nesting of brackets can we have in an variable, eg `a[b[e]]` counts as 2
+const MAX_NUM_LEFT_BRACKETS: usize = 4;
 
 // From https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
@@ -22,7 +27,7 @@ fn unary_binding_power(op: UnaryOperator) -> ((), u8) {
 
     match op {
         Not => ((), 3),
-        Minus => ((), 7),
+        Minus => ((), 20),
     }
 }
 
@@ -43,7 +48,7 @@ macro_rules! expect_token {
     ($parser:expr, $match:pat, $expectation:expr) => {{
         match $parser.next_or_error()? {
             (token, span) if matches!(token, $match) => Ok((token, span)),
-            (token, _) => Err(Error::new_syntax_error(
+            (token, _) => Err(Error::syntax_error(
                 format!("Found {} but expected {}.", token, $expectation),
                 &$parser.current_span,
             )),
@@ -52,7 +57,7 @@ macro_rules! expect_token {
     ($parser:expr, $match:pat => $target:expr, $expectation:expr) => {{
         match $parser.next_or_error()? {
             ($match, span) => Ok(($target, span)),
-            (token, _) => Err(Error::new_syntax_error(
+            (token, _) => Err(Error::syntax_error(
                 format!("Found {} but expected {}.", token, $expectation),
                 &$parser.current_span,
             )),
@@ -68,8 +73,6 @@ const RESERVED_NAMES: [&str; 13] = [
 /// This enum is only used to error when some tags are used in places they are not allowed
 /// For example super() outside of a block or a macro definition inside a macro definition
 /// or continue/break in for
-/// TODO: in practice it could be just an integer that gets +/- if we don't do special detection
-/// for tag specific keyword
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum BodyContext {
     ForLoop,
@@ -77,6 +80,23 @@ enum BodyContext {
     If,
     MacroDefinition,
     FilterSection,
+}
+
+impl BodyContext {
+    fn can_contain_blocks(&self) -> bool {
+        matches!(self, BodyContext::Block | BodyContext::FilterSection)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ParserOutput {
+    // filled when we encounter a {% extends %}
+    pub(crate) parent: Option<String>,
+    // The AST for the body
+    pub(crate) nodes: Vec<Node>,
+    pub(crate) macro_definitions: Vec<MacroDefinition>,
+    // (file, namespace)
+    pub(crate) macro_imports: Vec<(String, String)>,
 }
 
 pub struct Parser<'a> {
@@ -88,22 +108,15 @@ pub struct Parser<'a> {
     current_span: Span,
     // A stack of our body context to know where we are
     body_contexts: Vec<BodyContext>,
-    // How many bytes just the textual content takes
-    size_hint: usize,
     // The current array dimension, to avoid stack overflows with too many of them
     array_dimension: usize,
     // We limit the length of an expression to avoid stack overflows with crazy expressions like
     // 100 `(`
     num_expr_calls: usize,
-    // filled when we encounter a {% extends %}, we don't need to keep the extends node in the AST
-    pub parent: Option<String>,
-    // Only filled if `parent.is_some()`. In that case, we will ignore all the other nodes found
-    // while parsing
-    pub blocks: HashMap<String, Vec<Node>>,
-    // (name, def)
-    pub macros: HashMap<String, MacroDefinition>,
-    // (file, namespace)
-    pub macro_imports: Vec<(String, String)>,
+    // We limit the number of nesting for brackets in idents
+    num_left_brackets: usize,
+    blocks_seen: HashSet<String>,
+    output: ParserOutput,
 }
 
 impl<'a> Parser<'a> {
@@ -115,13 +128,11 @@ impl<'a> Parser<'a> {
             next: None,
             current_span: Span::default(),
             body_contexts: Vec::new(),
-            size_hint: 0,
             num_expr_calls: 0,
             array_dimension: 0,
-            parent: None,
-            blocks: HashMap::new(),
-            macros: HashMap::new(),
-            macro_imports: Vec::new(),
+            num_left_brackets: 0,
+            blocks_seen: HashSet::with_capacity(10),
+            output: ParserOutput::default(),
         }
     }
 
@@ -146,10 +157,9 @@ impl<'a> Parser<'a> {
     }
 
     fn endblock_different_name(&self, start_name: &str, end_name: &str) -> Error {
-        Error::new_syntax_error(
+        Error::syntax_error(
             format!(
-                "Opening block was named `{}`, found `{}` for the end block name",
-                start_name, end_name
+                "Opening block was named `{start_name}`, found `{end_name}` for the end block name"
             ),
             &self.current_span,
         )
@@ -189,6 +199,14 @@ impl<'a> Parser<'a> {
                 }
                 Some(Ok((Token::LeftBracket, _))) => {
                     expect_token!(self, Token::LeftBracket, "[")?;
+                    self.num_left_brackets += 1;
+                    if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
+                        return Err(Error::syntax_error(
+                            format!("Identifiers can only have up to {MAX_NUM_LEFT_BRACKETS} nested brackets."),
+                            &self.current_span,
+                        ));
+                    }
+
                     let sub_expr = self.parse_expression(0)?;
                     start_span.expand(&self.current_span);
 
@@ -198,13 +216,17 @@ impl<'a> Parser<'a> {
                     ));
 
                     expect_token!(self, Token::RightBracket, "]")?;
+                    self.num_left_brackets -= 1;
                 }
                 // Function
                 Some(Ok((Token::LeftParen, _))) => {
                     let kwargs = self.parse_kwargs()?;
                     start_span.expand(&self.current_span);
                     expr = Expression::FunctionCall(Spanned::new(
-                        FunctionCall { expr, kwargs },
+                        FunctionCall {
+                            name: ident.to_owned(),
+                            kwargs,
+                        },
                         start_span,
                     ));
                     break;
@@ -260,8 +282,28 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
-    fn parse_test(&mut self) -> TeraResult<Expression> {
-        let (name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+    fn parse_filter(&mut self, expr: Expression) -> TeraResult<Expression> {
+        let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let mut kwargs = HashMap::new();
+
+        // We have potentially args to handle
+        if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
+            kwargs = self.parse_kwargs()?;
+        }
+        span.expand(&self.current_span);
+
+        Ok(Expression::Filter(Spanned::new(
+            Filter {
+                expr,
+                name: name.to_string(),
+                kwargs,
+            },
+            span,
+        )))
+    }
+
+    fn parse_test(&mut self, expr: Expression) -> TeraResult<Expression> {
+        let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         let mut args = Vec::new();
 
         // We have potentially args to handle
@@ -286,8 +328,8 @@ impl<'a> Parser<'a> {
                             }
                         }
                         Some(Ok((ref token, _))) => {
-                            return Err(Error::new_syntax_error(
-                                format!("Found {} but expected `)` or `,`.", token),
+                            return Err(Error::syntax_error(
+                                format!("Found {token} but expected `)` or `,`."),
                                 &self.current_span,
                             ));
                         }
@@ -305,13 +347,74 @@ impl<'a> Parser<'a> {
             expect_token!(self, Token::RightParen, ")")?;
         }
 
+        span.expand(&self.current_span);
+
         Ok(Expression::Test(Spanned::new(
             Test {
+                expr,
                 name: name.to_string(),
                 args,
             },
             span,
         )))
+    }
+
+    fn parse_map(&mut self) -> TeraResult<Expression> {
+        let mut literal_only = true;
+        let mut items = BTreeMap::new();
+        let mut span = self.current_span.clone();
+
+        loop {
+            if matches!(self.next, Some(Ok((Token::RightBrace, _)))) {
+                break;
+            }
+
+            // trailing commas
+            if !items.is_empty() {
+                expect_token!(self, Token::Comma, ",")?;
+            }
+
+            if matches!(self.next, Some(Ok((Token::RightBrace, _)))) {
+                break;
+            }
+
+            let key = match self.next_or_error()? {
+                // TODO: can we borrow there?
+                (Token::String(key), _) => Key::String(Cow::Owned(key.to_string())),
+                (Token::Integer(key), _) => Key::I64(key),
+                (Token::Bool(key), _) => Key::Bool(key),
+                (token, span) => {
+                    return Err(Error::syntax_error(
+                        format!(
+                            "Found {} but expected a string, an integer or a bool.",
+                            token
+                        ),
+                        &span,
+                    ));
+                }
+            };
+
+            expect_token!(self, Token::Colon, ":")?;
+            let value = self.inner_parse_expression(0)?;
+            if !value.is_literal() {
+                literal_only = false;
+            }
+            items.insert(key, value);
+        }
+        expect_token!(self, Token::RightBrace, "}")?;
+        span.expand(&self.current_span);
+
+        if literal_only {
+            let mut out = crate::value::Map::with_capacity(items.len());
+            for (k, v) in items {
+                if let Expression::Const(val) = v {
+                    out.insert(k, val.into_parts().0);
+                }
+            }
+            Ok(Expression::Const(Spanned::new(Value::from(out), span)))
+        } else {
+            Ok(Expression::Map(Spanned::new(Map { items }, span)))
+        }
     }
 
     fn parse_array(&mut self) -> TeraResult<Vec<Expression>> {
@@ -344,7 +447,7 @@ impl<'a> Parser<'a> {
     fn inner_parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
         self.num_expr_calls += 1;
         if self.num_expr_calls > MAX_EXPR_RECURSION {
-            return Err(Error::new_syntax_error(
+            return Err(Error::syntax_error(
                 "The expression is too complex".to_string(),
                 &self.current_span,
             ));
@@ -353,10 +456,10 @@ impl<'a> Parser<'a> {
         let (token, mut span) = self.next_or_error()?;
 
         let mut lhs = match token {
-            Token::Integer(i) => Expression::Integer(Spanned::new(i, span.clone())),
-            Token::Float(f) => Expression::Float(Spanned::new(f, span.clone())),
-            Token::String(s) => Expression::Str(Spanned::new(s.to_owned(), span.clone())),
-            Token::Bool(b) => Expression::Bool(Spanned::new(b, span.clone())),
+            Token::Integer(i) => Expression::Const(Spanned::new(Value::from(i), span.clone())),
+            Token::Float(f) => Expression::Const(Spanned::new(Value::from(f), span.clone())),
+            Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
+            Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -369,24 +472,26 @@ impl<'a> Parser<'a> {
                         // Can't have unary with unary (eg - - - - - 1) otherwise we will quickly
                         // stack overflow. It doesn't make much sense anyway in practice.
                         // Alternatively, limit the number to 2?
-                        return Err(Error::new_syntax_error(
+                        return Err(Error::syntax_error(
                             "`-` or `not` cannot be used consecutively.".to_string(),
                             next_span,
                         ));
                     }
                     _ => (),
                 }
+
                 let (_, r_bp) = unary_binding_power(op);
                 let expr = self.inner_parse_expression(r_bp)?;
                 span.expand(&self.current_span);
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
+            Token::LeftBrace => self.parse_map()?,
             Token::LeftBracket => {
                 self.array_dimension += 1;
                 if self.array_dimension > MAX_DIMENSION_ARRAY {
-                    return Err(Error::new_syntax_error(
-                        "Arrays can have a maximum of 2 dimensions.".to_string(),
+                    return Err(Error::syntax_error(
+                        format!("Arrays can have a maximum of {MAX_DIMENSION_ARRAY} dimensions."),
                         &self.current_span,
                     ));
                 }
@@ -394,7 +499,12 @@ impl<'a> Parser<'a> {
                 self.array_dimension -= 1;
                 expect_token!(self, Token::RightBracket, "]")?;
                 span.expand(&self.current_span);
-                Expression::Array(Spanned::new(Array { items }, span.clone()))
+                let array = Array { items };
+                if let Some(const_array) = array.as_const() {
+                    Expression::Const(Spanned::new(const_array, span.clone()))
+                } else {
+                    Expression::Array(Spanned::new(array, span.clone()))
+                }
             }
             Token::LeftParen => {
                 let mut lhs = self.inner_parse_expression(0)?;
@@ -403,8 +513,8 @@ impl<'a> Parser<'a> {
                 lhs
             }
             _ => {
-                return Err(Error::new_syntax_error(
-                    format!("Found {} but expected one of: integer, float, string, bool, ident, `-`, `not`, `[` or `(`", token),
+                return Err(Error::syntax_error(
+                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `{{`, `[` or `(`"),
                     &self.current_span,
                 ));
             }
@@ -428,7 +538,6 @@ impl<'a> Parser<'a> {
                 Token::Equal => BinaryOperator::Equal,
                 Token::NotEqual => BinaryOperator::NotEqual,
                 Token::Tilde => BinaryOperator::StrConcat,
-                Token::Pipe => BinaryOperator::Pipe,
                 Token::Ident("not") => {
                     negated = true;
                     // eat it and continue
@@ -439,6 +548,7 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
+                Token::Pipe => BinaryOperator::Pipe,
                 _ => break,
             };
 
@@ -461,40 +571,33 @@ impl<'a> Parser<'a> {
                 negated = true;
             }
 
-            let mut rhs = match op {
-                BinaryOperator::Is => self.parse_test()?,
-                _ => self.inner_parse_expression(r_bp)?,
-            };
+            lhs = match op {
+                BinaryOperator::Is => self.parse_test(lhs)?,
+                BinaryOperator::Pipe => self.parse_filter(lhs)?,
+                _ => {
+                    let rhs = self.inner_parse_expression(r_bp)?;
+                    span.expand(&self.current_span);
 
-            // We can have filters that look like ident (eg hello | upper) so we need to make sure
-            // we have them as fn in the AST
-            if op == BinaryOperator::Pipe {
-                rhs = match rhs {
-                    Expression::Var(s) => {
-                        let node_span = s.span().clone();
-                        Expression::FunctionCall(Spanned::new(
-                            FunctionCall {
-                                expr: Expression::Var(s),
-                                kwargs: HashMap::new(),
-                            },
-                            node_span,
-                        ))
+                    // unary operators are not allowed after a ~
+                    if op == BinaryOperator::StrConcat {
+                        if let Expression::UnaryOperation(uop) = rhs {
+                            return Err(Error::syntax_error(
+                                format!("`{}` is not allowed after `~`", uop.op),
+                                &self.current_span,
+                            ));
+                        }
                     }
-                    _ => rhs,
-                };
-            }
 
-            span.expand(&self.current_span);
-
-            lhs = Expression::BinaryOperation(Spanned::new(
-                BinaryOperation {
-                    op,
-                    left: lhs,
-                    right: rhs,
-                },
-                span.clone(),
-            ));
-
+                    Expression::BinaryOperation(Spanned::new(
+                        BinaryOperation {
+                            op,
+                            left: lhs,
+                            right: rhs,
+                        },
+                        span.clone(),
+                    ))
+                }
+            };
             if negated {
                 lhs = Expression::UnaryOperation(Spanned::new(
                     UnaryOperation {
@@ -507,23 +610,6 @@ impl<'a> Parser<'a> {
             }
         }
 
-        // TODO: do we need to do that?
-        // Make sure some reserved names are not used outside of their context
-        // match &lhs {
-        //     Expression::Var(var) => {
-        //         // Only allowed in for loops
-        //         if var.name == "continue" || var.name == "break" {
-        //             if !self.body_contexts.contains(&BodyContext::ForLoop) {
-        //
-        //             }
-        //         }
-        //     }
-        //     Expression::FunctionCall(fn_call) => {
-        //
-        //     }
-        //     _ => (),
-        // }
-
         Ok(lhs)
     }
 
@@ -534,30 +620,25 @@ impl<'a> Parser<'a> {
 
     fn parse_for_loop(&mut self) -> TeraResult<ForLoop> {
         self.body_contexts.push(BodyContext::ForLoop);
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let (mut name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         // Do we have a key?
         let mut key = None;
         if matches!(self.next, Some(Ok((Token::Comma, _)))) {
             self.next_or_error()?;
             let (val, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            key = Some(val.to_string());
+            key = Some(name.to_string());
+            name = val;
         }
         expect_token!(self, Token::Ident("in"), "in")?;
         let target = self.parse_expression(0)?;
-        if !target.can_be_iterated_on() {
-            return Err(Error::new_syntax_error(
-                "for loops can only iterate on strings, arrays, idents and function.".to_string(),
-                &self.current_span,
-            ));
-        }
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body =
             self.parse_until(|tok| matches!(tok, Token::Ident("endfor") | Token::Ident("else")))?;
-        let mut else_body = Vec::new();
+        let mut else_body = None;
         if matches!(self.next, Some(Ok((Token::Ident("else"), _)))) {
             self.next_or_error()?;
             expect_token!(self, Token::TagEnd(..), "%}")?;
-            else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endfor")))?;
+            else_body = Some(self.parse_until(|tok| matches!(tok, Token::Ident("endfor")))?);
         }
         // eat the endfor
         self.next_or_error()?;
@@ -568,27 +649,30 @@ impl<'a> Parser<'a> {
             value: name.to_string(),
             target,
             body,
-            else_body,
+            else_body: else_body.unwrap_or_default(),
         })
     }
 
     fn parse_if(&mut self) -> TeraResult<If> {
         self.body_contexts.push(BodyContext::If);
-        let mut conditions = Vec::new();
-        let mut else_body = Vec::new();
         let expr = self.parse_expression(0)?;
         expect_token!(self, Token::TagEnd(..), "%}")?;
-        let if_body = self.parse_until(|tok| {
+        let body = self.parse_until(|tok| {
             matches!(
                 tok,
                 Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
             )
         })?;
-        conditions.push((expr, if_body));
 
+        let mut false_body = Vec::new();
+
+        let mut elif = None;
         loop {
             match &self.next {
                 Some(Ok((Token::Ident("elif"), _))) => {
+                    if let Some(existing_elif) = elif {
+                        false_body.push(Node::If(existing_elif));
+                    }
                     self.next_or_error()?;
                     let expr = self.parse_expression(0)?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
@@ -598,23 +682,32 @@ impl<'a> Parser<'a> {
                             Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
                         )
                     })?;
-                    conditions.push((expr, elif_body));
+                    elif = Some(If {
+                        expr,
+                        body: elif_body,
+                        false_body: Vec::new(),
+                    });
                 }
                 Some(Ok((Token::Ident("else"), _))) => {
                     self.next_or_error()?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
-                    else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+                    let else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
+                    if let Some(ref mut current_elif) = elif {
+                        current_elif.false_body = else_body;
+                    } else {
+                        false_body = else_body;
+                    }
                 }
                 Some(Ok((Token::Ident("endif"), _))) => {
+                    if let Some(el) = elif {
+                        false_body.push(Node::If(el));
+                    }
                     self.next_or_error()?;
                     break;
                 }
                 Some(Ok((token, _))) => {
-                    return Err(Error::new_syntax_error(
-                        format!(
-                            "Found {} but was expecting `elif`, `else` or `endif`.",
-                            token
-                        ),
+                    return Err(Error::syntax_error(
+                        format!("Found {token} but was expecting `elif`, `else` or `endif`."),
                         &self.current_span,
                     ));
                 }
@@ -630,14 +723,15 @@ impl<'a> Parser<'a> {
 
         self.body_contexts.pop();
         Ok(If {
-            conditions,
-            else_body,
+            expr,
+            body,
+            false_body,
         })
     }
 
     fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
         if !self.body_contexts.is_empty() {
-            return Err(Error::new_syntax_error(
+            return Err(Error::syntax_error(
                 "Macro definitions cannot be written in another tag.".to_string(),
                 &self.current_span,
             ));
@@ -661,21 +755,13 @@ impl<'a> Parser<'a> {
                     self.next_or_error()?;
 
                     let val = match &self.next {
-                        Some(Ok((Token::Bool(b), span))) => {
-                            Expression::Bool(Spanned::new(*b, span.clone()))
-                        }
-                        Some(Ok((Token::String(b), span))) => {
-                            Expression::Str(Spanned::new(b.to_string(), span.clone()))
-                        }
-                        Some(Ok((Token::Integer(b), span))) => {
-                            Expression::Integer(Spanned::new(*b, span.clone()))
-                        }
-                        Some(Ok((Token::Float(b), span))) => {
-                            Expression::Float(Spanned::new(*b, span.clone()))
-                        }
+                        Some(Ok((Token::Bool(b), _))) => Value::from(*b),
+                        Some(Ok((Token::String(b), _))) => Value::from(*b),
+                        Some(Ok((Token::Integer(b), _))) => Value::from(*b),
+                        Some(Ok((Token::Float(b), _))) => Value::from(*b),
                         Some(Ok((token, _))) => {
-                            return Err(Error::new_syntax_error(
-                                format!("Found {} but macro default arguments can only be one of: string, bool, integer, float", token),
+                            return Err(Error::syntax_error(
+                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
                                 &self.current_span,
                             ));
                         }
@@ -722,30 +808,70 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_set(&mut self, global: bool) -> TeraResult<Node> {
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        if RESERVED_NAMES.contains(&name) {
+            return Err(Error::syntax_error(
+                format!("{name} is a reserved keyword of Tera, it cannot be assigned to."),
+                &self.current_span,
+            ));
+        }
+
+        // From where we will diverge whether it's a basic set or a block set
+        let node = match self.next {
+            Some(Ok((Token::Assign, _))) => {
+                expect_token!(self, Token::Assign, "=")?;
+                let value = self.parse_expression(0)?;
+                Node::Set(Set {
+                    name: name.to_string(),
+                    value,
+                    global,
+                })
+            }
+            Some(Ok((Token::Pipe, _))) | Some(Ok((Token::TagEnd(..), _))) => {
+                let mut filters = vec![];
+
+                loop {
+                    if let Some(Ok((Token::Pipe, _))) = self.next {
+                        expect_token!(self, Token::Pipe, "|")?;
+                        filters.push(self.parse_filter(Expression::Const(Spanned::new(
+                            Value::Null,
+                            self.current_span.clone(),
+                        )))?);
+                    } else {
+                        expect_token!(self, Token::TagEnd(..), "%}")?;
+                        break;
+                    }
+                }
+
+                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endset")))?;
+                self.next_or_error()?;
+                Node::BlockSet(BlockSet {
+                    name: name.to_string(),
+                    filters,
+                    body,
+                    global,
+                })
+            }
+            _ => {
+                return Err(Error::syntax_error(
+                    "Invalid syntax for `set`: expecting an `=` followed by an expression or a `%}}`".to_string(),
+                    &self.current_span,
+                ));
+            }
+        };
+
+        Ok(node)
+    }
+
     // We need to know whether this is the first node we encounter to error if the tag is an extend
     // but not the first content node
     fn parse_tag(&mut self, is_first_node: bool) -> TeraResult<Option<Node>> {
         let (tag_token, _) = self.next_or_error()?;
         match tag_token {
-            Token::Ident("set") | Token::Ident("set_global") => {
-                let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                if RESERVED_NAMES.contains(&name) {
-                    return Err(Error::new_syntax_error(
-                        format!(
-                            "{} is a reserved keyword of Tera, it cannot be assigned to.",
-                            name
-                        ),
-                        &self.current_span,
-                    ));
-                }
-                expect_token!(self, Token::Assign, "=")?;
-                let value = self.parse_expression(0)?;
-                Ok(Some(Node::Set(Set {
-                    name: name.to_string(),
-                    value,
-                    global: tag_token == Token::Ident("set_global"),
-                })))
-            }
+            Token::Ident("set") | Token::Ident("set_global") => Ok(Some(
+                self.parse_set(tag_token == Token::Ident("set_global"))?,
+            )),
             Token::Ident("include") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
                 Ok(Some(Node::Include(Include {
@@ -754,28 +880,35 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("extends") => {
                 let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
-                if let Some(ref parent) = self.parent {
-                    return Err(Error::new_syntax_error(
-                        format!("Template is already extending `{}`", parent),
+                if let Some(ref parent) = self.output.parent {
+                    return Err(Error::syntax_error(
+                        format!("Template is already extending `{parent}`"),
                         &self.current_span,
                     ));
                 }
                 if !is_first_node {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         "`extends` needs to be the first tag of the template".to_string(),
                         &self.current_span,
                     ));
                 }
                 if !self.body_contexts.is_empty() {
-                    return Err(Error::new_syntax_error(
+                    return Err(Error::syntax_error(
                         "`extends` cannot be nested in other tags.".to_string(),
                         &self.current_span,
                     ));
                 }
-                self.parent = Some(name.to_string());
+                self.output.parent = Some(name.to_string());
                 Ok(None)
             }
             Token::Ident("block") => {
+                if self.body_contexts.iter().any(|b| !b.can_contain_blocks()) {
+                    return Err(Error::syntax_error(
+                        "Blocks cannot be written in a tag other than block or filter section."
+                            .to_string(),
+                        &self.current_span,
+                    ));
+                }
                 self.body_contexts.push(BodyContext::Block);
                 let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
                 expect_token!(self, Token::TagEnd(..), "%}")?;
@@ -788,26 +921,20 @@ impl<'a> Parser<'a> {
                     }
                 }
 
-                if self.blocks.contains_key(name) {
-                    return Err(Error::new_syntax_error(
-                        format!("Template already contains a block named `{}`", name),
+                if self.blocks_seen.contains(name) {
+                    return Err(Error::syntax_error(
+                        format!("Template already contains a block named `{name}`"),
                         &self.current_span,
                     ));
                 }
 
                 self.body_contexts.pop();
 
-                if self.parent.is_some() {
-                    self.blocks.insert(name.to_string(), body);
-                    Ok(None)
-                } else {
-                    // Only filled to give an error if there are duplicates
-                    self.blocks.insert(name.to_string(), Vec::new());
-                    Ok(Some(Node::Block(Block {
-                        name: name.to_string(),
-                        body,
-                    })))
-                }
+                self.blocks_seen.insert(name.to_string());
+                Ok(Some(Node::Block(Block {
+                    name: name.to_string(),
+                    body,
+                })))
             }
             Token::Ident("for") => {
                 let node = self.parse_for_loop()?;
@@ -829,27 +956,18 @@ impl<'a> Parser<'a> {
                 let mut fn_span = ident_span.clone();
                 fn_span.expand(&self.current_span);
                 expect_token!(self, Token::TagEnd(..), "%}")?;
-
-                let filter = Expression::FunctionCall(Spanned::new(
-                    FunctionCall {
-                        expr: Expression::Var(Spanned::new(
-                            Var {
-                                name: name.to_string(),
-                            },
-                            ident_span,
-                        )),
-                        kwargs,
-                    },
-                    fn_span,
-                ));
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endfilter")))?;
                 self.next_or_error()?;
                 self.body_contexts.pop();
-                Ok(Some(Node::FilterSection(FilterSection { filter, body })))
+                Ok(Some(Node::FilterSection(FilterSection {
+                    name: Spanned::new(name.to_owned(), ident_span),
+                    kwargs,
+                    body,
+                })))
             }
             Token::Ident("macro") => {
                 let macro_def = self.parse_macro_definition()?;
-                self.macros.insert(macro_def.name.clone(), macro_def);
+                self.output.macro_definitions.push(macro_def);
                 Ok(None)
             }
             Token::Ident("import") => {
@@ -857,17 +975,25 @@ impl<'a> Parser<'a> {
                 let (filename, _) = expect_token!(self, Token::String(s) => s, "string")?;
                 expect_token!(self, Token::Ident("as"), "as")?;
                 let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
-                self.macro_imports
+
+                for (_, namespace2) in &self.output.macro_imports {
+                    if namespace == namespace2 {
+                        return Err(Error::syntax_error(
+                            format!("Multiple macros imports using the `{namespace}` namespace"),
+                            &self.current_span,
+                        ));
+                    }
+                }
+                self.output
+                    .macro_imports
                     .push((filename.to_string(), namespace.to_string()));
 
                 Ok(None)
             }
-            _ => {
-                Err(Error::new_syntax_error(
-                    "Unknown tag".to_string(),
-                    &self.current_span,
-                ))
-            }
+            _ => Err(Error::syntax_error(
+                "Unknown tag".to_string(),
+                &self.current_span,
+            )),
         }
     }
 
@@ -879,7 +1005,6 @@ impl<'a> Parser<'a> {
                 Token::Content(c) => {
                     // We have pushed an empty content to replace comment so we ignore those
                     if !c.is_empty() {
-                        self.size_hint += c.len();
                         nodes.push(Node::Content(c.to_owned()));
                     }
                 }
@@ -915,10 +1040,11 @@ impl<'a> Parser<'a> {
         Ok(nodes)
     }
 
-    pub fn parse(&mut self) -> TeraResult<Vec<Node>> {
+    // TODO: make this private when we can load a template from a str
+    pub fn parse(mut self) -> TeraResult<ParserOutput> {
         // get the first token
         self.next()?;
-        let nodes = self.parse_until(|_| false)?;
-        Ok(nodes)
+        self.output.nodes = self.parse_until(|_| false)?;
+        Ok(self.output)
     }
 }

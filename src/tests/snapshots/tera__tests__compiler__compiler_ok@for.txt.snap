@@ -1,0 +1,17 @@
+---
+source: src/tests/compiler.rs
+expression: compiler.chunk
+input_file: src/tests/compiler_inputs/success/for.txt
+---
+=== for.txt ===
+0000 LoadName("my_array")
+0001 BuildMap(0)
+0002 ApplyFilter("sort")
+0003 StartIterate(false)
+0004 Iterate(9)
+0005 StoreLocal("v")
+0006 LoadName("v")
+0007 WriteTop
+0008 Jump(4)
+0009 PopLoop
+

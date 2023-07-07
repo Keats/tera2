@@ -1,0 +1,17 @@
+---
+source: src/tests/compiler.rs
+expression: s
+input_file: src/tests/compiler_inputs/blocks/super.txt
+---
+=== super.txt ===
+0000 RenderBlock("content")
+
+
+>> Block: content
+=== super.txt ===
+0000 BuildMap(0)
+0001 CallFunction("super")
+0002 WriteTop
+0003 WriteText(" - My site")
+---
+

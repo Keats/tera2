@@ -1,7 +1,0 @@
----
-source: src/tests/parser.rs
-expression: res.unwrap_err()
-input_file: src/tests/parser_inputs/errors/uniterable_value.txt
----
-error: for loops can only iterate on strings, arrays, idents and function.
-  -->   @ 1:12-1:16

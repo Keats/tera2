@@ -1,6 +1,6 @@
 
 [package]
-name = "parser-test-fuzz"
+name = "tera-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
@@ -12,7 +12,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 
-[dependencies.parser-test]
+[dependencies.tera]
 path = ".."
 
 # Prevent this from interfering with workspaces

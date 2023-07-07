@@ -1,18 +1,39 @@
 [package]
-name = "parser-test"
-version = "0.1.0"
+name = "tera"
+version = "2.0.0"
 edition = "2021"
 
 [dependencies]
+serde = "1"
 # TODO: make it optional?
-#ariadne = "0.1.5"
+#ariadne = "0.2"
 #codespan-reporting = "0.11"
-#valuable =  { git = "https://github.com/tokio-rs/valuable/", features = ["derive"] }
+indexmap = {version = "2", optional = true}
+
+[features]
+preserve_order = ["dep:indexmap"]
+
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 insta = { version = "1", features = ["glob"] }
+serde_derive = "1.0.156"
+
+[lib]
+doctest = false
 
 [[bench]]
 name = "parsing"
+harness = false
+
+[[bench]]
+name = "value"
+harness = false
+
+[[bench]]
+name = "escape"
+harness = false
+
+[[bench]]
+name = "templates"
 harness = false

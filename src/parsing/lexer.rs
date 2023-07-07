@@ -3,7 +3,7 @@ use std::fmt;
 use crate::errors::Error;
 use crate::utils::Span;
 
-// handwritten lexer, peekable iterator taken from minijinja
+// handwritten lexer, peekable iterator/tokenization mostly taken from minijinja
 
 fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
@@ -119,20 +119,20 @@ pub enum Token<'a> {
 impl<'a> fmt::Debug for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Content(s) => write!(f, "CONTENT({:?})", s),
+            Token::Content(s) => write!(f, "CONTENT({s:?})"),
             Token::RawContent(ws_start, s, ws_end) => {
-                write!(f, "RAW_CONTENT({}, {:?}, {})", ws_start, s, ws_end)
+                write!(f, "RAW_CONTENT({ws_start}, {s:?}, {ws_end})")
             }
-            Token::VariableStart(ws) => write!(f, "VARIABLE_START({})", ws),
-            Token::VariableEnd(ws) => write!(f, "VARIABLE_END({})", ws),
-            Token::TagStart(ws) => write!(f, "TAG_START({})", ws),
-            Token::TagEnd(ws) => write!(f, "TAG_END({})", ws),
-            Token::Comment(start, end) => write!(f, "COMMENT({}, {})", start, end),
-            Token::Ident(i) => write!(f, "IDENT({})", i),
-            Token::String(s) => write!(f, "STRING({:?})", s),
-            Token::Integer(i) => write!(f, "INTEGER({:?})", i),
-            Token::Float(v) => write!(f, "FLOAT({:?})", v),
-            Token::Bool(v) => write!(f, "BOOL({:?})", v),
+            Token::VariableStart(ws) => write!(f, "VARIABLE_START({ws})"),
+            Token::VariableEnd(ws) => write!(f, "VARIABLE_END({ws})"),
+            Token::TagStart(ws) => write!(f, "TAG_START({ws})"),
+            Token::TagEnd(ws) => write!(f, "TAG_END({ws})"),
+            Token::Comment(start, end) => write!(f, "COMMENT({start}, {end})"),
+            Token::Ident(i) => write!(f, "IDENT({i})"),
+            Token::String(s) => write!(f, "STRING({s:?})"),
+            Token::Integer(i) => write!(f, "INTEGER({i:?})"),
+            Token::Float(v) => write!(f, "FLOAT({v:?})"),
+            Token::Bool(v) => write!(f, "BOOL({v:?})"),
             Token::Plus => write!(f, "PLUS"),
             Token::Minus => write!(f, "MINUS"),
             Token::Mul => write!(f, "MUL"),
@@ -220,7 +220,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
     macro_rules! syntax_error {
         ($message:expr, $span:expr) => {{
             errored = true;
-            return Some(Err(Error::new_syntax_error($message.to_string(), &$span)));
+            return Some(Err(Error::syntax_error($message.to_string(), &$span)));
         }};
     }
 
@@ -360,7 +360,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                             let body_start_offset = offset;
                             // Then we see whether we find the start of the tag
                             while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {
-                                let body_end_offset = offset;
+                                let body_end_offset = offset + block;
                                 offset += block + 2;
                                 // Check if the tag starts with a {%- so we know we need to end trim the body
                                 let start_ws_end_tag =
@@ -481,15 +481,9 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
 
                 // Then the rest of the ops, strings and numbers
                 // strings and numbers will get returned inside the match so only operators are returned
-                let op = match rest.as_bytes().get(0) {
+                let op = match rest.as_bytes().first() {
                     Some(b'+') => Some(Token::Plus),
-                    Some(b'-') => {
-                        if rest.as_bytes().get(1).map_or(false, |x| x.is_ascii_digit()) {
-                            advance!(1);
-                            lex_number!(true);
-                        }
-                        Some(Token::Minus)
-                    }
+                    Some(b'-') => Some(Token::Minus),
                     Some(b'*') => Some(Token::Mul),
                     Some(b'/') => Some(Token::Div),
                     Some(b'%') => Some(Token::Mod),

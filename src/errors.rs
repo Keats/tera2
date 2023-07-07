@@ -1,6 +1,8 @@
 //! The Tera error type, with optional nice terminal error reporting.
 use std::fmt::{self};
 
+use std::error::Error as StdError;
+
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,14 +36,72 @@ impl fmt::Display for SyntaxError {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorKind {
-    // Both lexer and parser errors
+    /// Generic error
+    Msg(String),
+    /// Both lexer and parser errors
     SyntaxError(SyntaxError),
+    /// A loop was found while looking up the inheritance chain
+    CircularExtend {
+        /// Name of the template with the loop
+        tpl: String,
+        /// All the parents templates we found so far
+        inheritance_chain: Vec<String>,
+    },
+    /// A template is extending a template that wasn't found in the Tera instance
+    MissingParent {
+        /// The template we are currently looking at
+        current: String,
+        /// The missing template
+        parent: String,
+    },
+    /// A template is calling a macro namespace that is not loaded
+    NamespaceNotLoaded {
+        /// Name of the template with the issue
+        tpl: String,
+        /// The namespace causing problems
+        namespace: String,
+    },
+    /// A template was missing
+    TemplateNotFound(String),
+    /// An IO error occurred
+    Io(std::io::ErrorKind),
+    /// UTF-8 conversion error when converting output to UTF-8
+    ///
+    /// This should not occur unless invalid UTF8 chars are rendered
+    Utf8Conversion,
 }
 
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::SyntaxError(s) => write!(f, "{}", s),
+            ErrorKind::Msg(ref message) => write!(f, "{message}"),
+            ErrorKind::SyntaxError(s) => write!(f, "{s}"),
+            ErrorKind::CircularExtend {
+                ref tpl,
+                ref inheritance_chain,
+            } => write!(
+                f,
+                "Circular extend detected for template '{tpl}'. Inheritance chain: `{inheritance_chain:?}`",
+            ),
+            ErrorKind::MissingParent {
+                ref current,
+                ref parent,
+            } => write!(
+                f,
+                "Template '{current}' is inheriting from '{parent}', which doesn't exist or isn't loaded.",
+            ),
+            ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{name}' not found"),
+            ErrorKind::NamespaceNotLoaded {
+                ref tpl,
+                ref namespace,
+            } => write!(
+                f,
+                "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
+            ),
+            ErrorKind::Io(ref io_error) => {
+                write!(f, "Io error while writing rendered value to output: {:?}", io_error)
+            }
+            ErrorKind::Utf8Conversion => write!(f, "Invalid UTF-8 characters found while rendering.")
         }
     }
 }
@@ -64,10 +124,76 @@ impl Error {
         Self { kind, source: None }
     }
 
-    pub fn new_syntax_error(message: String, span: &Span) -> Self {
+    /// Creates generic error with a source
+    pub fn chain(value: impl ToString, source: impl Into<Box<dyn StdError + Send + Sync>>) -> Self {
+        Self {
+            kind: ErrorKind::Msg(value.to_string()),
+            source: Some(source.into()),
+        }
+    }
+
+    pub(crate) fn message(message: String) -> Self {
+        Self {
+            kind: ErrorKind::Msg(message),
+            source: None,
+        }
+    }
+
+    pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
             kind: ErrorKind::SyntaxError(SyntaxError::new(message, span)),
             source: None,
+        }
+    }
+
+    pub(crate) fn circular_extend(tpl: impl ToString, inheritance_chain: Vec<String>) -> Self {
+        Self {
+            kind: ErrorKind::CircularExtend {
+                tpl: tpl.to_string(),
+                inheritance_chain,
+            },
+            source: None,
+        }
+    }
+
+    pub(crate) fn missing_parent(current: impl ToString, parent: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::MissingParent {
+                current: current.to_string(),
+                parent: parent.to_string(),
+            },
+            source: None,
+        }
+    }
+
+    pub(crate) fn namespace_not_loaded(tpl: impl ToString, namespace: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::NamespaceNotLoaded {
+                tpl: tpl.to_string(),
+                namespace: namespace.to_string(),
+            },
+            source: None,
+        }
+    }
+
+    pub(crate) fn io_error(error: std::io::Error) -> Self {
+        Self {
+            kind: ErrorKind::Io(error.kind()),
+            source: Some(Box::new(error)),
+        }
+    }
+
+    pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
+    }
+
+    pub(crate) fn invalid_utf8(error: std::string::FromUtf8Error) -> Self {
+        Self {
+            kind: ErrorKind::Utf8Conversion,
+            source: Some(Box::new(error)),
         }
     }
 }
@@ -78,4 +204,26 @@ impl std::error::Error for Error {
     }
 }
 
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Self::io_error(error)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        Self::invalid_utf8(error)
+    }
+}
+
 pub type TeraResult<T> = Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_error_is_send_and_sync() {
+        fn test_send_sync<T: Send + Sync>() {}
+
+        test_send_sync::<super::Error>();
+    }
+}

@@ -1,0 +1,3 @@
+{% set hero | upper | trans(lang="fr") %}
+Hello {{ world }}
+{% endset %}

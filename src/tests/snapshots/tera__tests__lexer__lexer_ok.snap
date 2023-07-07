@@ -1,0 +1,8 @@
+---
+source: src/tests/lexer.rs
+expression: "&tokens"
+input_file: src/tests/lexer_inputs/success/raw2.txt
+---
+[
+    CONTENT("    yaml_test:     "),
+]

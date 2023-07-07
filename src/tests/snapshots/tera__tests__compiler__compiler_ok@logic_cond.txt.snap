@@ -1,0 +1,18 @@
+---
+source: src/tests/compiler.rs
+expression: compiler.chunk
+input_file: src/tests/compiler_inputs/success/logic_cond.txt
+---
+=== logic_cond.txt ===
+0000 LoadName("a")
+0001 JumpIfFalseOrPop(3)
+0002 LoadName("b")
+0003 PopJumpIfFalse(6)
+0004 WriteText("1")
+0005 Jump(11)
+0006 LoadName("c")
+0007 JumpIfTrueOrPop(9)
+0008 LoadName("d")
+0009 PopJumpIfFalse(11)
+0010 WriteText("2")
+

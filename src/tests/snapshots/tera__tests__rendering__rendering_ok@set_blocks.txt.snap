@@ -1,0 +1,6 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/set_blocks.txt
+---
+From set: A string with Bob

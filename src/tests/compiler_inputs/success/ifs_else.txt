@@ -1,0 +1,1 @@
+{% if a == 0 %}A{% elif a == 1 %}B{% else %}Oops{% endif %}

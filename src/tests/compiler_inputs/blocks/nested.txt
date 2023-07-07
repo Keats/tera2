@@ -1,0 +1,1 @@
+{% block hello %}body{% block inside_hello %}more{% endblock %}{% endblock hello %}
