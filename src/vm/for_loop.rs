@@ -1,4 +1,4 @@
-use crate::value::Key;
+use crate::value::{Key, StringKind};
 use crate::Value;
 
 use serde::ser::SerializeStruct;
@@ -26,7 +26,10 @@ impl ForLoopValues {
             ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
             ForLoopValues::String(a) => (
                 Value::Null,
-                Value::String(Arc::new(a.pop_front().unwrap().to_string())),
+                Value::String(
+                    Arc::new(a.pop_front().unwrap().to_string()),
+                    StringKind::Normal,
+                ),
             ),
             ForLoopValues::Object(a) => {
                 let (key, value) = a.pop_front().unwrap();
@@ -104,7 +107,7 @@ impl ForLoop {
                 }
                 ForLoopValues::Object(vals)
             }
-            Value::String(s) => {
+            Value::String(s, _) => {
                 if is_key_value {
                     todo!("Error");
                 }

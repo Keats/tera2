@@ -158,7 +158,7 @@ impl fmt::Debug for Expression {
                 Value::Bool(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
-                Value::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                Value::String(j, _) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 Value::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
@@ -185,7 +185,7 @@ impl fmt::Display for Expression {
 
         match self {
             Const(i) => match i.node() {
-                Value::String(s) => write!(f, "'{}'", *s),
+                Value::String(s, _) => write!(f, "'{}'", *s),
                 Value::I64(s) => write!(f, "{}", *s),
                 Value::F64(s) => write!(f, "{}", *s),
                 Value::Bool(s) => write!(f, "{}", *s),
@@ -196,7 +196,7 @@ impl fmt::Display for Expression {
                             write!(f, ", ")?;
                         }
                         match elem {
-                            Value::String(t) => write!(f, r#""{t}""#),
+                            Value::String(t, _) => write!(f, r#""{t}""#),
                             _ => write!(f, "{elem}"),
                         }?;
                     }

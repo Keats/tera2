@@ -10,8 +10,8 @@ input_file: src/tests/compiler_inputs/success/filter_section.txt
 0003 WriteTop
 0004 WriteText("\n")
 0005 EndCapture
-0006 LoadConst(String("lang"))
-0007 LoadConst(String("fr"))
+0006 LoadConst(String("lang", Normal))
+0007 LoadConst(String("fr", Normal))
 0008 BuildMap(1)
 0009 ApplyFilter("capitalize")
 

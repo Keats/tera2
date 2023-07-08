@@ -17,6 +17,7 @@ mod ser;
 mod utils;
 
 use crate::errors::{Error, TeraResult};
+use crate::escape_html;
 use crate::value::number::Number;
 pub use key::Key;
 
@@ -25,6 +26,12 @@ pub type Map = HashMap<Key, Value>;
 
 #[cfg(feature = "preserve_order")]
 pub type Map = IndexMap<Key, Value>;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum StringKind {
+    Normal,
+    Safe,
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -39,7 +46,7 @@ pub enum Value {
     Array(Arc<Vec<Value>>),
     Bytes(Arc<Vec<u8>>),
     // TODO: string interning?
-    String(Arc<String>),
+    String(Arc<String>, StringKind),
     // TODO: change the hash alg feature? rustc-hash/ahash after testing
     Map(Arc<Map>),
 }
@@ -66,7 +73,13 @@ impl fmt::Display for Value {
                 write!(f, "]")
             }
             Value::Bytes(v) => write!(f, "{}", String::from_utf8_lossy(v)),
-            Value::String(v) => write!(f, "{v}"),
+            Value::String(v, kind) => {
+                if *kind == StringKind::Safe {
+                    write!(f, "{v}")
+                } else {
+                    write!(f, "{}", escape_html(v))
+                }
+            }
             Value::Map(v) => {
                 write!(f, "{{")?;
                 let mut key_val: Vec<_> = v.iter().collect();
@@ -93,7 +106,9 @@ impl PartialEq for Value {
             (Value::Bool(v), Value::Bool(v2)) => v == v2,
             (Value::Array(v), Value::Array(v2)) => v == v2,
             (Value::Bytes(v), Value::Bytes(v2)) => v == v2,
-            (Value::String(v), Value::String(v2)) => v == v2,
+            // TODO: should string kind be used for partialeq? They might be equal now but
+            // different later if one needs to be escape
+            (Value::String(v, _), Value::String(v2, _)) => v == v2,
             (Value::Map(v), Value::Map(v2)) => v == v2,
             // Then the numbers
             // First if there's a float we need to convert to float
@@ -124,7 +139,7 @@ impl PartialOrd for Value {
             (Value::Bool(v), Value::Bool(v2)) => v.partial_cmp(v2),
             (Value::Array(v), Value::Array(v2)) => v.partial_cmp(v2),
             (Value::Bytes(v), Value::Bytes(v2)) => v.partial_cmp(v2),
-            (Value::String(v), Value::String(v2)) => v.partial_cmp(v2),
+            (Value::String(v, _), Value::String(v2, _)) => v.partial_cmp(v2),
             // Then the numbers
             // First if there's a float we need to convert to float
             (Value::F64(v), _) => v.partial_cmp(&other.as_f64()?),
@@ -184,7 +199,7 @@ impl Value {
 
     fn as_str(&self) -> Option<&str> {
         match self {
-            Value::String(s) => Some(s),
+            Value::String(s, _) => Some(s),
             _ => None,
         }
     }
@@ -215,7 +230,7 @@ impl Value {
             Value::I128(v) => *v != 0,
             Value::Array(v) => !v.is_empty(),
             Value::Bytes(v) => !v.is_empty(),
-            Value::String(v) => !v.is_empty(),
+            Value::String(v, _) => !v.is_empty(),
             Value::Map(v) => !v.is_empty(),
         }
     }
@@ -226,7 +241,7 @@ impl Value {
             Value::U64(v) => Key::U64(*v),
             Value::I64(v) => Key::I64(*v),
             // TODO: not ideal to clone the actual string.
-            Value::String(v) => Key::String(Cow::Owned(v.as_str().to_string())),
+            Value::String(v, _) => Key::String(Cow::Owned(v.as_str().to_string())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
         Ok(key)
@@ -235,7 +250,7 @@ impl Value {
     pub(crate) fn contains(&self, needle: &Value) -> TeraResult<bool> {
         match self {
             Value::Array(arr) => Ok(arr.contains(needle)),
-            Value::String(s) => {
+            Value::String(s, _) => {
                 if let Some(needle_str) = needle.as_str() {
                     Ok(s.contains(needle_str))
                 } else {
@@ -287,7 +302,7 @@ impl Serialize for Value {
             Value::U128(u) => serializer.serialize_u128(*u),
             Value::I128(i) => serializer.serialize_i128(*i),
             Value::Bytes(b) => serializer.serialize_bytes(b),
-            Value::String(s) => serializer.serialize_str(s),
+            Value::String(s, _) => serializer.serialize_str(s),
             Value::Array(arr) => {
                 let mut seq = serializer.serialize_seq(Some(arr.len()))?;
                 for val in arr.iter() {
@@ -314,13 +329,13 @@ impl From<bool> for Value {
 
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        Value::String(Arc::new(value.to_owned()))
+        Value::String(Arc::new(value.to_owned()), StringKind::Normal)
     }
 }
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::String(Arc::new(value))
+        Value::String(Arc::new(value), StringKind::Normal)
     }
 }
 
@@ -372,7 +387,7 @@ impl From<Key> for Value {
             Key::Bool(b) => Value::Bool(b),
             Key::U64(u) => Value::U64(u),
             Key::I64(i) => Value::I64(i),
-            Key::String(s) => Value::String(Arc::new(s.to_string())),
+            Key::String(s) => Value::String(Arc::new(s.to_string()), StringKind::Normal),
         }
     }
 }
