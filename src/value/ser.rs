@@ -5,7 +5,7 @@ use crate::value::key::Key;
 use serde::{ser, Serialize, Serializer};
 
 use crate::value::utils::SerializationFailed;
-use crate::value::{Map, Value};
+use crate::value::{Map, StringKind, Value};
 
 pub struct ValueSerializer;
 
@@ -74,11 +74,11 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(Arc::new(v.to_string())))
+        Ok(Value::String(Arc::new(v.to_string()), StringKind::Normal))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(Arc::new(v.to_owned())))
+        Ok(Value::String(Arc::new(v.to_owned()), StringKind::Normal))
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
@@ -110,7 +110,10 @@ impl Serializer for ValueSerializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(Arc::new(variant.to_owned())))
+        Ok(Value::String(
+            Arc::new(variant.to_owned()),
+            StringKind::Normal,
+        ))
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -306,7 +309,7 @@ impl ser::SerializeMap for SerializeMap {
         T: Serialize,
     {
         let key = match self.key.take().expect("value before key") {
-            Value::String(s) => s.to_string(),
+            Value::String(s, _) => s.to_string(),
             _ => todo!("to fix"),
         };
         let value = value.serialize(ValueSerializer)?;

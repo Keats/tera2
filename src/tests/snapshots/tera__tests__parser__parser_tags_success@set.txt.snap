@@ -57,6 +57,7 @@ input_file: src/tests/parser_inputs/success/set.txt
             ),
             String(
                 "hello",
+                Normal,
             ),
         ] @ 6:11-6:29 (133..151),
         global: false,

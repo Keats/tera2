@@ -12,8 +12,8 @@ input_file: src/tests/compiler_inputs/success/block_set.txt
 0005 EndCapture
 0006 BuildMap(0)
 0007 ApplyFilter("upper")
-0008 LoadConst(String("lang"))
-0009 LoadConst(String("fr"))
+0008 LoadConst(String("lang", Normal))
+0009 LoadConst(String("fr", Normal))
 0010 BuildMap(1)
 0011 ApplyFilter("trans")
 0012 Set("hero")
