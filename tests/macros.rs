@@ -368,7 +368,7 @@ fn template_cant_access_macros_context() {
     let result = tera.render("parent", &Context::new());
     assert_eq!(
         result.unwrap(),
-        "I'd rather have roses on my table than diamonds on my neck."
+        "I&#39;d rather have roses on my table than diamonds on my neck."
     );
 }
 

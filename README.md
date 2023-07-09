@@ -36,11 +36,11 @@ TODO:
   - [x] Ensure variables used in {{ }} are defined (vs if/tests where undefined are just falsy?)
   - [x] Fix bytecode generation when it's wrong
   - [x] Allow anything that can be converted to a key as a key for inline maps (eg add bool/integers)
-  - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [x] Make sure strings are escaped automatically (Value::String could be an enum with safe/unsafe string like markupsafe in python?) when printing
   - [ ] Fix/remove all the TODOs
   - [ ] Improve perf till it's better than Tera v1
   - [ ] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
+  - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [ ] Finish VM
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
