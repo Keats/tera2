@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
-#[cfg(not(feature = "preserve_order"))]
 use std::collections::HashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
