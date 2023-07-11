@@ -18,7 +18,7 @@ fn handles_undefined_correctly() {
     let mut existing = SomeStruct::default();
     context.insert("existing", &existing);
 
-    let mut tests = vec![
+    let tests = vec![
         ("{{ hey }}", None),
         ("{{ existing.hey }}", None),
         ("{{ hey or 1 }}", Some("1")),

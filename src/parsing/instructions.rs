@@ -63,6 +63,7 @@ pub(crate) enum Instruction {
     /// Start to iterate on the value at the top of the stack. The integer is the ip to jump to
     /// when the for loop is over
     Iterate(usize),
+    StoreDidNotIterate,
     /// At the end of a loop we want to remove it
     PopLoop,
 

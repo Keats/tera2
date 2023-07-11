@@ -293,14 +293,18 @@ impl<'s> Compiler<'s> {
                     self.compile_node(node);
                 }
 
+                let has_else = !forloop.else_body.is_empty();
+
                 match self.processing_bodies.pop() {
                     Some(ProcessingBody::Loop(start_idx)) => {
-                        // TODO: handle key value
                         self.chunk.add(Instruction::Jump(start_idx));
                         let loop_end = self.chunk.len();
 
+                        if has_else {
+                            self.chunk.add(Instruction::StoreDidNotIterate);
+                        }
+
                         self.chunk.add(Instruction::PopLoop);
-                        // TODO: handle else by pushing something
                         if let Some(Instruction::Iterate(ref mut jump_target)) =
                             self.chunk.get_mut(start_idx)
                         {
@@ -310,6 +314,15 @@ impl<'s> Compiler<'s> {
                         }
                     }
                     _ => unreachable!(),
+                }
+
+                if has_else {
+                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                    self.processing_bodies.push(ProcessingBody::Branch(idx));
+                    for node in forloop.else_body {
+                        self.compile_node(node);
+                    }
+                    self.end_branch(self.chunk.len());
                 }
             }
             Node::If(i) => {

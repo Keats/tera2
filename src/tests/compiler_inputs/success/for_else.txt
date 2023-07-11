@@ -1,0 +1,1 @@
+{% for i in items %}{{i}}{% else %}Empty{% endfor %}

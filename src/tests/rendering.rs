@@ -29,6 +29,7 @@ fn rendering_ok() {
         context.insert("age", &18);
         context.insert("product", &Product::new());
         context.insert("vectors", &vec![vec![0, 3, 6], vec![1, 4, 7]]);
+        context.insert("empty", &Vec::<usize>::new());
         let mut data: HashMap<String, Value> = HashMap::new();
         data.insert(
             "names".to_string(),

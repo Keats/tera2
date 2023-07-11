@@ -38,10 +38,11 @@ static TEAMS_TEMPLATE: &str = r#"
 
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("big-table", |b| {
-        let mut table = Vec::with_capacity(100);
-        for _ in 0..100 {
-            let mut inner = Vec::with_capacity(100);
-            for i in 0..100 {
+        let length = 100;
+        let mut table = Vec::with_capacity(length);
+        for _ in 0..length {
+            let mut inner = Vec::with_capacity(length);
+            for i in 0..length {
                 inner.push(i);
             }
             table.push(inner);

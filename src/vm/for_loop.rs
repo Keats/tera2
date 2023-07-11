@@ -13,6 +13,7 @@ use std::sync::Arc;
 pub enum ForLoopValues {
     /// Values for an array style iteration
     Array(VecDeque<Value>),
+    Bytes(VecDeque<u8>),
     // TODO: use unic-segment as a feature and use graphemes rather than char
     /// Values for a per-character iteration on a string
     String(VecDeque<char>),
@@ -24,6 +25,7 @@ impl ForLoopValues {
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
             ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
+            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.pop_front().unwrap() as u64)),
             ForLoopValues::String(a) => (
                 Value::Null,
                 Value::String(
@@ -41,9 +43,14 @@ impl ForLoopValues {
     pub fn len(&self) -> usize {
         match self {
             ForLoopValues::Array(a) => a.len(),
+            ForLoopValues::Bytes(a) => a.len(),
             ForLoopValues::String(a) => a.len(),
             ForLoopValues::Object(a) => a.len(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 
@@ -115,6 +122,17 @@ impl ForLoop {
                 let chars: VecDeque<_> = s.chars().collect();
                 ForLoopValues::String(chars)
             }
+            Value::Bytes(b) => {
+                if is_key_value {
+                    todo!("Error")
+                }
+                let mut bytes = VecDeque::with_capacity(b.len());
+                for a in b.iter() {
+                    bytes.push_back(*a);
+                }
+                // TODO: add tests to loops on bytes
+                ForLoopValues::Bytes(bytes)
+            }
             Value::Array(arr) => {
                 if is_key_value {
                     todo!("Error");
@@ -136,15 +154,13 @@ impl ForLoop {
             last: length == 0,
             length,
         };
-        let mut context = BTreeMap::new();
-        context.insert("loop".to_string(), Value::from_serializable(&loop_data));
 
         Self {
             values,
             loop_data,
             end_ip: 0,
             current_idx: 0,
-            context,
+            context: BTreeMap::new(),
             value_name: None,
             key_name: None,
             current_values: (Value::Null, Value::Null),
@@ -178,7 +194,16 @@ impl ForLoop {
     }
 
     pub(crate) fn is_over(&self) -> bool {
-        self.end_ip != 0 && self.current_idx == self.loop_data.length - 1
+        self.values.is_empty()
+            || (self.end_ip != 0 && self.current_idx == self.loop_data.length - 1)
+    }
+
+    pub(crate) fn iterated(&self) -> bool {
+        self.current_idx > 0
+    }
+
+    pub(crate) fn clear_context(&mut self) {
+        self.context.clear();
     }
 
     pub(crate) fn store(&mut self, name: &str, value: Value) {

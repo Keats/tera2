@@ -173,15 +173,13 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::RenderMacro(idx) => {
                     let kwargs = state.stack.pop().into_map().expect("to have kwargs");
                     let mut context = Context::new();
-                    // TODO: inheritance loads macros
-                    // see cargo test tests::macros::can_load_macro_in_child
                     // first need to make sure the data in the template makes sense
                     let curr_template = if self.template.parents.is_empty() {
                         self.template
                     } else {
                         self.tera.get_template(state.current_tpl_name())?
                     };
-                    // println!("{:?}", curr_template);
+
                     let compiled_macro_def = &curr_template.macro_calls_def[*idx];
                     for (key, value) in &compiled_macro_def.kwargs {
                         match kwargs.get(&key.as_str().into()) {
@@ -255,6 +253,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::StartIterate(is_key_value) => {
                     let container = state.stack.pop();
+                    // TODO: change instructions of for loops to be easier to handle?
                     state.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
                 Instruction::Iterate(end_ip) => {
@@ -266,8 +265,11 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         for_loop.advance();
                         for_loop.end_ip = *end_ip;
-                    } else {
-                        unreachable!()
+                    }
+                }
+                Instruction::StoreDidNotIterate => {
+                    if let Some(for_loop) = state.for_loops.last() {
+                        state.stack.push(Value::Bool(for_loop.iterated() == false));
                     }
                 }
                 Instruction::StoreLocal(name) => {

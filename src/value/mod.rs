@@ -43,6 +43,7 @@ pub enum Value {
     U128(u128),
     I128(i128),
     Array(Arc<Vec<Value>>),
+    // TODO: do we want bytes? Do we assume they are utf8?
     Bytes(Arc<Vec<u8>>),
     // TODO: string interning?
     String(Arc<String>, StringKind),
@@ -231,6 +232,16 @@ impl Value {
             Value::Bytes(v) => !v.is_empty(),
             Value::String(v, _) => !v.is_empty(),
             Value::Map(v) => !v.is_empty(),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        match self {
+            Value::Array(v) => v.is_empty(),
+            Value::Bytes(v) => v.is_empty(),
+            Value::String(v, _) => v.is_empty(),
+            Value::Map(v) => v.is_empty(),
+            _ => false,
         }
     }
 
