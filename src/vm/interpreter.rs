@@ -277,6 +277,12 @@ impl<'tera> VirtualMachine<'tera> {
                         state.stack.push(Value::Bool(for_loop.iterated() == false));
                     }
                 }
+                Instruction::Break => {
+                    if let Some(for_loop) = state.for_loops.last_mut() {
+                        ip = for_loop.end_ip;
+                        continue;
+                    }
+                }
                 Instruction::PopLoop => {
                     state.for_loops.pop();
                 }

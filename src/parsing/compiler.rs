@@ -324,6 +324,9 @@ impl<'s> Compiler<'s> {
                     self.end_branch(self.chunk.len());
                 }
             }
+            Node::Break => {
+                self.chunk.add(Instruction::Break);
+            }
             Node::If(i) => {
                 self.compile_expr(i.expr);
 

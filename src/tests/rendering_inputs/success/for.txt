@@ -1,6 +1,7 @@
 {% for name in data.names %}{{ name }}||{% endfor %}
 {% for key, val in product %}{{ key }}:{{ val }}||{% endfor %}
 {% for i in data.names %}{{loop.index}}.{{loop.index0}}: {{loop.first}}? {{loop.last}}?||{% endfor %}
+{% for i in data.names %}{% if loop.index0 == 1 %}{% break %}{% else %}{{i}}{% endif %}{% endfor %}
 {% for vector in vectors %}{% for j in vector %}{{ j }}{% endfor %}{% endfor %}
 {% for name in data.names %}{% set counter = loop.index0 + 1 %}{{counter}}{% endfor %}
 {% for name in data.names %}{% set_global counter = loop.index0 + 1 %}{{counter}}{% endfor %} -> {{counter}}

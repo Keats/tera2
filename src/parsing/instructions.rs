@@ -65,6 +65,9 @@ pub(crate) enum Instruction {
     StoreLocal(String),
     /// Store whether the loop did not iterate, used in for / else situations
     StoreDidNotIterate,
+    /// Skips the rest of the loop and goes straight to PopLoop
+    /// TODO: Can we skip it?
+    Break,
     /// At the end of a loop we want to remove it
     PopLoop,
 

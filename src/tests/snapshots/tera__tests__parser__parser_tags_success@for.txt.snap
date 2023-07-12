@@ -82,4 +82,39 @@ input_file: src/tests/parser_inputs/success/for.txt
             "Empty",
         ],
     },
+    ForLoop {
+        key: None,
+        value: "v",
+        target: [
+            I64(
+                1,
+            ),
+            I64(
+                2,
+            ),
+        ] @ 6:12-6:19 (275..282),
+        body: [
+            If {
+                expr: BinaryOperation {
+                    op: Equal,
+                    left: GetAttr {
+                        expr: Var {
+                            name: "loop",
+                        } @ 6:29-6:33 (292..296),
+                        name: "index0",
+                    } @ 6:29-6:40 (292..303),
+                    right: 1 @ 6:44-6:45 (307..308),
+                } @ 6:29-6:45 (292..308),
+                body: [
+                    "{% break %}",
+                ],
+                false_body: [
+                    Var {
+                        name: "v",
+                    } @ 6:71-6:72 (334..335),
+                ],
+            },
+        ],
+        else_body: [],
+    },
 ]
