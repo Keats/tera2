@@ -256,6 +256,11 @@ impl<'tera> VirtualMachine<'tera> {
                     // TODO: change instructions of for loops to be easier to handle?
                     state.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
+                Instruction::StoreLocal(name) => {
+                    if let Some(for_loop) = state.for_loops.last_mut() {
+                        for_loop.store_local(name.as_str());
+                    }
+                }
                 Instruction::Iterate(end_ip) => {
                     // TODO: something very slow happening with forloop
                     if let Some(for_loop) = state.for_loops.last_mut() {
@@ -270,13 +275,6 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::StoreDidNotIterate => {
                     if let Some(for_loop) = state.for_loops.last() {
                         state.stack.push(Value::Bool(for_loop.iterated() == false));
-                    }
-                }
-                Instruction::StoreLocal(name) => {
-                    if let Some(for_loop) = state.for_loops.last_mut() {
-                        for_loop.store_local(name.as_str());
-                    } else {
-                        unreachable!()
                     }
                 }
                 Instruction::PopLoop => {

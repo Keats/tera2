@@ -22,6 +22,7 @@ pub enum ForLoopValues {
 }
 
 impl ForLoopValues {
+    #[inline(always)]
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
             ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
@@ -40,6 +41,7 @@ impl ForLoopValues {
         }
     }
 
+    #[inline(always)]
     pub fn len(&self) -> usize {
         match self {
             ForLoopValues::Array(a) => a.len(),
@@ -49,6 +51,7 @@ impl ForLoopValues {
         }
     }
 
+    #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -89,7 +92,6 @@ impl Serialize for Loop {
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct ForLoop {
-    current_idx: usize,
     values: ForLoopValues,
     loop_data: Loop,
     pub(crate) end_ip: usize,
@@ -97,8 +99,6 @@ pub(crate) struct ForLoop {
     value_name: Option<String>,
     key_name: Option<String>,
     current_values: (Value, Value),
-    // Hack to know if we called StoreLocal once or twice
-    store_local_called: bool,
 }
 
 impl ForLoop {
@@ -159,12 +159,10 @@ impl ForLoop {
             values,
             loop_data,
             end_ip: 0,
-            current_idx: 0,
             context: BTreeMap::new(),
             value_name: None,
             key_name: None,
             current_values: (Value::Null, Value::Null),
-            store_local_called: false,
         }
     }
 
@@ -174,32 +172,29 @@ impl ForLoop {
         } else if self.key_name.is_none() {
             self.key_name = Some(name.to_string());
         }
-
-        if !self.store_local_called {
-            self.store_local_called = true;
-            // we pop when we see the value store local
-            self.current_values = self.values.pop_front();
-        }
     }
 
     /// Advance the counter only after the end ip has been set (eg we start incrementing only from the
     /// second time we see the loop)
     pub(crate) fn advance(&mut self) {
-        if self.end_ip != 0 {
-            self.current_idx += 1;
+        if self.end_ip == 0 {
+            self.current_values = self.values.pop_front();
+            return;
+        } else {
             self.loop_data.advance();
             self.context.clear();
-            self.store_local_called = false;
+            self.current_values = self.values.pop_front();
         }
     }
 
+    #[inline(always)]
     pub(crate) fn is_over(&self) -> bool {
         self.values.is_empty()
-            || (self.end_ip != 0 && self.current_idx == self.loop_data.length - 1)
+            || (self.end_ip != 0 && self.loop_data.index0 == self.loop_data.length - 1)
     }
 
     pub(crate) fn iterated(&self) -> bool {
-        self.current_idx > 0
+        self.loop_data.index0 > 0
     }
 
     pub(crate) fn clear_context(&mut self) {

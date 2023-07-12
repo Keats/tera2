@@ -280,14 +280,13 @@ impl<'s> Compiler<'s> {
                 self.compile_expr(forloop.target);
                 self.chunk
                     .add(Instruction::StartIterate(forloop.key.is_some()));
-                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
-                self.processing_bodies.push(ProcessingBody::Loop(start_idx));
-
                 // The value is sent before the key to be consistent with a value only loop
                 self.chunk.add(Instruction::StoreLocal(forloop.value));
                 if let Some(key_var) = forloop.key {
                     self.chunk.add(Instruction::StoreLocal(key_var));
                 }
+                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
+                self.processing_bodies.push(ProcessingBody::Loop(start_idx));
 
                 for node in forloop.body {
                     self.compile_node(node);

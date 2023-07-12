@@ -6,11 +6,11 @@ input_file: src/tests/compiler_inputs/success/for_else.txt
 === for_else.txt ===
 0000 LoadName("items")
 0001 StartIterate(false)
-0002 Iterate(7)
-0003 StoreLocal("i")
+0002 StoreLocal("i")
+0003 Iterate(7)
 0004 LoadName("i")
 0005 WriteTop
-0006 Jump(2)
+0006 Jump(3)
 0007 StoreDidNotIterate
 0008 PopLoop
 0009 PopJumpIfFalse(11)

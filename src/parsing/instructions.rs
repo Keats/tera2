@@ -14,8 +14,6 @@ pub(crate) enum Instruction {
     LoadAttr(String),
     /// Handles `a[b]`. `b` is the top stack value, `a` the one before
     BinarySubscript,
-    /// Store a value for key/value in a for loop
-    StoreLocal(String),
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack
@@ -63,6 +61,9 @@ pub(crate) enum Instruction {
     /// Start to iterate on the value at the top of the stack. The integer is the ip to jump to
     /// when the for loop is over
     Iterate(usize),
+    /// Store a value for key/value in a for loop
+    StoreLocal(String),
+    /// Store whether the loop did not iterate, used in for / else situations
     StoreDidNotIterate,
     /// At the end of a loop we want to remove it
     PopLoop,

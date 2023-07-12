@@ -1,6 +1,5 @@
 ---
 source: src/tests/compiler.rs
-assertion_line: 12
 expression: compiler.chunk
 input_file: src/tests/compiler_inputs/success/big-table.txt
 ---
