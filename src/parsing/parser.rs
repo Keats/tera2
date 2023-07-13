@@ -990,6 +990,17 @@ impl<'a> Parser<'a> {
 
                 Ok(None)
             }
+            Token::Ident("break") | Token::Ident("continue")=> {
+                let is_break = tag_token == Token::Ident("break");
+                if !self.body_contexts.iter().any(|b| *b == BodyContext::ForLoop) {
+                    return Err(Error::syntax_error(
+                        format!("{} can only be used in a for loop", if is_break { "break" } else {"continue"}),
+                        &self.current_span,
+                    ));
+                }
+                // TODO: add a Node::Keyword if we have more than one like that
+                Ok(Some(if is_break {Node::Break } else {Node::Continue}))
+            }
             _ => Err(Error::syntax_error(
                 "Unknown tag".to_string(),
                 &self.current_span,

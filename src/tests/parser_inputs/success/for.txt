@@ -3,3 +3,4 @@
 {% for v in 'hello' -%} {{ v }}{%- endfor %}
 {% for v in my_array | sort -%} {{ v }}{% else %}Empty{%- endfor %}
 {% for k, v in obj -%} {{ v }}{% else %}Empty{%- endfor %}
+{% for v in [1, 2,] -%}{% if loop.index0 == 1 %}{% break %}{% else %}{{v}}{% endif %}{%- endfor %}

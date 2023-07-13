@@ -280,27 +280,30 @@ impl<'s> Compiler<'s> {
                 self.compile_expr(forloop.target);
                 self.chunk
                     .add(Instruction::StartIterate(forloop.key.is_some()));
-                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
-                self.processing_bodies.push(ProcessingBody::Loop(start_idx));
-
                 // The value is sent before the key to be consistent with a value only loop
                 self.chunk.add(Instruction::StoreLocal(forloop.value));
                 if let Some(key_var) = forloop.key {
                     self.chunk.add(Instruction::StoreLocal(key_var));
                 }
+                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
+                self.processing_bodies.push(ProcessingBody::Loop(start_idx));
 
                 for node in forloop.body {
                     self.compile_node(node);
                 }
 
+                let has_else = !forloop.else_body.is_empty();
+
                 match self.processing_bodies.pop() {
                     Some(ProcessingBody::Loop(start_idx)) => {
-                        // TODO: handle key value
                         self.chunk.add(Instruction::Jump(start_idx));
                         let loop_end = self.chunk.len();
 
+                        if has_else {
+                            self.chunk.add(Instruction::StoreDidNotIterate);
+                        }
+
                         self.chunk.add(Instruction::PopLoop);
-                        // TODO: handle else by pushing something
                         if let Some(Instruction::Iterate(ref mut jump_target)) =
                             self.chunk.get_mut(start_idx)
                         {
@@ -310,6 +313,23 @@ impl<'s> Compiler<'s> {
                         }
                     }
                     _ => unreachable!(),
+                }
+
+                if has_else {
+                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                    self.processing_bodies.push(ProcessingBody::Branch(idx));
+                    for node in forloop.else_body {
+                        self.compile_node(node);
+                    }
+                    self.end_branch(self.chunk.len());
+                }
+            }
+            Node::Break => {
+                self.chunk.add(Instruction::Break);
+            }
+            Node::Continue => {
+                if let ProcessingBody::Loop(idx) = self.processing_bodies.iter().rev().find(|b| matches!(b, ProcessingBody::Loop(..))).unwrap() {
+                    self.chunk.add(Instruction::Jump(*idx));
                 }
             }
             Node::If(i) => {

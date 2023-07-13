@@ -1,0 +1,27 @@
+---
+source: src/tests/compiler.rs
+expression: compiler.chunk
+input_file: src/tests/compiler_inputs/success/big-table.txt
+---
+=== big-table.txt ===
+0000 WriteText("<table>\n")
+0001 LoadName("table")
+0002 StartIterate(false)
+0003 Iterate(18)
+0004 StoreLocal("row")
+0005 WriteText("\n<tr>")
+0006 LoadName("row")
+0007 StartIterate(false)
+0008 Iterate(15)
+0009 StoreLocal("col")
+0010 WriteText("<td>")
+0011 LoadName("col")
+0012 WriteTop
+0013 WriteText("</td>")
+0014 Jump(8)
+0015 PopLoop
+0016 WriteText("</tr>\n")
+0017 Jump(3)
+0018 PopLoop
+0019 WriteText("\n</table>")
+

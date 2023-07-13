@@ -1,8 +1,10 @@
 import dis
 
 text = """
-if a == b:
-    pass
+for i in items:
+    a += 1
+else:
+    a = 1
 """
 
 print(dis.dis(text))
