@@ -327,6 +327,11 @@ impl<'s> Compiler<'s> {
             Node::Break => {
                 self.chunk.add(Instruction::Break);
             }
+            Node::Continue => {
+                if let ProcessingBody::Loop(idx) = self.processing_bodies.iter().rev().find(|b| matches!(b, ProcessingBody::Loop(..))).unwrap() {
+                    self.chunk.add(Instruction::Jump(*idx));
+                }
+            }
             Node::If(i) => {
                 self.compile_expr(i.expr);
 

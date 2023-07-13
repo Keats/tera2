@@ -530,6 +530,7 @@ pub enum Node {
     Block(Block),
     ForLoop(ForLoop),
     Break,
+    Continue,
     If(If),
     FilterSection(FilterSection),
 }
@@ -549,6 +550,7 @@ impl fmt::Debug for Node {
             If(s) => fmt::Debug::fmt(s, f),
             FilterSection(s) => fmt::Debug::fmt(s, f),
             Break => fmt::Debug::fmt("{% break %}", f),
+            Continue => fmt::Debug::fmt("{% continue %}", f),
         }
     }
 }

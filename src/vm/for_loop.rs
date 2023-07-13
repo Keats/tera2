@@ -103,6 +103,7 @@ pub(crate) struct ForLoop {
 
 impl ForLoop {
     pub fn new(is_key_value: bool, container: Value) -> Self {
+        // TODO: keep an iterator instead of that thing
         let values = match container {
             Value::Map(map) => {
                 if !is_key_value {
