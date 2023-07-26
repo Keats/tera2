@@ -103,35 +103,27 @@ pub(crate) struct ForLoop {
 
 impl ForLoop {
     pub fn new(is_key_value: bool, container: Value) -> Self {
+        // Either both is_key_value and is_map are true, or false, else error
+        if is_key_value != matches!(container, Value::Map(_)) {
+            todo!("Error");
+        }
+
         // TODO: keep an iterator instead of that thing
         let values = match container {
             Value::Map(map) => {
-                if !is_key_value {
-                    todo!("Error");
-                }
                 let vals = map.iter().map(|(k,v)| (k.clone(), v.clone())).collect();
                 ForLoopValues::Object(vals)
             }
             Value::String(s, _) => {
-                if is_key_value {
-                    todo!("Error");
-                }
-
                 let chars = s.chars().collect();
                 ForLoopValues::String(chars)
             }
             Value::Bytes(b) => {
-                if is_key_value {
-                    todo!("Error")
-                }
                 let bytes = b.iter().copied().collect();
                 // TODO: add tests to loops on bytes
                 ForLoopValues::Bytes(bytes)
             }
             Value::Array(arr) => {
-                if is_key_value {
-                    todo!("Error");
-                }
                 let vals = arr.iter().cloned().collect();
                 ForLoopValues::Array(vals)
             }
