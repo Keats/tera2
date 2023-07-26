@@ -3,39 +3,48 @@ use crate::Value;
 
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use std::collections::{VecDeque, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 // TODO: perf improvements, less to_string
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ForLoopValues {
     /// Values for an array style iteration
-    Array(VecDeque<Value>),
-    Bytes(VecDeque<u8>),
+    Array(std::vec::IntoIter<Value>),
+    Bytes(std::vec::IntoIter<u8>),
     // TODO: use unic-segment as a feature and use graphemes rather than char
     /// Values for a per-character iteration on a string
-    String(VecDeque<char>),
+    String(std::vec::IntoIter<char>),
     /// Values for an object style iteration
-    Object(VecDeque<(Key, Value)>),
+    Object(std::vec::IntoIter<(Key, Value)>),
+}
+
+impl PartialEq for ForLoopValues {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Array(_), Self::Array(_))
+            | (Self::Bytes(_), Self::Bytes(_))
+            | (Self::String(_), Self::String(_))
+            | (Self::Object(_), Self::Object(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl ForLoopValues {
     #[inline(always)]
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
-            ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
-            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.pop_front().unwrap() as u64)),
+            ForLoopValues::Array(a) => (Value::Null, a.next().unwrap()),
+            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.next().unwrap() as u64)),
             ForLoopValues::String(a) => (
                 Value::Null,
-                Value::String(
-                    Arc::new(a.pop_front().unwrap().to_string()),
-                    StringKind::Normal,
-                ),
+                Value::String(Arc::new(a.next().unwrap().to_string()), StringKind::Normal),
             ),
             ForLoopValues::Object(a) => {
-                let (key, value) = a.pop_front().unwrap();
+                let (key, value) = a.next().unwrap();
                 (key.into(), value)
             }
         }
@@ -111,21 +120,21 @@ impl ForLoop {
         // TODO: keep an iterator instead of that thing
         let values = match container {
             Value::Map(map) => {
-                let vals = map.iter().map(|(k,v)| (k.clone(), v.clone())).collect();
-                ForLoopValues::Object(vals)
+                let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                ForLoopValues::Object(vals.into_iter())
             }
             Value::String(s, _) => {
-                let chars = s.chars().collect();
-                ForLoopValues::String(chars)
+                let chars: Vec<_> = s.chars().collect();
+                ForLoopValues::String(chars.into_iter())
             }
             Value::Bytes(b) => {
-                let bytes = b.iter().copied().collect();
+                let bytes: Vec<_> = b.iter().copied().collect();
                 // TODO: add tests to loops on bytes
-                ForLoopValues::Bytes(bytes)
+                ForLoopValues::Bytes(bytes.into_iter())
             }
             Value::Array(arr) => {
-                let vals = arr.iter().cloned().collect();
-                ForLoopValues::Array(vals)
+                let vals: Vec<_> = arr.iter().cloned().collect();
+                ForLoopValues::Array(vals.into_iter())
             }
             _ => todo!("handle error"),
         };
