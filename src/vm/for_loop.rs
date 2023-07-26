@@ -3,7 +3,7 @@ use crate::Value;
 
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{VecDeque, HashMap};
 use std::sync::Arc;
 
 // TODO: perf improvements, less to_string
@@ -95,7 +95,7 @@ pub(crate) struct ForLoop {
     values: ForLoopValues,
     loop_data: Loop,
     pub(crate) end_ip: usize,
-    context: BTreeMap<String, Value>,
+    context: HashMap<String, Value>,
     value_name: Option<String>,
     key_name: Option<String>,
     current_values: (Value, Value),
@@ -160,7 +160,7 @@ impl ForLoop {
             values,
             loop_data,
             end_ip: 0,
-            context: BTreeMap::new(),
+            context: HashMap::new(),
             value_name: None,
             key_name: None,
             current_values: (Value::Null, Value::Null),
