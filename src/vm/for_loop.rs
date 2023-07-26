@@ -109,10 +109,7 @@ impl ForLoop {
                 if !is_key_value {
                     todo!("Error");
                 }
-                let mut vals = VecDeque::with_capacity(map.len());
-                for (key, val) in map.as_ref() {
-                    vals.push_back((key.clone(), val.clone()));
-                }
+                let vals = map.iter().map(|(k,v)| (k.clone(), v.clone())).collect();
                 ForLoopValues::Object(vals)
             }
             Value::String(s, _) => {
@@ -120,17 +117,14 @@ impl ForLoop {
                     todo!("Error");
                 }
 
-                let chars: VecDeque<_> = s.chars().collect();
+                let chars = s.chars().collect();
                 ForLoopValues::String(chars)
             }
             Value::Bytes(b) => {
                 if is_key_value {
                     todo!("Error")
                 }
-                let mut bytes = VecDeque::with_capacity(b.len());
-                for a in b.iter() {
-                    bytes.push_back(*a);
-                }
+                let bytes = b.iter().copied().collect();
                 // TODO: add tests to loops on bytes
                 ForLoopValues::Bytes(bytes)
             }
@@ -138,10 +132,7 @@ impl ForLoop {
                 if is_key_value {
                     todo!("Error");
                 }
-                let mut vals = VecDeque::with_capacity(arr.len());
-                for a in arr.iter() {
-                    vals.push_back(a.clone());
-                }
+                let vals = arr.iter().cloned().collect();
                 ForLoopValues::Array(vals)
             }
             _ => todo!("handle error"),
