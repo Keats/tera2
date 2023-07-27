@@ -3,39 +3,48 @@ use crate::Value;
 
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 // TODO: perf improvements, less to_string
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ForLoopValues {
     /// Values for an array style iteration
-    Array(VecDeque<Value>),
-    Bytes(VecDeque<u8>),
+    Array(std::vec::IntoIter<Value>),
+    Bytes(std::vec::IntoIter<u8>),
     // TODO: use unic-segment as a feature and use graphemes rather than char
     /// Values for a per-character iteration on a string
-    String(VecDeque<char>),
+    String(std::vec::IntoIter<char>),
     /// Values for an object style iteration
-    Object(VecDeque<(Key, Value)>),
+    Object(std::vec::IntoIter<(Key, Value)>),
+}
+
+impl PartialEq for ForLoopValues {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Array(_), Self::Array(_))
+            | (Self::Bytes(_), Self::Bytes(_))
+            | (Self::String(_), Self::String(_))
+            | (Self::Object(_), Self::Object(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl ForLoopValues {
     #[inline(always)]
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
-            ForLoopValues::Array(a) => (Value::Null, a.pop_front().unwrap()),
-            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.pop_front().unwrap() as u64)),
+            ForLoopValues::Array(a) => (Value::Null, a.next().unwrap()),
+            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.next().unwrap() as u64)),
             ForLoopValues::String(a) => (
                 Value::Null,
-                Value::String(
-                    Arc::new(a.pop_front().unwrap().to_string()),
-                    StringKind::Normal,
-                ),
+                Value::String(Arc::new(a.next().unwrap().to_string()), StringKind::Normal),
             ),
             ForLoopValues::Object(a) => {
-                let (key, value) = a.pop_front().unwrap();
+                let (key, value) = a.next().unwrap();
                 (key.into(), value)
             }
         }
@@ -95,7 +104,7 @@ pub(crate) struct ForLoop {
     values: ForLoopValues,
     loop_data: Loop,
     pub(crate) end_ip: usize,
-    context: BTreeMap<String, Value>,
+    context: HashMap<String, Value>,
     value_name: Option<String>,
     key_name: Option<String>,
     current_values: (Value, Value),
@@ -103,46 +112,29 @@ pub(crate) struct ForLoop {
 
 impl ForLoop {
     pub fn new(is_key_value: bool, container: Value) -> Self {
+        // Either both is_key_value and is_map are true, or false, else error
+        if is_key_value != matches!(container, Value::Map(_)) {
+            todo!("Error");
+        }
+
         // TODO: keep an iterator instead of that thing
         let values = match container {
             Value::Map(map) => {
-                if !is_key_value {
-                    todo!("Error");
-                }
-                let mut vals = VecDeque::with_capacity(map.len());
-                for (key, val) in map.as_ref() {
-                    vals.push_back((key.clone(), val.clone()));
-                }
-                ForLoopValues::Object(vals)
+                let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                ForLoopValues::Object(vals.into_iter())
             }
             Value::String(s, _) => {
-                if is_key_value {
-                    todo!("Error");
-                }
-
-                let chars: VecDeque<_> = s.chars().collect();
-                ForLoopValues::String(chars)
+                let chars: Vec<_> = s.chars().collect();
+                ForLoopValues::String(chars.into_iter())
             }
             Value::Bytes(b) => {
-                if is_key_value {
-                    todo!("Error")
-                }
-                let mut bytes = VecDeque::with_capacity(b.len());
-                for a in b.iter() {
-                    bytes.push_back(*a);
-                }
+                let bytes: Vec<_> = b.iter().copied().collect();
                 // TODO: add tests to loops on bytes
-                ForLoopValues::Bytes(bytes)
+                ForLoopValues::Bytes(bytes.into_iter())
             }
             Value::Array(arr) => {
-                if is_key_value {
-                    todo!("Error");
-                }
-                let mut vals = VecDeque::with_capacity(arr.len());
-                for a in arr.iter() {
-                    vals.push_back(a.clone());
-                }
-                ForLoopValues::Array(vals)
+                let vals: Vec<_> = arr.iter().cloned().collect();
+                ForLoopValues::Array(vals.into_iter())
             }
             _ => todo!("handle error"),
         };
@@ -160,7 +152,7 @@ impl ForLoop {
             values,
             loop_data,
             end_ip: 0,
-            context: BTreeMap::new(),
+            context: HashMap::new(),
             value_name: None,
             key_name: None,
             current_values: (Value::Null, Value::Null),
