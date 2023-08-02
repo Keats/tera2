@@ -63,33 +63,40 @@ impl fmt::Display for Value {
             Value::U128(v) => write!(f, "{v}"),
             Value::I128(v) => write!(f, "{v}"),
             Value::Array(v) => {
+                let mut it = v.iter();
                 write!(f, "[")?;
-                for (i, elem) in v.iter().enumerate() {
-                    if i > 0 && i != v.len() {
-                        write!(f, ", ")?;
-                    }
+                // First value
+                if let Some(elem) = it.next() {
                     write!(f, "{elem}")?;
+                }
+                // Every other value
+                for elem in it {
+                    write!(f, ", {elem}")?;
                 }
                 write!(f, "]")
             }
             Value::Bytes(v) => write!(f, "{}", String::from_utf8_lossy(v)),
             Value::String(v, kind) => {
-                if *kind == StringKind::Safe {
-                    write!(f, "{v}")
+                if matches!(kind, StringKind::Safe) {
+                    f.write_str(&v)
                 } else {
-                    write!(f, "{}", escape_html(v))
+                    f.write_str(&escape_html(v))
                 }
             }
             Value::Map(v) => {
-                write!(f, "{{")?;
-                let mut key_val: Vec<_> = v.iter().collect();
+                let mut key_val: Box<_> = v.iter().collect();
                 // Keys are sorted to have deterministic output
-                key_val.sort_by(|a, b| a.0.cmp(b.0));
-                for (i, (key, value)) in key_val.into_iter().enumerate() {
-                    if i > 0 && i != v.len() {
-                        write!(f, ", ")?;
-                    }
+                // TODO: Consider using sort_unstable_by_key
+                key_val.sort_by_key(|elem| elem.0);
+                let mut it = key_val.into_iter();
+                write!(f, "{{")?;
+                // First value
+                if let Some((key, value)) = it.next() {
                     write!(f, "{key}: {value}")?;
+                }
+                // Every other value
+                for (key,value) in it {
+                    write!(f, ", {key}: {value}")?;
                 }
                 write!(f, "}}")
             }
