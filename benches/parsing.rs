@@ -36,13 +36,13 @@ static SLIGHTLY_COMPLEX_TEMPLATE: &str = "
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("simple", |b| {
         b.iter(|| {
-            let mut parser = Parser::new(SIMPLE_TEMPLATE);
+            let parser = Parser::new(SIMPLE_TEMPLATE);
             black_box(parser.parse().unwrap());
         })
     });
     c.bench_function("slightly complex", |b| {
         b.iter(|| {
-            let mut parser = Parser::new(SLIGHTLY_COMPLEX_TEMPLATE);
+            let parser = Parser::new(SLIGHTLY_COMPLEX_TEMPLATE);
             black_box(parser.parse().unwrap());
         })
     });

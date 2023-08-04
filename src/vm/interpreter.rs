@@ -75,8 +75,8 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        // TODO later: blocks/tests/filters/fns
-        // println!("{:?}", self.template.chunk);
+        // TODO later: tests/filters/fns
+        // println!("{:?}", self.template.macro_calls_def);
         while let Some(instr) = state.chunk.get(ip) {
             // println!("{}. {:?}", state.chunk.name, instr);
             match instr {

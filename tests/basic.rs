@@ -123,3 +123,36 @@ fn rendering_include_ok() {
         "<h1>Hello  [Include => (a=world, name=Bob, b=1)] name=Bob</h1>"
     );
 }
+
+#[test]
+fn rendering_realistic_benchmark() {
+    let mut items = Vec::new();
+    for _ in 0..20 {
+        items.push("Hello world");
+    }
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![
+        (
+            "index.html",
+            std::fs::read_to_string("benches/realistic/index.html").unwrap(),
+        ),
+        (
+            "macros.html",
+            std::fs::read_to_string("benches/realistic/macros.html").unwrap(),
+        ),
+        (
+            "page.html",
+            std::fs::read_to_string("benches/realistic/page.html").unwrap(),
+        ),
+    ])
+    .unwrap();
+    let mut ctx = Context::new();
+    ctx.insert("base_url", &"https://tera.netlify.app/");
+    ctx.insert("description", &"Some description");
+    ctx.insert("content", &"<a>Some HTML</a>");
+    ctx.insert("title", &"Tera");
+    ctx.insert("items", &items);
+    ctx.insert("show_ad", &true);
+    let out = tera.render("page.html", &ctx).unwrap();
+    insta::assert_display_snapshot!(out);
+}
