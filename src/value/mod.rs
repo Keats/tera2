@@ -95,7 +95,7 @@ impl fmt::Display for Value {
                     write!(f, "{key}: {value}")?;
                 }
                 // Every other value
-                for (key,value) in it {
+                for (key, value) in it {
                     write!(f, ", {key}: {value}")?;
                 }
                 write!(f, "}}")

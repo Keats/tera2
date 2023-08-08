@@ -4,7 +4,6 @@ use serde_derive::Serialize;
 
 use tera::{Context, Tera};
 
-
 #[derive(Serialize)]
 struct DataWrapper {
     i: usize,
@@ -79,8 +78,6 @@ static TEAMS_TEMPLATE: &str = r#"
 </html>
 "#;
 
-
-
 fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("big-context", |b| {
         const NUM_OBJECTS: usize = 100;
@@ -101,7 +98,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 {%- endfor -%}
 ",
         )])
-            .unwrap();
+        .unwrap();
         let mut context = Context::new();
         context.insert("objects", &objects);
         let rendering = tera.render("big_loop.html", &context).expect("Good render");
@@ -165,6 +162,41 @@ fn criterion_benchmark(c: &mut Criterion) {
 
         b.iter(|| {
             let res = tera.render("teams.html", &ctx);
+            black_box(res).unwrap();
+        })
+    });
+
+    c.bench_function("realistic", |b| {
+        let mut items = Vec::new();
+        for _ in 0..20 {
+            items.push("Hello world");
+        }
+        let mut tera = Tera::default();
+        tera.add_raw_templates(vec![
+            (
+                "index.html",
+                std::fs::read_to_string("benches/realistic/index.html").unwrap(),
+            ),
+            (
+                "macros.html",
+                std::fs::read_to_string("benches/realistic/macros.html").unwrap(),
+            ),
+            (
+                "page.html",
+                std::fs::read_to_string("benches/realistic/page.html").unwrap(),
+            ),
+        ])
+        .unwrap();
+        let mut ctx = Context::new();
+        ctx.insert("base_url", &"https://tera.netlify.app/");
+        ctx.insert("description", &"Some description");
+        ctx.insert("content", &"<a>Some HTML</a>");
+        ctx.insert("title", &"Tera");
+        ctx.insert("items", &items);
+        ctx.insert("show_ad", &true);
+
+        b.iter(|| {
+            let res = tera.render("page.html", &ctx);
             black_box(res).unwrap();
         })
     });

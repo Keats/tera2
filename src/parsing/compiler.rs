@@ -2,7 +2,7 @@
 use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub(crate) struct Compiler<'s> {
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
     // (namespace, name)
-    pub(crate) macro_calls: BTreeSet<(String, String)>,
+    pub(crate) macro_calls: Vec<(String, String)>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -36,7 +36,7 @@ impl<'s> Compiler<'s> {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
-            macro_calls: BTreeSet::new(),
+            macro_calls: Vec::new(),
             blocks: HashMap::new(),
             source,
             raw_content_num_bytes: 0,
@@ -119,8 +119,7 @@ impl<'s> Compiler<'s> {
                 } else {
                     let len = self.macro_calls.len();
                     self.macro_calls
-                        .insert((macro_call.namespace, macro_call.name));
-                    // println!("Inserting macro_calls {:?}", self.macro_calls);
+                        .push((macro_call.namespace, macro_call.name));
                     len
                 };
 
@@ -328,7 +327,13 @@ impl<'s> Compiler<'s> {
                 self.chunk.add(Instruction::Break);
             }
             Node::Continue => {
-                if let ProcessingBody::Loop(idx) = self.processing_bodies.iter().rev().find(|b| matches!(b, ProcessingBody::Loop(..))).unwrap() {
+                if let ProcessingBody::Loop(idx) = self
+                    .processing_bodies
+                    .iter()
+                    .rev()
+                    .find(|b| matches!(b, ProcessingBody::Loop(..)))
+                    .unwrap()
+                {
                     self.chunk.add(Instruction::Jump(*idx));
                 }
             }
