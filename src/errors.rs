@@ -1,36 +1,32 @@
 //! The Tera error type, with optional nice terminal error reporting.
 use std::fmt::{self};
 
+use crate::reporting::report_syntax_error;
 use std::error::Error as StdError;
 
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxError {
-    message: String,
-    pub(crate) filename: String,
-    span: Span,
+    pub(crate) message: String,
+    pub(crate) span: Span,
+    pub(crate) report: String,
 }
 
 impl SyntaxError {
     pub fn new(message: String, span: &Span) -> Self {
         Self {
             message,
-            filename: String::new(),
             span: span.clone(),
+            report: String::new(),
         }
     }
 
+    pub fn generate_report(&mut self, filename: &str, source: &str) {
+        self.report = report_syntax_error(&self, filename, source);
+    }
     pub fn unexpected_end_of_input(span: &Span) -> Self {
         Self::new("Unexpected end of input".to_string(), span)
-    }
-}
-
-impl fmt::Display for SyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "error: {}", &self.message)?;
-        // TODO: handle cases without filenames
-        write!(f, "\n  --> {} {}", &self.filename, &self.span)
     }
 }
 
@@ -75,7 +71,7 @@ impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ErrorKind::Msg(ref message) => write!(f, "{message}"),
-            ErrorKind::SyntaxError(s) => write!(f, "{s}"),
+            ErrorKind::SyntaxError(s) => write!(f, "{}", s.report),
             ErrorKind::CircularExtend {
                 ref tpl,
                 ref inheritance_chain,
@@ -109,7 +105,7 @@ impl fmt::Display for ErrorKind {
 #[derive(Debug)]
 pub struct Error {
     pub kind: ErrorKind,
-    // If the error comes from some third party libs, todo we need that?
+    // If the error comes from some third party libs, TODO we need that?
     pub(crate) source: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 

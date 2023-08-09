@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/unknown_tag.txt
 ---
-error: Unknown tag
-  -->   @ 1:4-1:5
+ Syntax error --> [unknown_tag.txt:1:4]
+  |
+1 | i.{%a.
+  |     ^---
+  = Unknown tag
+        

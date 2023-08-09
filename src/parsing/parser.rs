@@ -156,10 +156,10 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn endblock_different_name(&self, start_name: &str, end_name: &str) -> Error {
+    fn different_name_end_tag(&self, start_name: &str, end_name: &str, kind: &str) -> Error {
         Error::syntax_error(
             format!(
-                "Opening block was named `{start_name}`, found `{end_name}` for the end block name"
+                "{kind} was named `{start_name}` in the opening tag, found `{end_name}` as name in the end tag"
             ),
             &self.current_span,
         )
@@ -327,10 +327,10 @@ impl<'a> Parser<'a> {
                                 break;
                             }
                         }
-                        Some(Ok((ref token, _))) => {
+                        Some(Ok((ref token, ref span))) => {
                             return Err(Error::syntax_error(
                                 format!("Found {token} but expected `)` or `,`."),
-                                &self.current_span,
+                                span,
                             ));
                         }
                         Some(Err(ref e)) => {
@@ -473,7 +473,7 @@ impl<'a> Parser<'a> {
                         // stack overflow. It doesn't make much sense anyway in practice.
                         // Alternatively, limit the number to 2?
                         return Err(Error::syntax_error(
-                            "`-` or `not` cannot be used consecutively.".to_string(),
+                            "`-` and `not` cannot be used consecutively.".to_string(),
                             next_span,
                         ));
                     }
@@ -759,10 +759,10 @@ impl<'a> Parser<'a> {
                         Some(Ok((Token::String(b), _))) => Value::from(*b),
                         Some(Ok((Token::Integer(b), _))) => Value::from(*b),
                         Some(Ok((Token::Float(b), _))) => Value::from(*b),
-                        Some(Ok((token, _))) => {
+                        Some(Ok((token, span))) => {
                             return Err(Error::syntax_error(
                                 format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
-                                &self.current_span,
+                                span,
                             ));
                         }
                         Some(Err(e)) => {
@@ -795,7 +795,7 @@ impl<'a> Parser<'a> {
         if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
             let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
             if name != end_name {
-                return Err(self.endblock_different_name(name, end_name));
+                return Err(self.different_name_end_tag(name, end_name, "macro"));
             }
         }
 
@@ -888,7 +888,7 @@ impl<'a> Parser<'a> {
                 }
                 if !is_first_node {
                     return Err(Error::syntax_error(
-                        "`extends` needs to be the first tag of the template".to_string(),
+                        "`extends` needs to be the first tag of the template, with the exception of macro imports that are allowed before.".to_string(),
                         &self.current_span,
                     ));
                 }
@@ -911,21 +911,23 @@ impl<'a> Parser<'a> {
                 }
                 self.body_contexts.push(BodyContext::Block);
                 let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                if self.blocks_seen.contains(name) {
+                    return Err(Error::syntax_error(
+                        format!("Template already contains a block named `{name}`"),
+                        &self.current_span,
+                    ));
+                } else {
+                    self.blocks_seen.insert(name.to_string());
+                }
+
                 expect_token!(self, Token::TagEnd(..), "%}")?;
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endblock")))?;
                 self.next_or_error()?;
                 if let Some(Ok((Token::Ident(end_name), _))) = self.next {
                     self.next_or_error()?;
                     if end_name != name {
-                        return Err(self.endblock_different_name(name, end_name));
+                        return Err(self.different_name_end_tag(name, end_name, "block"));
                     }
-                }
-
-                if self.blocks_seen.contains(name) {
-                    return Err(Error::syntax_error(
-                        format!("Template already contains a block named `{name}`"),
-                        &self.current_span,
-                    ));
                 }
 
                 self.body_contexts.pop();
@@ -1062,8 +1064,7 @@ impl<'a> Parser<'a> {
         Ok(nodes)
     }
 
-    // TODO: make this private when we can load a template from a str
-    pub fn parse(mut self) -> TeraResult<ParserOutput> {
+    pub(crate) fn parse(mut self) -> TeraResult<ParserOutput> {
         // get the first token
         self.next()?;
         self.output.nodes = self.parse_until(|_| false)?;

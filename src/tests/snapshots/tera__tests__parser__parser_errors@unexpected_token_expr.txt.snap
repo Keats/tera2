@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/unexpected_token_expr.txt
 ---
-error: Found `,` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`
-  -->   @ 1:14-1:15
+ Syntax error --> [unexpected_token_expr.txt:1:14]
+  |
+1 | {{ a is upper(,) }}
+  |               ^---
+  = Found `,` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`
+        
