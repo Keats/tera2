@@ -23,7 +23,7 @@ impl SyntaxError {
     }
 
     pub fn generate_report(&mut self, filename: &str, source: &str) {
-        self.report = report_syntax_error(&self, filename, source);
+        self.report = report_syntax_error(self, filename, source);
     }
     pub fn unexpected_end_of_input(span: &Span) -> Self {
         Self::new("Unexpected end of input".to_string(), span)

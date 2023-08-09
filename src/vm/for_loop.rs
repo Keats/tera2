@@ -172,7 +172,6 @@ impl ForLoop {
     pub(crate) fn advance(&mut self) {
         if self.end_ip == 0 {
             self.current_values = self.values.pop_front();
-            return;
         } else {
             self.loop_data.advance();
             self.context.clear();

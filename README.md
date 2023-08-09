@@ -46,8 +46,7 @@ TODO:
 - [ ] Implement basic builtin filters/functions/tests
 - [ ] Add filters/functions/tests to VM
 - [ ] Uncomment all tests using filters/functions/tests
-- [ ] Parsing errors should report with the source context like Rust errors with the right spans
-- [ ] Try out nice reporting with Ariadne (make it optional)
+- [x] Parsing errors should report with the source context like Rust errors with the right spans
 - [ ] Add more helpful errors when loading templates (eg a forloop with for key, key in value/missing includes etc)
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Feature to load templates from a glob with optional dep

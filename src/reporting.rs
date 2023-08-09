@@ -16,7 +16,7 @@ pub fn report_syntax_error(error: &SyntaxError, filename: &str, source: &str) ->
     } else {
         &source[line_starts[start_line - 1]..line_starts[start_line]]
     }
-    .trim_end_matches("\n");
+    .trim_end_matches('\n');
     let mut underline = String::with_capacity(100);
     let underline_offset = if start_col > 0 { start_col - 1 } else { 0 };
     for c in line.chars().take(underline_offset) {

@@ -78,7 +78,7 @@ impl fmt::Display for Value {
             Value::Bytes(v) => write!(f, "{}", String::from_utf8_lossy(v)),
             Value::String(v, kind) => {
                 if matches!(kind, StringKind::Safe) {
-                    f.write_str(&v)
+                    f.write_str(v)
                 } else {
                     f.write_str(&escape_html(v))
                 }
@@ -88,7 +88,7 @@ impl fmt::Display for Value {
                 // Keys are sorted to have deterministic output
                 // TODO: Consider using sort_unstable_by_key
                 key_val.sort_by_key(|elem| elem.0);
-                let mut it = key_val.into_iter();
+                let mut it = key_val.iter();
                 write!(f, "{{")?;
                 // First value
                 if let Some((key, value)) = it.next() {
