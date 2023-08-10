@@ -5,9 +5,8 @@ edition = "2021"
 
 [dependencies]
 serde = "1"
-# TODO: make it optional?
-#ariadne = "0.2"
-#codespan-reporting = "0.11"
+
+# And optional ones
 indexmap = {version = "2", optional = true}
 
 [features]
@@ -21,10 +20,6 @@ serde_derive = "1.0.156"
 
 [lib]
 doctest = false
-
-[[bench]]
-name = "parsing"
-harness = false
 
 [[bench]]
 name = "value"

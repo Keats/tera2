@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/multiple_unary_operator.txt
 ---
-error: `-` or `not` cannot be used consecutively.
-  -->   @ 1:4-1:5
+ Syntax error --> [multiple_unary_operator.txt:1:4]
+  |
+1 | {{ -- 1}}
+  |     ^---
+  = `-` and `not` cannot be used consecutively.
+        

@@ -274,7 +274,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::StoreDidNotIterate => {
                     if let Some(for_loop) = state.for_loops.last() {
-                        state.stack.push(Value::Bool(for_loop.iterated() == false));
+                        state.stack.push(Value::Bool(!for_loop.iterated()));
                     }
                 }
                 Instruction::Break => {

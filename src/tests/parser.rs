@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::parsing::ast::{Expression, MacroDefinition, Node};
 use crate::parsing::parser::Parser;
+use crate::template::Template;
 use crate::utils::{Span, Spanned};
 use crate::value::Value;
 
@@ -40,7 +41,11 @@ fn parser_expressions_idents_success() {
 fn parser_errors() {
     insta::glob!("parser_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let res = Parser::new(&contents).parse();
+        let res = Template::new(
+            path.file_name().unwrap().to_string_lossy().as_ref(),
+            &contents,
+            None,
+        );
         assert!(res.is_err());
         insta::assert_display_snapshot!(res.unwrap_err());
     });

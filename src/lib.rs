@@ -1,6 +1,7 @@
 mod context;
 mod errors;
 mod parsing;
+mod reporting;
 mod template;
 mod tera;
 mod utils;

@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/extends_in_body.txt
 ---
-error: `extends` cannot be nested in other tags.
-  -->   @ 1:24-1:27
+ Syntax error --> [extends_in_body.txt:1:24]
+  |
+1 | {% if true %}{% extends "a" %}{% endif %}
+  |                         ^---
+  = `extends` cannot be nested in other tags.
+        

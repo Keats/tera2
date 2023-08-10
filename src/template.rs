@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::errors::{Error, TeraResult};
+use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Compiler};
 use crate::Parser;
@@ -30,7 +30,20 @@ pub struct Template {
 impl Template {
     pub(crate) fn new(tpl_name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
         let parser = Parser::new(source);
-        let parser_output = parser.parse()?;
+        // TODO: handle syntax error here, we have the tpl name and the source
+        let parser_output = match parser.parse() {
+            Ok(p) => p,
+            Err(e) => match e.kind {
+                ErrorKind::SyntaxError(mut s) => {
+                    s.generate_report(tpl_name, source);
+                    return Err(Error {
+                        kind: ErrorKind::SyntaxError(s),
+                        source: None,
+                    });
+                }
+                _ => unreachable!("Parser got something other than a SyntaxError: {e}"),
+            },
+        };
         let parents = if let Some(p) = parser_output.parent {
             vec![p]
         } else {

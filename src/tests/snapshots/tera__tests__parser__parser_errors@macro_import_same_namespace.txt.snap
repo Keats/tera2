@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/macro_import_same_namespace.txt
 ---
-error: Multiple macros imports using the `macros` namespace
-  -->   @ 2:28-2:34
+ Syntax error --> [macro_import_same_namespace.txt:2:28]
+  |
+2 | {% import "macros2.html" as macros %}
+  |                             ^---
+  = Multiple macros imports using the `macros` namespace
+        

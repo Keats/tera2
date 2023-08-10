@@ -3,5 +3,9 @@ source: src/tests/parser.rs
 expression: res.unwrap_err()
 input_file: src/tests/parser_inputs/errors/unclosed_tag.txt
 ---
-error: Unexpected end of input
-  -->   @ 1:27-1:27
+ Syntax error --> [unclosed_tag.txt:1:27]
+  |
+1 | {% if i + 2 | integer > x %
+  |                            ^---
+  = Unexpected end of input
+        
