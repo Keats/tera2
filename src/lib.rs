@@ -14,5 +14,10 @@ pub use parsing::parser::Parser;
 pub use utils::escape_html;
 pub use value::Value;
 
+#[cfg(ahash)]
+pub(crate) use hashbrown::{HashMap, HashSet};
+#[cfg(not(ahash))]
+pub(crate) use std::collections::{HashMap, HashSet};
+
 #[cfg(test)]
 mod tests;

@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Compiler};
-use crate::Parser;
+use crate::{HashMap, Parser};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Template {
