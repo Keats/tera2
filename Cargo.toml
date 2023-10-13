@@ -8,6 +8,7 @@ serde = "1"
 
 # And optional ones
 indexmap = {version = "2", optional = true}
+ahash = "0.8.3"
 
 [features]
 preserve_order = ["dep:indexmap"]

@@ -1,5 +1,5 @@
+use ahash::{HashMap, HashMapExt};
 use serde::Serialize;
-use std::collections::HashMap;
 
 use crate::tera::Tera;
 use crate::{Context, Value};

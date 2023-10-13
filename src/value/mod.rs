@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use ahash::{HashMap, HashMapExt};
 #[cfg(feature = "preserve_order")]
 use indexmap::IndexMap;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};

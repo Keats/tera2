@@ -2,7 +2,8 @@
 use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
-use std::collections::HashMap;
+
+use ahash::{HashMap, HashMapExt};
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
 #[derive(Debug)]

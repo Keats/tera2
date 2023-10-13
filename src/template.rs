@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use ahash::{HashMap, HashMapExt};
 
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::compiler::CompiledMacroDefinition;

@@ -1,9 +1,9 @@
 use crate::value::{Key, StringKind};
 use crate::Value;
 
+use ahash::{HashMap, HashMapExt};
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 // TODO: perf improvements, less to_string

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use ahash::{HashMap, HashMapExt};
 
 use crate::errors::{Error, TeraResult};
 use crate::template::{find_parents, Template};

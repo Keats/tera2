@@ -1,10 +1,11 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::value::key::Key;
+use ahash::HashMapExt;
 use serde::{ser, Serialize, Serializer};
 
 use crate::value::utils::SerializationFailed;
+use crate::value::key::Key;
 use crate::value::{Map, StringKind, Value};
 
 pub struct ValueSerializer;

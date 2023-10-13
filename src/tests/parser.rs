@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use std::fmt;
+
+use ahash::{HashMap, HashMapExt};
 
 use crate::parsing::ast::{Expression, MacroDefinition, Node};
 use crate::parsing::parser::Parser;

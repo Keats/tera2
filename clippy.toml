@@ -1,0 +1,7 @@
+[[disallowed-types]]
+path = "std::collections::HashMap"
+reason = "Use ahash::HashMap instead (AHash is faster)"
+
+[[disallowed-types]]
+path = "std::collections::HashSet"
+reason = "Use ahash::HashSet instead (AHash is faster)"

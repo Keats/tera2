@@ -1,6 +1,8 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::iter::Peekable;
+
+use ahash::{HashMap, HashMapExt, HashSet, HashSetExt};
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
 use crate::parsing::ast::{

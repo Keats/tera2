@@ -1,6 +1,6 @@
 use crate::utils::Span;
 use crate::value::Value;
-use std::collections::HashMap;
+use ahash::{HashMap, HashMapExt};
 use std::fmt;
 use std::fmt::Formatter;
 

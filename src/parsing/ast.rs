@@ -1,6 +1,8 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
+
+use ahash::HashMap;
 
 use crate::utils::{Span, Spanned};
 use crate::value::{Key, Value};
