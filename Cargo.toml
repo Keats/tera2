@@ -22,6 +22,7 @@ unicode = ["dep:unic-segment"]
 
 [dev-dependencies]
 criterion = "0.5"
+iai-callgrind = "0.7.1"
 insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
 
@@ -38,4 +39,16 @@ harness = false
 
 [[bench]]
 name = "templates"
+harness = false
+
+[[bench]]
+name = "iai-value"
+harness = false
+
+[[bench]]
+name = "iai-escape"
+harness = false
+
+[[bench]]
+name = "iai-templates"
 harness = false
