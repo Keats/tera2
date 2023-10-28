@@ -1,9 +1,10 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
 use crate::value::{Key, Value};
+use crate::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {

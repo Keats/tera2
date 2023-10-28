@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -16,8 +16,8 @@ mod ser;
 mod utils;
 
 use crate::errors::{Error, TeraResult};
-use crate::escape_html;
 use crate::value::number::Number;
+use crate::{escape_html, HashMap};
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
@@ -284,7 +284,7 @@ impl Value {
     /// When doing hello.name, name is the attr
     pub(crate) fn get_attr(&self, attr: &str) -> Value {
         match self {
-            Value::Map(m) => m.get(&attr.into()).cloned().unwrap_or(Value::Undefined),
+            Value::Map(m) => m.get(&Key::from(attr)).cloned().unwrap_or(Value::Undefined),
             _ => Value::Undefined,
         }
     }

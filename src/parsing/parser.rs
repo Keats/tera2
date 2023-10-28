@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 use std::iter::Peekable;
 
 use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
@@ -12,6 +12,7 @@ use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
 use crate::utils::{Span, Spanned};
 use crate::value::{Key, Value};
+use crate::{HashMap, HashSet};
 
 /// parse_expression can call itself max 100 times, after that it's an error
 const MAX_EXPR_RECURSION: usize = 100;

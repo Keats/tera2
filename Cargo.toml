@@ -7,11 +7,16 @@ edition = "2021"
 serde = "1"
 
 # And optional ones
-indexmap = {version = "2", optional = true}
+indexmap = { version = "2", optional = true }
+hashbrown = { version = "0.14", optional = true }
 
 [features]
+default = ["serde"]
+# Use hashbrown with ahash hashing to improve performance
+ahash = ["hashbrown"]
 preserve_order = ["dep:indexmap"]
-
+# Enable serde support
+serde = ["hashbrown/serde"]
 
 [dev-dependencies]
 criterion = "0.5"
