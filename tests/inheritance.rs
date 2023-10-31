@@ -197,3 +197,15 @@ fn render_super_in_grandchild_without_redefining_in_parent_works() {
     let result = tera.render("child", &Context::new());
     assert_eq!(result.unwrap(), "Title - More".to_string());
 }
+
+
+#[test]
+fn errors_when_extending_itself() {
+    let mut tera = Tera::default();
+    let res = tera.add_raw_templates(vec![
+        ("grandparent", "{% extends 'grandparent' %}"),
+    ]);
+    assert!(res.is_err());
+    let err = res.unwrap_err();
+    assert!(err.to_string().contains("Circular"));
+}
