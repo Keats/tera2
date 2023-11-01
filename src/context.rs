@@ -10,7 +10,7 @@ use crate::value::Value;
 /// values
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Context {
-    // TODO: have keys be Cow<'static, str>
+    // TODO: have keys be Cow<'static, str>?
     pub(crate) data: BTreeMap<String, Value>,
 }
 
