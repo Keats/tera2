@@ -133,11 +133,11 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_f32(self, _v: f32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_f64(self, _v: f64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
@@ -149,11 +149,11 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
@@ -164,11 +164,11 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_unit_variant(
@@ -205,11 +205,11 @@ impl Serializer for KeySerializer {
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_tuple_struct(
@@ -217,7 +217,7 @@ impl Serializer for KeySerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_tuple_variant(
@@ -227,11 +227,11 @@ impl Serializer for KeySerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_struct(
@@ -239,7 +239,7 @@ impl Serializer for KeySerializer {
         _name: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 
     fn serialize_struct_variant(
@@ -249,6 +249,6 @@ impl Serializer for KeySerializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        todo!()
+        Err(SerializationFailed)
     }
 }
