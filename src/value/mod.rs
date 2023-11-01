@@ -47,7 +47,6 @@ pub enum Value {
     Bytes(Arc<Vec<u8>>),
     // TODO: string interning?
     String(Arc<String>, StringKind),
-    // TODO: change the hash alg feature? rustc-hash/ahash after testing
     Map(Arc<Map>),
 }
 

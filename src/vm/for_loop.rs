@@ -1,5 +1,5 @@
 use crate::value::{Key, StringKind};
-use crate::{Value, HashMap};
+use crate::{HashMap, Value};
 
 use serde::ser::SerializeStruct;
 use serde::Serialize;
