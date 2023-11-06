@@ -39,7 +39,7 @@ TODO:
   - [x] Make sure strings are escaped automatically (Value::String could be an enum with safe/unsafe string like markupsafe in python?) when printing
   - [ ] Fix/remove all the TODOs
   - [ ] Improve perf till it's better than Tera v1
-  - [ ] Iterating on strings should require an optional `unic_segment` feature for unicode
+  - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [ ] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
   - [ ] Finish VM
 - [ ] Design filters/functions/tests types
@@ -66,7 +66,7 @@ Ideas:
 - Collect include templates so we know whether we have all of them or not and error otherwise
 - Make raw template keep spans rather String to avoid cloning it?
 - Use Arc<str> in Value
-
+- Mark literal strings in templates as safe?
 
 
 

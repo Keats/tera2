@@ -47,3 +47,18 @@ fn rendering_ok() {
         insta::assert_display_snapshot!(&out);
     });
 }
+
+#[cfg(feature = "unicode")]
+#[test]
+fn can_iterate_on_graphemes() {
+    let tpl = r#"{% for c in string -%}
+{{loop.index}}.{{c}}
+{% endfor %}"#;
+    let mut tera = Tera::default();
+    tera.add_raw_template("tpl", tpl).unwrap();
+    let mut context = Context::default();
+    context.insert("string", "a\r\nb🇺🇳🇮🇨");
+    let out = tera.render("tpl", &context).unwrap();
+
+    insta::assert_display_snapshot!(&out);
+}
