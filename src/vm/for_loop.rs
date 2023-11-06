@@ -6,7 +6,6 @@ use serde::Serialize;
 use serde::Serializer;
 use std::sync::Arc;
 
-// TODO: perf improvements, less to_string
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
 #[derive(Debug)]
@@ -14,23 +13,12 @@ pub enum ForLoopValues {
     /// Values for an array style iteration
     Array(std::vec::IntoIter<Value>),
     Bytes(std::vec::IntoIter<u8>),
-    // TODO: use unic-segment as a feature and use graphemes rather than char
+    #[cfg(feature = "unicode")]
+    Graphemes(std::vec::IntoIter<Value>),
     /// Values for a per-character iteration on a string
     String(std::vec::IntoIter<char>),
     /// Values for an object style iteration
     Object(std::vec::IntoIter<(Key, Value)>),
-}
-
-impl PartialEq for ForLoopValues {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Array(_), Self::Array(_))
-            | (Self::Bytes(_), Self::Bytes(_))
-            | (Self::String(_), Self::String(_))
-            | (Self::Object(_), Self::Object(_)) => true,
-            _ => false,
-        }
-    }
 }
 
 impl ForLoopValues {
@@ -43,6 +31,8 @@ impl ForLoopValues {
                 Value::Null,
                 Value::String(Arc::new(a.next().unwrap().to_string()), StringKind::Normal),
             ),
+            #[cfg(feature = "unicode")]
+            ForLoopValues::Graphemes(a) => (Value::Null, a.next().unwrap()),
             ForLoopValues::Object(a) => {
                 let (key, value) = a.next().unwrap();
                 (key.into(), value)
@@ -56,6 +46,8 @@ impl ForLoopValues {
             ForLoopValues::Array(a) => a.len(),
             ForLoopValues::Bytes(a) => a.len(),
             ForLoopValues::String(a) => a.len(),
+            #[cfg(feature = "unicode")]
+            ForLoopValues::Graphemes(a) => a.len(),
             ForLoopValues::Object(a) => a.len(),
         }
     }
@@ -99,7 +91,7 @@ impl Serialize for Loop {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) struct ForLoop {
     values: ForLoopValues,
     loop_data: Loop,
@@ -114,18 +106,27 @@ impl ForLoop {
     pub fn new(is_key_value: bool, container: Value) -> Self {
         // Either both is_key_value and is_map are true, or false, else error
         if is_key_value != matches!(container, Value::Map(_)) {
-            todo!("Error");
+            todo!("Error: {container:?}");
         }
 
-        // TODO: keep an iterator instead of that thing
         let values = match container {
             Value::Map(map) => {
                 let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 ForLoopValues::Object(vals.into_iter())
             }
             Value::String(s, _) => {
-                let chars: Vec<_> = s.chars().collect();
-                ForLoopValues::String(chars.into_iter())
+                #[cfg(feature = "unicode")]
+                {
+                    let graphemes: Vec<&str> = unic_segment::Graphemes::new(s.as_str()).collect();
+                    let graphemes: Vec<_> = graphemes.into_iter().map(|x| Value::from(x)).collect();
+                    ForLoopValues::Graphemes(graphemes.into_iter())
+                }
+
+                #[cfg(not(feature = "unicode"))]
+                {
+                    let chars: Vec<_> = s.chars().collect();
+                    ForLoopValues::String(chars.into_iter())
+                }
             }
             Value::Bytes(b) => {
                 let bytes: Vec<_> = b.iter().copied().collect();

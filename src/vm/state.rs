@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 /// The state of the interpreter.
 /// We pass it around rather than put it on the VM to avoid multiple borrow issues
 /// when dealing with inheritance.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub(crate) struct State<'tera> {
     pub(crate) stack: Stack,
     pub(crate) chunk: &'tera Chunk,

@@ -9,12 +9,16 @@ serde = "1"
 # Optional deps
 indexmap = { version = "2", optional = true }
 hashbrown = { version = "0.14", optional = true }
+unic-segment = {version = "0.9", optional = true}
 
 [features]
 default = []
 # Use hashbrown with ahash hashing to improve performance
 ahash = ["hashbrown", "hashbrown/serde"]
+# Keep order of insertion for Value
 preserve_order = ["dep:indexmap"]
+# If we want Tera to work with graphemes clusters rather than utf-8 characters
+unicode = ["dep:unic-segment"]
 
 [dev-dependencies]
 criterion = "0.5"
