@@ -6,7 +6,6 @@ use serde::Serialize;
 use serde::Serializer;
 use std::sync::Arc;
 
-
 /// Enumerates on the types of values to be iterated, scalars and pairs
 #[derive(Debug)]
 pub enum ForLoopValues {

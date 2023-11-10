@@ -1,0 +1,5 @@
+{% macro hello_world() %}
+{{ self::inexisting() }}
+{% endmacro hello_world %}
+
+{{ self::hello_world() }}

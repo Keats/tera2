@@ -28,7 +28,6 @@ pub struct Template {
 impl Template {
     pub(crate) fn new(tpl_name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
         let parser = Parser::new(source);
-        // TODO: handle syntax error here, we have the tpl name and the source
         let parser_output = match parser.parse() {
             Ok(p) => p,
             Err(e) => match e.kind {

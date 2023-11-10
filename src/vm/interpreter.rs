@@ -61,6 +61,7 @@ impl<'tera> VirtualMachine<'tera> {
             ($fn:ident) => {{
                 let b = state.stack.pop();
                 let a = state.stack.pop();
+                if !a.is_number() || !b.is_number() {}
                 state.stack.push(crate::value::number::$fn(&a, &b)?);
             }};
         }
@@ -77,7 +78,7 @@ impl<'tera> VirtualMachine<'tera> {
 
         // TODO later: tests/filters/fns
         // println!("{:?}", self.template.macro_calls_def);
-        while let Some(instr) = state.chunk.get(ip) {
+        while let Some((instr, span)) = state.chunk.get(ip) {
             // println!("{}. {:?}", state.chunk.name, instr);
             match instr {
                 Instruction::LoadConst(v) => state.stack.push(v.clone()),

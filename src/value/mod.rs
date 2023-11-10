@@ -203,6 +203,13 @@ impl Value {
         }
     }
 
+    pub(crate) fn is_number(&self) -> bool {
+        matches!(
+            self,
+            Value::U64(..) | Value::I64(..) | Value::F64(..) | Value::U128(..) | Value::I128(..)
+        )
+    }
+
     fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(s, _) => Some(s),

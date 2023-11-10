@@ -47,68 +47,76 @@ impl<'s> Compiler<'s> {
         let num_args = kwargs.len();
         // TODO: push a single instr for all keys as a Vec<String> like Python? bench first
         for (key, value) in kwargs {
-            self.chunk.add(Instruction::LoadConst(Value::from(key)));
+            self.chunk.add(
+                Instruction::LoadConst(Value::from(key)),
+                Some(value.span().clone()),
+            );
             self.compile_expr(value);
         }
-        self.chunk.add(Instruction::BuildMap(num_args));
+        self.chunk.add(Instruction::BuildMap(num_args), None);
     }
 
     fn compile_expr(&mut self, expr: Expression) {
         match expr {
             Expression::Const(e) => {
-                let (val, _) = e.into_parts();
-                self.chunk.add(Instruction::LoadConst(val));
+                let (val, span) = e.into_parts();
+                self.chunk.add(Instruction::LoadConst(val), Some(span));
             }
             Expression::Map(e) => {
-                let (map, _) = e.into_parts();
+                let (map, span) = e.into_parts();
                 let num_items = map.items.len();
                 for (key, value) in map.items {
-                    self.chunk.add(Instruction::LoadConst(Value::from(key)));
+                    self.chunk.add(
+                        Instruction::LoadConst(Value::from(key)),
+                        Some(value.span().clone()),
+                    );
                     self.compile_expr(value);
                 }
-                self.chunk.add(Instruction::BuildMap(num_items));
+                self.chunk.add(Instruction::BuildMap(num_items), Some(span));
             }
             Expression::Array(e) => {
-                let (array, _) = e.into_parts();
+                let (array, span) = e.into_parts();
                 let num_elems = array.items.len();
                 for val in array.items {
                     self.compile_expr(val);
                 }
-                self.chunk.add(Instruction::BuildList(num_elems));
+                self.chunk
+                    .add(Instruction::BuildList(num_elems), Some(span));
             }
             Expression::Var(e) => {
-                let (val, _) = e.into_parts();
-                self.chunk.add(Instruction::LoadName(val.name));
+                let (val, span) = e.into_parts();
+                self.chunk.add(Instruction::LoadName(val.name), Some(span));
             }
             Expression::GetAttr(e) => {
-                let (attr, _) = e.into_parts();
+                let (attr, span) = e.into_parts();
                 self.compile_expr(attr.expr);
-                self.chunk.add(Instruction::LoadAttr(attr.name));
+                self.chunk.add(Instruction::LoadAttr(attr.name), Some(span));
             }
             Expression::GetItem(e) => {
-                let (item, _) = e.into_parts();
+                let (item, span) = e.into_parts();
                 self.compile_expr(item.expr);
                 self.compile_expr(item.sub_expr);
-                self.chunk.add(Instruction::BinarySubscript);
+                self.chunk.add(Instruction::BinarySubscript, Some(span));
             }
             Expression::Filter(e) => {
-                let (filter, _) = e.into_parts();
+                let (filter, span) = e.into_parts();
                 self.compile_expr(filter.expr);
                 self.compile_kwargs(filter.kwargs);
-                self.chunk.add(Instruction::ApplyFilter(filter.name));
+                self.chunk
+                    .add(Instruction::ApplyFilter(filter.name), Some(span));
             }
             Expression::Test(e) => {
-                let (test, _) = e.into_parts();
+                let (test, span) = e.into_parts();
                 self.compile_expr(test.expr);
                 let num_args = test.args.len();
                 for arg in test.args {
                     self.compile_expr(arg);
                 }
-                self.chunk.add(Instruction::BuildList(num_args));
-                self.chunk.add(Instruction::RunTest(test.name));
+                self.chunk.add(Instruction::BuildList(num_args), None);
+                self.chunk.add(Instruction::RunTest(test.name), Some(span));
             }
             Expression::MacroCall(e) => {
-                let (macro_call, _) = e.into_parts();
+                let (macro_call, span) = e.into_parts();
                 self.compile_kwargs(macro_call.kwargs);
                 let call_idx = if let Some(idx) = self
                     .macro_calls
@@ -123,19 +131,21 @@ impl<'s> Compiler<'s> {
                     len
                 };
 
-                self.chunk.add(Instruction::RenderMacro(call_idx));
+                self.chunk
+                    .add(Instruction::RenderMacro(call_idx), Some(span));
             }
             Expression::FunctionCall(e) => {
-                let (func, _) = e.into_parts();
+                let (func, span) = e.into_parts();
                 self.compile_kwargs(func.kwargs);
-                self.chunk.add(Instruction::CallFunction(func.name));
+                self.chunk
+                    .add(Instruction::CallFunction(func.name), Some(span));
             }
             Expression::UnaryOperation(e) => {
-                let (op, _) = e.into_parts();
+                let (op, span) = e.into_parts();
                 self.compile_expr(op.expr);
                 match op.op {
-                    UnaryOperator::Not => self.chunk.add(Instruction::Not),
-                    UnaryOperator::Minus => self.chunk.add(Instruction::Negative),
+                    UnaryOperator::Not => self.chunk.add(Instruction::Not, Some(span)),
+                    UnaryOperator::Minus => self.chunk.add(Instruction::Negative, Some(span)),
                 };
             }
             Expression::BinaryOperation(e) => {
@@ -163,11 +173,14 @@ impl<'s> Compiler<'s> {
                         if let Some(ProcessingBody::ShortCircuit(ref mut instr)) =
                             self.processing_bodies.last_mut()
                         {
-                            instr.push(self.chunk.add(if op.op == BinaryOperator::And {
-                                Instruction::JumpIfFalseOrPop(0)
-                            } else {
-                                Instruction::JumpIfTrueOrPop(0)
-                            }) as usize);
+                            instr.push(self.chunk.add(
+                                if op.op == BinaryOperator::And {
+                                    Instruction::JumpIfFalseOrPop(0)
+                                } else {
+                                    Instruction::JumpIfTrueOrPop(0)
+                                },
+                                None,
+                            ) as usize);
                         } else {
                             unreachable!();
                         }
@@ -178,8 +191,8 @@ impl<'s> Compiler<'s> {
                         {
                             for i in instr {
                                 match self.chunk.get_mut(i) {
-                                    Some(Instruction::JumpIfFalseOrPop(ref mut target))
-                                    | Some(Instruction::JumpIfTrueOrPop(ref mut target)) => {
+                                    Some((Instruction::JumpIfFalseOrPop(ref mut target), _))
+                                    | Some((Instruction::JumpIfTrueOrPop(ref mut target), _)) => {
                                         *target = end;
                                     }
                                     _ => {}
@@ -199,7 +212,7 @@ impl<'s> Compiler<'s> {
                 // need to pass the op as well...^
                 self.compile_expr(op.left);
                 self.compile_expr(op.right);
-                self.chunk.add_instruction_with_span(instr, span);
+                self.chunk.add(instr, Some(span));
             }
         }
     }
@@ -214,14 +227,14 @@ impl<'s> Compiler<'s> {
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks.into_iter());
         self.blocks.insert(block.name.clone(), compiler.chunk);
-        self.chunk.add(Instruction::RenderBlock(block.name));
+        self.chunk.add(Instruction::RenderBlock(block.name), None);
     }
 
     fn end_branch(&mut self, idx: usize) {
         match self.processing_bodies.pop() {
             Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr) {
-                Some(Instruction::Jump(ref mut target))
-                | Some(Instruction::PopJumpIfFalse(ref mut target)) => {
+                Some((Instruction::Jump(ref mut target), _))
+                | Some((Instruction::PopJumpIfFalse(ref mut target), _)) => {
                     *target = idx;
                 }
                 _ => {}
@@ -234,11 +247,11 @@ impl<'s> Compiler<'s> {
         match node {
             Node::Content(text) => {
                 self.raw_content_num_bytes += text.as_bytes().len();
-                self.chunk.add(Instruction::WriteText(text));
+                self.chunk.add(Instruction::WriteText(text), None);
             }
             Node::Expression(expr) => {
                 self.compile_expr(expr);
-                self.chunk.add(Instruction::WriteTop);
+                self.chunk.add(Instruction::WriteTop, None);
             }
             Node::Set(s) => {
                 self.compile_expr(s.value);
@@ -247,19 +260,19 @@ impl<'s> Compiler<'s> {
                 } else {
                     Instruction::Set(s.name)
                 };
-                self.chunk.add(instr);
+                self.chunk.add(instr, None);
             }
             Node::BlockSet(b) => {
-                self.chunk.add(Instruction::Capture);
+                self.chunk.add(Instruction::Capture, None);
                 for node in b.body {
                     self.compile_node(node);
                 }
-                self.chunk.add(Instruction::EndCapture);
+                self.chunk.add(Instruction::EndCapture, None);
                 for expr in b.filters {
                     if let Expression::Filter(f) = expr {
                         let (filter, _) = f.into_parts();
                         self.compile_kwargs(filter.kwargs);
-                        self.chunk.add(Instruction::ApplyFilter(filter.name));
+                        self.chunk.add(Instruction::ApplyFilter(filter.name), None);
                     }
                 }
                 let instr = if b.global {
@@ -267,10 +280,10 @@ impl<'s> Compiler<'s> {
                 } else {
                     Instruction::Set(b.name)
                 };
-                self.chunk.add(instr);
+                self.chunk.add(instr, None);
             }
             Node::Include(i) => {
-                self.chunk.add(Instruction::Include(i.name));
+                self.chunk.add(Instruction::Include(i.name), None);
             }
             Node::Block(b) => {
                 self.compile_block(b);
@@ -278,13 +291,13 @@ impl<'s> Compiler<'s> {
             Node::ForLoop(forloop) => {
                 self.compile_expr(forloop.target);
                 self.chunk
-                    .add(Instruction::StartIterate(forloop.key.is_some()));
+                    .add(Instruction::StartIterate(forloop.key.is_some()), None);
                 // The value is sent before the key to be consistent with a value only loop
-                self.chunk.add(Instruction::StoreLocal(forloop.value));
+                self.chunk.add(Instruction::StoreLocal(forloop.value), None);
                 if let Some(key_var) = forloop.key {
-                    self.chunk.add(Instruction::StoreLocal(key_var));
+                    self.chunk.add(Instruction::StoreLocal(key_var), None);
                 }
-                let start_idx = self.chunk.add(Instruction::Iterate(0)) as usize;
+                let start_idx = self.chunk.add(Instruction::Iterate(0), None) as usize;
                 self.processing_bodies.push(ProcessingBody::Loop(start_idx));
 
                 for node in forloop.body {
@@ -295,15 +308,15 @@ impl<'s> Compiler<'s> {
 
                 match self.processing_bodies.pop() {
                     Some(ProcessingBody::Loop(start_idx)) => {
-                        self.chunk.add(Instruction::Jump(start_idx));
+                        self.chunk.add(Instruction::Jump(start_idx), None);
                         let loop_end = self.chunk.len();
 
                         if has_else {
-                            self.chunk.add(Instruction::StoreDidNotIterate);
+                            self.chunk.add(Instruction::StoreDidNotIterate, None);
                         }
 
-                        self.chunk.add(Instruction::PopLoop);
-                        if let Some(Instruction::Iterate(ref mut jump_target)) =
+                        self.chunk.add(Instruction::PopLoop, None);
+                        if let Some((Instruction::Iterate(ref mut jump_target), _)) =
                             self.chunk.get_mut(start_idx)
                         {
                             *jump_target = loop_end;
@@ -315,7 +328,7 @@ impl<'s> Compiler<'s> {
                 }
 
                 if has_else {
-                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                    let idx = self.chunk.add(Instruction::PopJumpIfFalse(0), None) as usize;
                     self.processing_bodies.push(ProcessingBody::Branch(idx));
                     for node in forloop.else_body {
                         self.compile_node(node);
@@ -324,7 +337,7 @@ impl<'s> Compiler<'s> {
                 }
             }
             Node::Break => {
-                self.chunk.add(Instruction::Break);
+                self.chunk.add(Instruction::Break, None);
             }
             Node::Continue => {
                 if let ProcessingBody::Loop(idx) = self
@@ -334,20 +347,20 @@ impl<'s> Compiler<'s> {
                     .find(|b| matches!(b, ProcessingBody::Loop(..)))
                     .unwrap()
                 {
-                    self.chunk.add(Instruction::Jump(*idx));
+                    self.chunk.add(Instruction::Jump(*idx), None);
                 }
             }
             Node::If(i) => {
                 self.compile_expr(i.expr);
 
-                let idx = self.chunk.add(Instruction::PopJumpIfFalse(0)) as usize;
+                let idx = self.chunk.add(Instruction::PopJumpIfFalse(0), None) as usize;
                 self.processing_bodies.push(ProcessingBody::Branch(idx));
                 for node in i.body {
                     self.compile_node(node);
                 }
 
                 if !i.false_body.is_empty() {
-                    let idx = self.chunk.add(Instruction::Jump(0)) as usize;
+                    let idx = self.chunk.add(Instruction::Jump(0), None) as usize;
                     self.end_branch(self.chunk.len());
                     self.processing_bodies.push(ProcessingBody::Branch(idx));
 
@@ -358,14 +371,14 @@ impl<'s> Compiler<'s> {
                 self.end_branch(self.chunk.len());
             }
             Node::FilterSection(f) => {
-                self.chunk.add(Instruction::Capture);
+                self.chunk.add(Instruction::Capture, None);
                 for node in f.body {
                     self.compile_node(node);
                 }
-                self.chunk.add(Instruction::EndCapture);
+                self.chunk.add(Instruction::EndCapture, None);
                 self.compile_kwargs(f.kwargs);
                 self.chunk
-                    .add(Instruction::ApplyFilter(f.name.into_parts().0));
+                    .add(Instruction::ApplyFilter(f.name.into_parts().0), None);
             }
         }
     }

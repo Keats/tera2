@@ -1,19 +1,19 @@
 //! The Tera error type, with optional nice terminal error reporting.
 use std::fmt::{self};
 
-use crate::reporting::report_syntax_error;
+use crate::reporting::generate_report;
 use std::error::Error as StdError;
 
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SyntaxError {
+pub struct ReportError {
     pub(crate) message: String,
     pub(crate) span: Span,
     pub(crate) report: String,
 }
 
-impl SyntaxError {
+impl ReportError {
     pub fn new(message: String, span: &Span) -> Self {
         Self {
             message,
@@ -23,7 +23,7 @@ impl SyntaxError {
     }
 
     pub fn generate_report(&mut self, filename: &str, source: &str) {
-        self.report = report_syntax_error(self, filename, source);
+        self.report = generate_report(self, filename, source);
     }
     pub fn unexpected_end_of_input(span: &Span) -> Self {
         Self::new("Unexpected end of input".to_string(), span)
@@ -35,7 +35,7 @@ pub enum ErrorKind {
     /// Generic error
     Msg(String),
     /// Both lexer and parser errors
-    SyntaxError(SyntaxError),
+    SyntaxError(ReportError),
     /// A loop was found while looking up the inheritance chain
     CircularExtend {
         /// Name of the template with the loop
@@ -137,7 +137,7 @@ impl Error {
 
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
-            kind: ErrorKind::SyntaxError(SyntaxError::new(message, span)),
+            kind: ErrorKind::SyntaxError(ReportError::new(message, span)),
             source: None,
         }
     }
