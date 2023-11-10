@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 /// when dealing with inheritance.
 #[derive(Debug)]
 pub(crate) struct State<'tera> {
-    pub(crate) stack: Stack,
+    pub(crate) stack: Stack<'tera>,
     pub(crate) chunk: &'tera Chunk,
     pub(crate) for_loops: Vec<ForLoop>,
     /// Any variables with {% set %} outside a for loop or {% set_global %} will be stored here
@@ -87,6 +87,6 @@ impl<'t> State<'t> {
     }
 
     pub(crate) fn load_name(&mut self, name: &str) {
-        self.stack.push(self.get(name));
+        self.stack.push(self.get(name), &None);
     }
 }

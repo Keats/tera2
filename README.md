@@ -72,7 +72,7 @@ Ideas:
 
 Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `{{ hey }}` should error if hey is undefined
-- `{{ existing.hey }}` sould error if hey is undefined but existing is
+- `{{ existing.hey }}` should error if hey is undefined but existing is
 - `{{ hey or 1 }}` should print 1
 - `{% if hey or true %}` should be truthy
 - `{% if hey.other or true %}` should error if `hey` is not defined (currently truthy)

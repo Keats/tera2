@@ -51,18 +51,20 @@ impl<'tera> VirtualMachine<'tera> {
         let mut ip = 0;
         macro_rules! op_binop {
             ($op:tt) => {{
-                let b = state.stack.pop();
-                let a = state.stack.pop();
-                state.stack.push(Value::from(a $op b));
+                // TODO: handle error
+                let (b, b_span) = state.stack.pop();
+                let (a, a_span) = state.stack.pop();
+                state.stack.push(Value::from(a $op b), &None);
             }};
         }
 
         macro_rules! math_binop {
             ($fn:ident) => {{
-                let b = state.stack.pop();
-                let a = state.stack.pop();
+                // TODO: handle error
+                let (b, b_span) = state.stack.pop();
+                let (a, a_span) = state.stack.pop();
                 if !a.is_number() || !b.is_number() {}
-                state.stack.push(crate::value::number::$fn(&a, &b)?);
+                state.stack.push(crate::value::number::$fn(&a, &b)?, &None);
             }};
         }
 
@@ -81,32 +83,32 @@ impl<'tera> VirtualMachine<'tera> {
         while let Some((instr, span)) = state.chunk.get(ip) {
             // println!("{}. {:?}", state.chunk.name, instr);
             match instr {
-                Instruction::LoadConst(v) => state.stack.push(v.clone()),
+                Instruction::LoadConst(v) => state.stack.push(v.clone(), span),
                 Instruction::LoadName(n) => state.load_name(n),
                 Instruction::LoadAttr(attr) => {
-                    let a = state.stack.pop();
+                    let (a, attr_span) = state.stack.pop();
                     if a == Value::Undefined {
                         return Err(Error::message(
                             "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
                         ));
                     }
-                    state.stack.push(a.get_attr(attr));
+                    state.stack.push(a.get_attr(attr), &None);
                 }
                 Instruction::BinarySubscript => {
-                    let subscript = state.stack.pop();
-                    let val = state.stack.pop();
+                    let (subscript, subscript_span) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
                     if val == Value::Undefined {
                         return Err(Error::message(
                             "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
                         ));
                     }
-                    state.stack.push(val.get_item(subscript));
+                    state.stack.push(val.get_item(subscript), &None);
                 }
                 Instruction::WriteText(t) => {
                     write_to_buffer!(t);
                 }
                 Instruction::WriteTop => {
-                    let top = state.stack.pop();
+                    let (top, top_span) = state.stack.pop();
                     if top == Value::Undefined {
                         return Err(Error::message(
                             "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
@@ -115,11 +117,12 @@ impl<'tera> VirtualMachine<'tera> {
                     write_to_buffer!(top);
                 }
                 Instruction::Set(name) => {
-                    let val = state.stack.pop();
+                    // TODO: do we need to keep those?
+                    let (val, _) = state.stack.pop();
                     state.store_local(name, val);
                 }
                 Instruction::SetGlobal(name) => {
-                    let val = state.stack.pop();
+                    let (val, _) = state.stack.pop();
                     state.store_global(name, val);
                 }
                 Instruction::Include(name) => {
@@ -128,23 +131,24 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        let val = state.stack.pop();
-                        let key = state.stack.pop();
+                        let (val, _) = state.stack.pop();
+                        let (key, _) = state.stack.pop();
                         elems.push((key.as_key()?, val));
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
-                    state.stack.push(Value::from(map))
+                    // TODO: do we need to keep track of the full span?
+                    state.stack.push(Value::from(map), &None)
                 }
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        elems.push(state.stack.pop());
+                        elems.push(state.stack.pop().0);
                     }
                     elems.reverse();
-                    state.stack.push(Value::from(elems));
+                    state.stack.push(Value::from(elems), &None);
                 }
                 Instruction::CallFunction(fn_name) => {
-                    let kwargs = state.stack.pop();
+                    let (kwargs, kwargs_span) = state.stack.pop();
                     if fn_name == "super" {
                         let current_block_name =
                             state.current_block_name.expect("no current block");
@@ -164,7 +168,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
                         res?;
-                        state.stack.push(Value::Null);
+                        state.stack.push(Value::Null, &None);
                     } else {
                         println!("Calling {fn_name} with {kwargs:?}");
                     }
@@ -172,7 +176,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::ApplyFilter(_) => {}
                 Instruction::RunTest(_) => {}
                 Instruction::RenderMacro(idx) => {
-                    let kwargs = state.stack.pop().into_map().expect("to have kwargs");
+                    let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
                     let mut context = Context::new();
                     // first need to make sure the data in the template makes sense
                     let curr_template = if self.template.parents.is_empty() {
@@ -201,7 +205,7 @@ impl<'tera> VirtualMachine<'tera> {
                         compiled_macro_def,
                         context,
                     )?;
-                    state.stack.push(Value::from(val));
+                    state.stack.push(Value::from(val), &None);
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
@@ -220,14 +224,14 @@ impl<'tera> VirtualMachine<'tera> {
                     continue;
                 }
                 Instruction::PopJumpIfFalse(target_ip) => {
-                    let val = state.stack.pop();
+                    let (val, _) = state.stack.pop();
                     if !val.is_truthy() {
                         ip = *target_ip;
                         continue;
                     }
                 }
                 Instruction::JumpIfFalseOrPop(target_ip) => {
-                    let peeked = state.stack.peek();
+                    let (peeked, _) = state.stack.peek();
                     if !peeked.is_truthy() {
                         ip = *target_ip;
                         continue;
@@ -236,7 +240,7 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::JumpIfTrueOrPop(target_ip) => {
-                    let peeked = state.stack.peek();
+                    let (peeked, _) = state.stack.peek();
                     if peeked.is_truthy() {
                         ip = *target_ip;
                         continue;
@@ -250,10 +254,10 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::EndCapture => {
                     let captured = state.capture_buffers.pop().unwrap();
                     let val = Value::from(String::from_utf8(captured)?);
-                    state.stack.push(val);
+                    state.stack.push(val, &None);
                 }
                 Instruction::StartIterate(is_key_value) => {
-                    let container = state.stack.pop();
+                    let (container, _) = state.stack.pop();
                     // TODO: change instructions of for loops to be easier to handle?
                     state.for_loops.push(ForLoop::new(*is_key_value, container));
                 }
@@ -275,7 +279,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::StoreDidNotIterate => {
                     if let Some(for_loop) = state.for_loops.last() {
-                        state.stack.push(Value::Bool(!for_loop.iterated()));
+                        state.stack.push(Value::Bool(!for_loop.iterated()), &None);
                     }
                 }
                 Instruction::Break => {
@@ -301,23 +305,25 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::Equal => op_binop!(==),
                 Instruction::NotEqual => op_binop!(!=),
                 Instruction::StrConcat => {
-                    let b = state.stack.pop();
-                    let a = state.stack.pop();
+                    let (b, _) = state.stack.pop();
+                    let (a, _) = state.stack.pop();
                     // TODO: we could push_str if `a` is a string
-                    state.stack.push(Value::from(format!("{a}{b}")));
+                    state.stack.push(Value::from(format!("{a}{b}")), &None);
                 }
                 Instruction::In => {
-                    let b = state.stack.pop();
-                    let a = state.stack.pop();
-                    state.stack.push(Value::Bool(b.contains(&a)?));
+                    // TODO: handle error
+                    let (b, _) = state.stack.pop();
+                    let (a, _) = state.stack.pop();
+                    state.stack.push(Value::Bool(b.contains(&a)?), &None);
                 }
                 Instruction::Not => {
-                    let a = state.stack.pop();
-                    state.stack.push(Value::from(!a.is_truthy()));
+                    let (a, _) = state.stack.pop();
+                    state.stack.push(Value::from(!a.is_truthy()), &None);
                 }
                 Instruction::Negative => {
-                    let a = state.stack.pop();
-                    state.stack.push(crate::value::number::negate(&a)?);
+                    // TODO: handle error
+                    let (a, _) = state.stack.pop();
+                    state.stack.push(crate::value::number::negate(&a)?, &None);
                 }
             }
 
