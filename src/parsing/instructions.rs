@@ -141,7 +141,7 @@ impl fmt::Debug for Chunk {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "=== {} ===", self.name)?;
 
-        for (offset, instr) in self.instructions.iter().enumerate() {
+        for (offset, (instr, _)) in self.instructions.iter().enumerate() {
             writeln!(f, "{offset:>04} {instr:?}")?;
         }
 

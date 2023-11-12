@@ -22,9 +22,11 @@ impl ReportError {
         }
     }
 
-    pub fn generate_report(&mut self, filename: &str, source: &str) {
-        self.report = generate_report(self, filename, source);
+    // TODO: clean up so we don't need err_type
+    pub fn generate_report(&mut self, filename: &str, source: &str, err_type: &str) {
+        self.report = generate_report(self, filename, source, err_type);
     }
+
     pub fn unexpected_end_of_input(span: &Span) -> Self {
         Self::new("Unexpected end of input".to_string(), span)
     }
@@ -34,8 +36,10 @@ impl ReportError {
 pub enum ErrorKind {
     /// Generic error
     Msg(String),
-    /// Both lexer and parser errors
+    /// Both lexer and parser errors. Will point to the source file
     SyntaxError(ReportError),
+    /// An error that happens while rendering a template. Will point to the source file
+    RenderingError(ReportError),
     /// A loop was found while looking up the inheritance chain
     CircularExtend {
         /// Name of the template with the loop
@@ -72,6 +76,7 @@ impl fmt::Display for ErrorKind {
         match self {
             ErrorKind::Msg(ref message) => write!(f, "{message}"),
             ErrorKind::SyntaxError(s) => write!(f, "{}", s.report),
+            ErrorKind::RenderingError(s) => write!(f, "{}", s.report),
             ErrorKind::CircularExtend {
                 ref tpl,
                 ref inheritance_chain,
@@ -138,6 +143,13 @@ impl Error {
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
             kind: ErrorKind::SyntaxError(ReportError::new(message, span)),
+            source: None,
+        }
+    }
+
+    pub(crate) fn rendering_error(message: String, span: &Span) -> Self {
+        Self {
+            kind: ErrorKind::RenderingError(ReportError::new(message, span)),
             source: None,
         }
     }

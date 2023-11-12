@@ -58,7 +58,7 @@ fn get_context() -> Context {
 fn rendering_ok() {
     insta::glob!("rendering_inputs/success/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{:?}", path.display());
+        let p = format!("{:?}", path.file_name().unwrap());
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
         let out = tera.render(&p, &get_context()).unwrap();
@@ -70,11 +70,12 @@ fn rendering_ok() {
 fn rendering_errors() {
     insta::glob!("rendering_inputs/errors/*.html", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{:?}", path.display());
+        let p = format!("{:?}", path.file_name().unwrap());
+        println!("{p:?}");
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
-        let out = tera.render(&p, &get_context()).unwrap_err();
-        insta::assert_display_snapshot!(&out);
+        let err = tera.render(&p, &get_context()).unwrap_err();
+        insta::assert_display_snapshot!(&err);
     });
 }
 

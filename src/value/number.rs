@@ -55,9 +55,7 @@ macro_rules! math {
                     };
                     Ok(val)
                 }
-                _ => Err(Error::message(format!(
-                    "{lhs} and {rhs} need to both be numbers"
-                ))),
+                _ => unreachable!("Should be handled in the interpreter")
             }
         }
     }
@@ -77,9 +75,7 @@ pub(crate) fn div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
 
             Ok((left.as_float() / right.as_float()).into())
         }
-        _ => Err(Error::message(format!(
-            "{lhs} and {rhs} need to both be numbers"
-        ))),
+        _ => unreachable!("Should be handled in the interpreter"),
     }
 }
 
@@ -107,9 +103,7 @@ pub(crate) fn floor_div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
             };
             Ok(val)
         }
-        _ => Err(Error::message(format!(
-            "{lhs} and {rhs} need to both be numbers"
-        ))),
+        _ => unreachable!("Should be handled in the interpreter"),
     }
 }
 
@@ -134,9 +128,7 @@ pub(crate) fn pow(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
             };
             Ok(val)
         }
-        _ => Err(Error::message(format!(
-            "{lhs} and {rhs} need to both be numbers"
-        ))),
+        _ => unreachable!("Should be handled in the interpreter"),
     }
 }
 
@@ -148,9 +140,6 @@ pub(crate) fn negate(val: &Value) -> TeraResult<Value> {
         };
         Ok(val)
     } else {
-        Err(Error::message(format!(
-            "Only numbers can be negated: {:?}",
-            val
-        )))
+        Err(Error::message(format!("Only numbers can be negated.",)))
     }
 }

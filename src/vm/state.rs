@@ -3,6 +3,7 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
+use crate::utils::Span;
 use std::collections::BTreeMap;
 
 /// The state of the interpreter.
@@ -86,7 +87,7 @@ impl<'t> State<'t> {
         }
     }
 
-    pub(crate) fn load_name(&mut self, name: &str) {
-        self.stack.push(self.get(name), &None);
+    pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
+        self.stack.push(self.get(name), span);
     }
 }

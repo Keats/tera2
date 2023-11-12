@@ -6,8 +6,8 @@ use crate::{HashMap, Parser};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Template {
     pub(crate) name: String,
-    source: String,
-    path: Option<String>,
+    pub(crate) source: String,
+    pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,
     /// (file, name)
     /// Used for its index in instructions
@@ -32,7 +32,7 @@ impl Template {
             Ok(p) => p,
             Err(e) => match e.kind {
                 ErrorKind::SyntaxError(mut s) => {
-                    s.generate_report(tpl_name, source);
+                    s.generate_report(tpl_name, source, "Syntax error");
                     return Err(Error {
                         kind: ErrorKind::SyntaxError(s),
                         source: None,

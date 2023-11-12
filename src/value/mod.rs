@@ -258,6 +258,13 @@ impl Value {
         }
     }
 
+    pub(crate) fn can_be_iterated_on(&self) -> bool {
+        matches!(
+            self,
+            Value::Map(..) | Value::Array(..) | Value::Bytes(..) | Value::String(..)
+        )
+    }
+
     pub(crate) fn as_key(&self) -> TeraResult<Key> {
         let key = match self {
             Value::Bool(v) => Key::Bool(*v),
@@ -280,9 +287,13 @@ impl Value {
                     Ok(false)
                 }
             }
-            Value::Map(m) => Ok(m.contains_key(&needle.as_key()?)),
+            // If they needle cannot index a map, then it can contain it
+            Value::Map(m) => match &needle.as_key() {
+                Ok(k) => Ok(m.contains_key(k)),
+                Err(_) => Ok(false),
+            },
             _ => Err(Error::message(
-                "Cannot check containment on this kind of value".to_string(),
+                format!("`in` cannot be used on a container of type `{}`. It can only be used on arrays, strings and map/structs", self.name()),
             )),
         }
     }
@@ -296,17 +307,44 @@ impl Value {
     }
 
     /// When doing hello[0], hello[name] etc, item is the value in the brackets
-    pub(crate) fn get_item(&self, item: Value) -> Value {
+    pub(crate) fn get_item(&self, item: Value) -> TeraResult<Value> {
         match self {
             Value::Map(m) => {
-                let key = item.as_key().expect("TODO: error handling");
-                m.get(&key).cloned().unwrap_or(Value::Undefined)
+                match item.as_key() {
+                    Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value::Undefined)),
+                    Err(_) => Err(Error::message(
+                        format!("a `{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed", self.name()),
+                    ))
+                }
             }
             Value::Array(arr) => {
-                let idx = item.as_i128().expect("TODO: error handling");
-                arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)
+                match item.as_i128() {
+                    Some(idx) => Ok(arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)),
+                    None =>  Err(Error::message(
+                        format!("Array indices can only be integers, not `{}`.", self.name()),
+                    ))
+                }
             }
-            _ => Value::Undefined,
+            _ => Ok(Value::Undefined),
+        }
+    }
+
+    /// Returns a string name for the current enum member.
+    /// Used in error messages
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            Value::Undefined => "undefined",
+            Value::Null => "null",
+            Value::Bool(_) => "bool",
+            Value::U64(_) => "u64",
+            Value::I64(_) => "i64",
+            Value::F64(_) => "f64",
+            Value::U128(_) => "u128",
+            Value::I128(_) => "i128",
+            Value::Array(_) => "array",
+            Value::Bytes(_) => "bytes",
+            Value::String(_, _) => "string",
+            Value::Map(_) => "map/struct",
         }
     }
 }

@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/bad_in_container.html
+---
+ Rendering error --> ["/Users/vincentprouillet/Code/tera-parser/src/tests/rendering_inputs/errors/bad_in_container.html":1:10]
+  |
+1 | {{ 'a' in 1 }}
+  |           ^---
+  = `in` cannot be used on a container of type `i64`. Only on arrays, strings and map/structs

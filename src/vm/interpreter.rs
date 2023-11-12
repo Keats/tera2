@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 
-use crate::errors::{Error, TeraResult};
+use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
-use crate::value::Value;
+use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
 use crate::vm::state::State;
@@ -49,9 +49,21 @@ impl<'tera> VirtualMachine<'tera> {
 
     fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
         let mut ip = 0;
+
+        macro_rules! rendering_error {
+            ($msg:expr,$span:expr) => {{
+                let mut err = ReportError::new($msg, $span);
+                err.generate_report(
+                    &self.template.name,
+                    &self.template.source,
+                    "Rendering error",
+                );
+                return Err(Error::new(ErrorKind::RenderingError(err)));
+            }};
+        }
+
         macro_rules! op_binop {
             ($op:tt) => {{
-                // TODO: handle error
                 let (b, b_span) = state.stack.pop();
                 let (a, a_span) = state.stack.pop();
                 state.stack.push(Value::from(a $op b), &None);
@@ -60,11 +72,24 @@ impl<'tera> VirtualMachine<'tera> {
 
         macro_rules! math_binop {
             ($fn:ident) => {{
-                // TODO: handle error
                 let (b, b_span) = state.stack.pop();
                 let (a, a_span) = state.stack.pop();
-                if !a.is_number() || !b.is_number() {}
-                state.stack.push(crate::value::number::$fn(&a, &b)?, &None);
+
+                if !a.is_number() {
+                    rendering_error!(format!("Math operations can only be done on numbers, found `{}`", a.name()), a_span.as_ref().unwrap());
+                }
+
+                if !b.is_number() {
+                    rendering_error!(format!("Math operations can only be done on numbers, found `{}`", b.name()), a_span.as_ref().unwrap());
+                }
+
+                // TODO: handle errors like divide by 0, the span here is going to point to wrong things/error
+                match crate::value::number::$fn(&a, &b) {
+                    Ok(c) => state.stack.push(c, &None),
+                    Err(e) => {
+                        rendering_error!(e.to_string(), a_span.as_ref().unwrap());
+                    }
+                }
             }};
         }
 
@@ -84,7 +109,7 @@ impl<'tera> VirtualMachine<'tera> {
             // println!("{}. {:?}", state.chunk.name, instr);
             match instr {
                 Instruction::LoadConst(v) => state.stack.push(v.clone(), span),
-                Instruction::LoadName(n) => state.load_name(n),
+                Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
                     let (a, attr_span) = state.stack.pop();
                     if a == Value::Undefined {
@@ -102,7 +127,15 @@ impl<'tera> VirtualMachine<'tera> {
                             "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
                         ));
                     }
-                    state.stack.push(val.get_item(subscript), &None);
+                    // TODO: we need expand the spans, spans must be Cow in the stack?
+                    match val.get_item(subscript) {
+                        Ok(v) => {
+                            state.stack.push(v, subscript_span);
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), subscript_span.as_ref().unwrap());
+                        }
+                    }
                 }
                 Instruction::WriteText(t) => {
                     write_to_buffer!(t);
@@ -187,7 +220,7 @@ impl<'tera> VirtualMachine<'tera> {
 
                     let compiled_macro_def = &curr_template.macro_calls_def[*idx];
                     for (key, value) in &compiled_macro_def.kwargs {
-                        match kwargs.get(&crate::value::Key::from(key.as_str())) {
+                        match kwargs.get(&Key::from(key.as_str())) {
                             Some(kwarg_val) => {
                                 context.insert(key, kwarg_val);
                             }
@@ -257,9 +290,25 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(val, &None);
                 }
                 Instruction::StartIterate(is_key_value) => {
-                    let (container, _) = state.stack.pop();
-                    // TODO: change instructions of for loops to be easier to handle?
-                    state.for_loops.push(ForLoop::new(*is_key_value, container));
+                    let (container, container_span) = state.stack.pop();
+                    if !container.can_be_iterated_on() {
+                        rendering_error!(
+                            format!("Iteration not possible on type `{}`", container.name()),
+                            container_span.as_ref().unwrap()
+                        );
+                    }
+
+                    if *is_key_value && !matches!(container, Value::Map(..)) {
+                        rendering_error!(
+                            format!(
+                                "Key/value iteration is not possible on type `{}`, only on maps.",
+                                container.name()
+                            ),
+                            container_span.as_ref().unwrap()
+                        );
+                    }
+
+                    state.for_loops.push(ForLoop::new(container));
                 }
                 Instruction::StoreLocal(name) => {
                     if let Some(for_loop) = state.for_loops.last_mut() {
@@ -311,10 +360,16 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(format!("{a}{b}")), &None);
                 }
                 Instruction::In => {
-                    // TODO: handle error
-                    let (b, _) = state.stack.pop();
-                    let (a, _) = state.stack.pop();
-                    state.stack.push(Value::Bool(b.contains(&a)?), &None);
+                    let (container, container_span) = state.stack.pop();
+                    let (needle, _) = state.stack.pop();
+                    match container.contains(&needle) {
+                        Ok(b) => {
+                            state.stack.push(Value::Bool(b), &None);
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), container_span.as_ref().unwrap());
+                        }
+                    };
                 }
                 Instruction::Not => {
                     let (a, _) = state.stack.pop();
