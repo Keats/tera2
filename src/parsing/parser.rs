@@ -189,13 +189,12 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Dot, _))) => {
                     expect_token!(self, Token::Dot, ".")?;
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    start_span.expand(&span);
                     expr = Expression::GetAttr(Spanned::new(
                         GetAttr {
                             expr,
                             name: attr.to_string(),
                         },
-                        start_span.clone(),
+                        span.clone(),
                     ));
                 }
                 Some(Ok((Token::LeftBracket, _))) => {

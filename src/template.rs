@@ -54,8 +54,12 @@ impl Template {
         let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
 
         // We need the macro handling logic both for the template and for each macro
+        let macro_defs = parser_output.macro_definitions.clone();
         let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
             if &namespace == "self" {
+                if macro_defs.iter().find(|x| x.name == macro_name).is_none() {
+                    return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
+                }
                 macro_calls.push((tpl_name.to_string(), macro_name));
                 return Ok(());
             }

@@ -5,6 +5,6 @@ input_file: src/tests/rendering_inputs/errors/iterate_on_non_array.html
 ---
  Rendering error --> ["iterate_on_non_array.html":1:12]
   |
-1 | {% for i in friend_reviewed %}
+1 | {% for i in age %}
   |             ^---
-  = Iteration not possible on type `undefined`
+  = Iteration not possible on type `i64`

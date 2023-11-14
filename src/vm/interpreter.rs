@@ -111,21 +111,23 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::LoadConst(v) => state.stack.push(v.clone(), span),
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
-                    let (a, attr_span) = state.stack.pop();
+                    let (a, a_span) = state.stack.pop();
                     if a == Value::Undefined {
-                        return Err(Error::message(
-                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
-                        ));
+                        rendering_error!(
+                            format!("Container is not defined"),
+                            a_span.as_ref().unwrap()
+                        );
                     }
-                    state.stack.push(a.get_attr(attr), &None);
+                    state.stack.push(a.get_attr(attr), span);
                 }
                 Instruction::BinarySubscript => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
                     if val == Value::Undefined {
-                        return Err(Error::message(
-                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
-                        ));
+                        rendering_error!(
+                            format!("Container is not defined"),
+                            val_span.as_ref().unwrap()
+                        );
                     }
                     // TODO: we need expand the spans, spans must be Cow in the stack?
                     match val.get_item(subscript) {
@@ -143,9 +145,10 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::WriteTop => {
                     let (top, top_span) = state.stack.pop();
                     if top == Value::Undefined {
-                        return Err(Error::message(
-                            "Found undefined. TODO: point to right variable/span by walking the back the stack".into(),
-                        ));
+                        rendering_error!(
+                            format!("Tried to render a variable that is not defined"),
+                            top_span.as_ref().unwrap()
+                        );
                     }
                     write_to_buffer!(top);
                 }
@@ -181,7 +184,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(elems), &None);
                 }
                 Instruction::CallFunction(fn_name) => {
-                    let (kwargs, kwargs_span) = state.stack.pop();
+                    let (kwargs, _) = state.stack.pop();
                     if fn_name == "super" {
                         let current_block_name =
                             state.current_block_name.expect("no current block");
@@ -190,9 +193,10 @@ impl<'tera> VirtualMachine<'tera> {
                             .remove(current_block_name)
                             .expect("no lineage found");
                         if blocks.len() == 1 {
-                            return Err(Error::message(
-                                "Tried to use super() in the top level block".into(),
-                            ));
+                            rendering_error!(
+                                format!("Tried to use super() in the top level block"),
+                                span.as_ref().unwrap()
+                            );
                         }
 
                         let block_chunk = blocks[level + 1];
@@ -376,9 +380,15 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(!a.is_truthy()), &None);
                 }
                 Instruction::Negative => {
-                    // TODO: handle error
-                    let (a, _) = state.stack.pop();
-                    state.stack.push(crate::value::number::negate(&a)?, &None);
+                    let (a, a_span) = state.stack.pop();
+                    match crate::value::number::negate(&a) {
+                        Ok(b) => {
+                            state.stack.push(b, &None);
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), a_span.as_ref().unwrap());
+                        }
+                    }
                 }
             }
 

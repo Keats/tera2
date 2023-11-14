@@ -61,6 +61,15 @@ pub enum ErrorKind {
         /// The namespace causing problems
         namespace: String,
     },
+    /// The template is calling a macro which isn't found in the namespace
+    MacroNotFound {
+        /// Name of the template with the issue
+        tpl: String,
+        /// The namespace used
+        namespace: String,
+        /// The name of the macro that cannot be found
+        name: String,
+    },
     /// A template was missing
     TemplateNotFound(String),
     /// An IO error occurred
@@ -98,6 +107,14 @@ impl fmt::Display for ErrorKind {
             } => write!(
                 f,
                 "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
+            ),
+            ErrorKind::MacroNotFound {
+                ref tpl,
+                ref namespace,
+                ref name,
+            } => write!(
+                f,
+                "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
             ErrorKind::Io(ref io_error) => {
                 write!(f, "Io error while writing rendered value to output: {:?}", io_error)
@@ -184,6 +201,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn macro_not_found(
+        tpl: impl ToString,
+        namespace: impl ToString,
+        name: impl ToString,
+    ) -> Self {
+        Self {
+            kind: ErrorKind::MacroNotFound {
+                tpl: tpl.to_string(),
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+            },
+            source: None,
+        }
+    }
     pub(crate) fn io_error(error: std::io::Error) -> Self {
         Self {
             kind: ErrorKind::Io(error.kind()),

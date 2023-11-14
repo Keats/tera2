@@ -102,7 +102,7 @@ input_file: src/tests/parser_inputs/success/for.txt
                             name: "loop",
                         } @ 6:29-6:33 (292..296),
                         name: "index0",
-                    } @ 6:29-6:40 (292..303),
+                    } @ 6:34-6:40 (297..303),
                     right: 1 @ 6:44-6:45 (307..308),
                 } @ 6:29-6:45 (292..308),
                 body: [

@@ -140,6 +140,9 @@ pub(crate) fn negate(val: &Value) -> TeraResult<Value> {
         };
         Ok(val)
     } else {
-        Err(Error::message(format!("Only numbers can be negated.",)))
+        Err(Error::message(format!(
+            "Only numbers can be negated. This is a `{}`",
+            val.name()
+        )))
     }
 }

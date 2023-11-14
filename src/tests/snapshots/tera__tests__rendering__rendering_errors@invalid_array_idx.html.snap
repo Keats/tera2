@@ -7,4 +7,4 @@ input_file: src/tests/rendering_inputs/errors/invalid_array_idx.html
   |
 1 | {{ vectors[1.1] }}
   |            ^---
-  = Array indices can only be integers, not `array`.
+  = Array indices can only be integers, not `f64`.

@@ -313,7 +313,7 @@ impl Value {
                 match item.as_key() {
                     Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value::Undefined)),
                     Err(_) => Err(Error::message(
-                        format!("a `{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed", self.name()),
+                        format!("`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed", item.name()),
                     ))
                 }
             }
@@ -321,7 +321,7 @@ impl Value {
                 match item.as_i128() {
                     Some(idx) => Ok(arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)),
                     None =>  Err(Error::message(
-                        format!("Array indices can only be integers, not `{}`.", self.name()),
+                        format!("Array indices can only be integers, not `{}`.", item.name()),
                     ))
                 }
             }

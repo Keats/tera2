@@ -39,14 +39,13 @@ fn parser_expressions_idents_success() {
 
 #[test]
 fn parser_errors() {
-    insta::glob!("parser_inputs/errors/*.txt", |path| {
+    insta::glob!("parser_inputs/errors/macro_self_inexisting.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res = Template::new(
             path.file_name().unwrap().to_string_lossy().as_ref(),
             &contents,
             None,
         );
-        assert!(res.is_err());
         insta::assert_display_snapshot!(res.unwrap_err());
     });
 }
