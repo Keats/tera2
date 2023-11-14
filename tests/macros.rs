@@ -384,3 +384,22 @@ fn parent_macro_cant_access_child_macro_context() {
     let result = tera.render("parent", &Context::new());
     assert_eq!(result.unwrap(), "A-B".to_string());
 }
+
+#[test]
+fn errors_when_loading_macro_usage_not_found_in_namespace() {
+    let mut tera = Tera::default();
+    let err = tera
+        .add_raw_templates(vec![
+            ("macros", ""),
+            (
+                "parent",
+                "{% import \"macros\" as macros %}{{ macros::test_global() }}",
+            ),
+        ])
+        .unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "Template `parent` is using macros `test_global` from `macros` which wasn't found"
+    );
+}

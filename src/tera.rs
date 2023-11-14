@@ -133,7 +133,7 @@ impl Tera {
                     .get(macro_name)
                     .ok_or_else(|| {
                         Error::message(format!(
-                            "Template `{name}` is using macros {macro_name} from `{tpl_name}` which wasn't found",
+                            "Template `{name}` is using macros `{macro_name}` from `{tpl_name}` which wasn't found",
                         ))
                     })?;
 
