@@ -88,6 +88,7 @@ impl<'t> State<'t> {
     }
 
     pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
-        self.stack.push(self.get(name), span);
+        self.stack
+            .push_borrowed(self.get(name), span.as_ref().unwrap());
     }
 }

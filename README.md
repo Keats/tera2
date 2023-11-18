@@ -40,7 +40,7 @@ TODO:
   - [ ] Fix/remove all the TODOs
   - [ ] Improve perf till it's better than Tera v1
   - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
-  - [ ] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
+  - [x] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
   - [ ] Finish VM
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::io::Write;
 
@@ -11,7 +12,6 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
-// TODO: add a method to error that automatically adds span + template source
 pub(crate) struct VirtualMachine<'tera> {
     tera: &'tera Tera,
     template: &'tera Template,
@@ -52,7 +52,7 @@ impl<'tera> VirtualMachine<'tera> {
 
         macro_rules! rendering_error {
             ($msg:expr,$span:expr) => {{
-                let mut err = ReportError::new($msg, $span);
+                let mut err = ReportError::new($msg, &$span.as_ref().clone().unwrap());
                 err.generate_report(
                     &self.template.name,
                     &self.template.source,
@@ -62,11 +62,21 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
+        macro_rules! expand_span {
+            ($first:expr,$second:expr) => {{
+                let mut c_span = $first.clone().unwrap().into_owned();
+                if let Some(ref second_span) = $second.as_ref() {
+                    c_span.expand(&second_span);
+                }
+                Cow::Owned(c_span)
+            }};
+        }
+
         macro_rules! op_binop {
             ($op:tt) => {{
                 let (b, b_span) = state.stack.pop();
                 let (a, a_span) = state.stack.pop();
-                state.stack.push(Value::from(a $op b), &None);
+                state.stack.push(Value::from(a $op b), Some(expand_span!(a_span, b_span)));
             }};
         }
 
@@ -76,18 +86,36 @@ impl<'tera> VirtualMachine<'tera> {
                 let (a, a_span) = state.stack.pop();
 
                 if !a.is_number() {
-                    rendering_error!(format!("Math operations can only be done on numbers, found `{}`", a.name()), a_span.as_ref().unwrap());
+                    rendering_error!(
+                        format!(
+                            "Math operations can only be done on numbers, found `{}`",
+                            a.name()
+                        ),
+                        a_span
+                    );
                 }
 
                 if !b.is_number() {
-                    rendering_error!(format!("Math operations can only be done on numbers, found `{}`", b.name()), a_span.as_ref().unwrap());
+                    rendering_error!(
+                        format!(
+                            "Math operations can only be done on numbers, found `{}`",
+                            b.name()
+                        ),
+                        b_span
+                    );
                 }
 
-                // TODO: handle errors like divide by 0, the span here is going to point to wrong things/error
+                let c_span = expand_span!(a_span, b_span);
                 match crate::value::number::$fn(&a, &b) {
-                    Ok(c) => state.stack.push(c, &None),
+                    Ok(c) => state.stack.push(c, Some(c_span)),
                     Err(e) => {
-                        rendering_error!(e.to_string(), a_span.as_ref().unwrap());
+                        let err_msg = e.to_string();
+                        // yucky
+                        if err_msg.contains("divide by 0") {
+                            rendering_error!(err_msg, b_span);
+                        } else {
+                            rendering_error!(err_msg, Some(c_span));
+                        }
                     }
                 }
             }};
@@ -108,34 +136,33 @@ impl<'tera> VirtualMachine<'tera> {
         while let Some((instr, span)) = state.chunk.get(ip) {
             // println!("{}. {:?}", state.chunk.name, instr);
             match instr {
-                Instruction::LoadConst(v) => state.stack.push(v.clone(), span),
+                Instruction::LoadConst(v) => {
+                    state.stack.push_borrowed(v.clone(), span.as_ref().unwrap())
+                }
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
                     let (a, a_span) = state.stack.pop();
                     if a == Value::Undefined {
-                        rendering_error!(
-                            format!("Container is not defined"),
-                            a_span.as_ref().unwrap()
-                        );
+                        rendering_error!(format!("Container is not defined"), a_span);
                     }
-                    state.stack.push(a.get_attr(attr), span);
+                    state
+                        .stack
+                        .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
                 }
                 Instruction::BinarySubscript => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
                     if val == Value::Undefined {
-                        rendering_error!(
-                            format!("Container is not defined"),
-                            val_span.as_ref().unwrap()
-                        );
+                        rendering_error!(format!("Container is not defined"), val_span);
                     }
-                    // TODO: we need expand the spans, spans must be Cow in the stack?
+
+                    let c_span = expand_span!(val_span, subscript_span);
                     match val.get_item(subscript) {
                         Ok(v) => {
-                            state.stack.push(v, subscript_span);
+                            state.stack.push(v, Some(c_span));
                         }
                         Err(e) => {
-                            rendering_error!(e.to_string(), subscript_span.as_ref().unwrap());
+                            rendering_error!(e.to_string(), subscript_span);
                         }
                     }
                 }
@@ -147,13 +174,13 @@ impl<'tera> VirtualMachine<'tera> {
                     if top == Value::Undefined {
                         rendering_error!(
                             format!("Tried to render a variable that is not defined"),
-                            top_span.as_ref().unwrap()
+                            top_span
                         );
                     }
                     write_to_buffer!(top);
                 }
                 Instruction::Set(name) => {
-                    // TODO: do we need to keep those?
+                    // TODO: do we need to keep those spans?
                     let (val, _) = state.stack.pop();
                     state.store_local(name, val);
                 }
@@ -173,7 +200,7 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
                     // TODO: do we need to keep track of the full span?
-                    state.stack.push(Value::from(map), &None)
+                    state.stack.push(Value::from(map), None)
                 }
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
@@ -181,7 +208,7 @@ impl<'tera> VirtualMachine<'tera> {
                         elems.push(state.stack.pop().0);
                     }
                     elems.reverse();
-                    state.stack.push(Value::from(elems), &None);
+                    state.stack.push(Value::from(elems), None);
                 }
                 Instruction::CallFunction(fn_name) => {
                     let (kwargs, _) = state.stack.pop();
@@ -195,7 +222,7 @@ impl<'tera> VirtualMachine<'tera> {
                         if blocks.len() == 1 {
                             rendering_error!(
                                 format!("Tried to use super() in the top level block"),
-                                span.as_ref().unwrap()
+                                span
                             );
                         }
 
@@ -205,7 +232,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
                         res?;
-                        state.stack.push(Value::Null, &None);
+                        state.stack.push(Value::Null, None);
                     } else {
                         println!("Calling {fn_name} with {kwargs:?}");
                     }
@@ -242,7 +269,9 @@ impl<'tera> VirtualMachine<'tera> {
                         compiled_macro_def,
                         context,
                     )?;
-                    state.stack.push(Value::from(val), &None);
+                    state
+                        .stack
+                        .push_borrowed(Value::from(val), span.as_ref().unwrap());
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
@@ -289,16 +318,17 @@ impl<'tera> VirtualMachine<'tera> {
                     state.capture_buffers.push(Vec::with_capacity(128));
                 }
                 Instruction::EndCapture => {
+                    // TODO: we should keep track of the buffer spans?
                     let captured = state.capture_buffers.pop().unwrap();
                     let val = Value::from(String::from_utf8(captured)?);
-                    state.stack.push(val, &None);
+                    state.stack.push(val, None);
                 }
                 Instruction::StartIterate(is_key_value) => {
                     let (container, container_span) = state.stack.pop();
                     if !container.can_be_iterated_on() {
                         rendering_error!(
                             format!("Iteration not possible on type `{}`", container.name()),
-                            container_span.as_ref().unwrap()
+                            container_span
                         );
                     }
 
@@ -308,7 +338,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 "Key/value iteration is not possible on type `{}`, only on maps.",
                                 container.name()
                             ),
-                            container_span.as_ref().unwrap()
+                            container_span
                         );
                     }
 
@@ -320,7 +350,6 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::Iterate(end_ip) => {
-                    // TODO: something very slow happening with forloop
                     if let Some(for_loop) = state.for_loops.last_mut() {
                         if for_loop.is_over() {
                             ip = *end_ip;
@@ -332,7 +361,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::StoreDidNotIterate => {
                     if let Some(for_loop) = state.for_loops.last() {
-                        state.stack.push(Value::Bool(!for_loop.iterated()), &None);
+                        state.stack.push(Value::Bool(!for_loop.iterated()), None);
                     }
                 }
                 Instruction::Break => {
@@ -358,35 +387,38 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::Equal => op_binop!(==),
                 Instruction::NotEqual => op_binop!(!=),
                 Instruction::StrConcat => {
-                    let (b, _) = state.stack.pop();
-                    let (a, _) = state.stack.pop();
+                    let (b, b_span) = state.stack.pop();
+                    let (a, a_span) = state.stack.pop();
+                    let c_span = expand_span!(a_span, b_span);
                     // TODO: we could push_str if `a` is a string
-                    state.stack.push(Value::from(format!("{a}{b}")), &None);
+                    state
+                        .stack
+                        .push(Value::from(format!("{a}{b}")), Some(c_span));
                 }
                 Instruction::In => {
                     let (container, container_span) = state.stack.pop();
                     let (needle, _) = state.stack.pop();
                     match container.contains(&needle) {
                         Ok(b) => {
-                            state.stack.push(Value::Bool(b), &None);
+                            state.stack.push(Value::Bool(b), None);
                         }
                         Err(e) => {
-                            rendering_error!(e.to_string(), container_span.as_ref().unwrap());
+                            rendering_error!(e.to_string(), container_span);
                         }
                     };
                 }
                 Instruction::Not => {
-                    let (a, _) = state.stack.pop();
-                    state.stack.push(Value::from(!a.is_truthy()), &None);
+                    let (a, a_span) = state.stack.pop();
+                    state.stack.push(Value::from(!a.is_truthy()), a_span);
                 }
                 Instruction::Negative => {
                     let (a, a_span) = state.stack.pop();
                     match crate::value::number::negate(&a) {
                         Ok(b) => {
-                            state.stack.push(b, &None);
+                            state.stack.push(b, a_span);
                         }
                         Err(e) => {
-                            rendering_error!(e.to_string(), a_span.as_ref().unwrap());
+                            rendering_error!(e.to_string(), a_span);
                         }
                     }
                 }
