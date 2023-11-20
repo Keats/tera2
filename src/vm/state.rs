@@ -3,6 +3,7 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
+use crate::utils::Span;
 use std::collections::BTreeMap;
 
 /// The state of the interpreter.
@@ -10,7 +11,7 @@ use std::collections::BTreeMap;
 /// when dealing with inheritance.
 #[derive(Debug)]
 pub(crate) struct State<'tera> {
-    pub(crate) stack: Stack,
+    pub(crate) stack: Stack<'tera>,
     pub(crate) chunk: &'tera Chunk,
     pub(crate) for_loops: Vec<ForLoop>,
     /// Any variables with {% set %} outside a for loop or {% set_global %} will be stored here
@@ -86,7 +87,8 @@ impl<'t> State<'t> {
         }
     }
 
-    pub(crate) fn load_name(&mut self, name: &str) {
-        self.stack.push(self.get(name));
+    pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
+        self.stack
+            .push_borrowed(self.get(name), span.as_ref().unwrap());
     }
 }

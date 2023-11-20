@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::iter::Peekable;
 
-use crate::errors::{Error, ErrorKind, SyntaxError, TeraResult};
+use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
     FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Test,
@@ -153,7 +153,7 @@ impl<'a> Parser<'a> {
         span.start_col = span.end_col;
         span.start_line = span.end_line;
         Error::new(ErrorKind::SyntaxError(
-            SyntaxError::unexpected_end_of_input(&span),
+            ReportError::unexpected_end_of_input(&span),
         ))
     }
 
@@ -189,13 +189,12 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Dot, _))) => {
                     expect_token!(self, Token::Dot, ".")?;
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    start_span.expand(&span);
                     expr = Expression::GetAttr(Spanned::new(
                         GetAttr {
                             expr,
                             name: attr.to_string(),
                         },
-                        start_span.clone(),
+                        span.clone(),
                     ));
                 }
                 Some(Ok((Token::LeftBracket, _))) => {

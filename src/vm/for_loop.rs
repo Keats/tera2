@@ -6,7 +6,6 @@ use serde::Serialize;
 use serde::Serializer;
 use std::sync::Arc;
 
-
 /// Enumerates on the types of values to be iterated, scalars and pairs
 #[derive(Debug)]
 pub enum ForLoopValues {
@@ -103,12 +102,7 @@ pub(crate) struct ForLoop {
 }
 
 impl ForLoop {
-    pub fn new(is_key_value: bool, container: Value) -> Self {
-        // Either both is_key_value and is_map are true, or false, else error
-        if is_key_value != matches!(container, Value::Map(_)) {
-            todo!("Error: {container:?}");
-        }
-
+    pub fn new(container: Value) -> Self {
         let values = match container {
             Value::Map(map) => {
                 let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
@@ -137,7 +131,7 @@ impl ForLoop {
                 let vals: Vec<_> = arr.iter().cloned().collect();
                 ForLoopValues::Array(vals.into_iter())
             }
-            _ => todo!("handle error"),
+            _ => unreachable!("Should be handled in the interpreter"),
         };
 
         let length = values.len();

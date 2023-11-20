@@ -1,4 +1,4 @@
-use crate::errors::SyntaxError;
+use crate::errors::ReportError;
 
 fn get_line_starts(source: &str) -> Vec<usize> {
     std::iter::once(0)
@@ -6,7 +6,12 @@ fn get_line_starts(source: &str) -> Vec<usize> {
         .collect()
 }
 
-pub fn report_syntax_error(error: &SyntaxError, filename: &str, source: &str) -> String {
+pub fn generate_report(
+    error: &ReportError,
+    filename: &str,
+    source: &str,
+    err_type: &str,
+) -> String {
     let line_starts: Vec<_> = get_line_starts(source);
     let start_line = error.span.start_line;
     let start_col = error.span.start_col;
@@ -30,7 +35,7 @@ pub fn report_syntax_error(error: &SyntaxError, filename: &str, source: &str) ->
     let message = &error.message;
 
     format!(
-        "{spacing}Syntax error --> [{filename}:{start_line}:{start_col}]\n\
+        "{spacing}{err_type} --> [{filename}:{start_line}:{start_col}]\n\
          {spacing} |\n\
          {start_line} | {line}\n\
          {spacing} | {underline}\n\
@@ -61,7 +66,7 @@ mod tests {
     #[test]
     fn can_render_syntax_error() {
         let source = "foo\nbar\r\n\nbaz";
-        let err = SyntaxError::new(
+        let err = ReportError::new(
             "Cannot bar the foo".to_string(),
             &Span {
                 start_line: 1,
@@ -71,7 +76,7 @@ mod tests {
                 range: 4..7,
             },
         );
-        let out = report_syntax_error(&err, "test.html", source);
+        let out = generate_report(&err, "test.html", source, "Syntax error");
         println!("{out}");
         assert_eq!(
             out,

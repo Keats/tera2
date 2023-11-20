@@ -6,8 +6,8 @@ use crate::{HashMap, Parser};
 #[derive(Debug, PartialEq, Clone)]
 pub struct Template {
     pub(crate) name: String,
-    source: String,
-    path: Option<String>,
+    pub(crate) source: String,
+    pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,
     /// (file, name)
     /// Used for its index in instructions
@@ -28,12 +28,11 @@ pub struct Template {
 impl Template {
     pub(crate) fn new(tpl_name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
         let parser = Parser::new(source);
-        // TODO: handle syntax error here, we have the tpl name and the source
         let parser_output = match parser.parse() {
             Ok(p) => p,
             Err(e) => match e.kind {
                 ErrorKind::SyntaxError(mut s) => {
-                    s.generate_report(tpl_name, source);
+                    s.generate_report(tpl_name, source, "Syntax error");
                     return Err(Error {
                         kind: ErrorKind::SyntaxError(s),
                         source: None,
@@ -55,8 +54,12 @@ impl Template {
         let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
 
         // We need the macro handling logic both for the template and for each macro
+        let macro_defs = parser_output.macro_definitions.clone();
         let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
             if &namespace == "self" {
+                if macro_defs.iter().find(|x| x.name == macro_name).is_none() {
+                    return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
+                }
                 macro_calls.push((tpl_name.to_string(), macro_name));
                 return Ok(());
             }

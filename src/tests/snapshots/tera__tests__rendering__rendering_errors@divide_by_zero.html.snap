@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/divide_by_zero.html
+---
+ Rendering error --> ["divide_by_zero.html":1:10]
+  |
+1 | {{ age / (one - 1) }}
+  |           ^---
+  = Cannot divide by 0

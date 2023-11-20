@@ -1,19 +1,19 @@
 //! The Tera error type, with optional nice terminal error reporting.
 use std::fmt::{self};
 
-use crate::reporting::report_syntax_error;
+use crate::reporting::generate_report;
 use std::error::Error as StdError;
 
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SyntaxError {
+pub struct ReportError {
     pub(crate) message: String,
     pub(crate) span: Span,
     pub(crate) report: String,
 }
 
-impl SyntaxError {
+impl ReportError {
     pub fn new(message: String, span: &Span) -> Self {
         Self {
             message,
@@ -22,9 +22,11 @@ impl SyntaxError {
         }
     }
 
-    pub fn generate_report(&mut self, filename: &str, source: &str) {
-        self.report = report_syntax_error(self, filename, source);
+    // TODO: clean up so we don't need err_type
+    pub fn generate_report(&mut self, filename: &str, source: &str, err_type: &str) {
+        self.report = generate_report(self, filename, source, err_type);
     }
+
     pub fn unexpected_end_of_input(span: &Span) -> Self {
         Self::new("Unexpected end of input".to_string(), span)
     }
@@ -34,8 +36,10 @@ impl SyntaxError {
 pub enum ErrorKind {
     /// Generic error
     Msg(String),
-    /// Both lexer and parser errors
-    SyntaxError(SyntaxError),
+    /// Both lexer and parser errors. Will point to the source file
+    SyntaxError(ReportError),
+    /// An error that happens while rendering a template. Will point to the source file
+    RenderingError(ReportError),
     /// A loop was found while looking up the inheritance chain
     CircularExtend {
         /// Name of the template with the loop
@@ -57,6 +61,15 @@ pub enum ErrorKind {
         /// The namespace causing problems
         namespace: String,
     },
+    /// The template is calling a macro which isn't found in the namespace
+    MacroNotFound {
+        /// Name of the template with the issue
+        tpl: String,
+        /// The namespace used
+        namespace: String,
+        /// The name of the macro that cannot be found
+        name: String,
+    },
     /// A template was missing
     TemplateNotFound(String),
     /// An IO error occurred
@@ -72,6 +85,7 @@ impl fmt::Display for ErrorKind {
         match self {
             ErrorKind::Msg(ref message) => write!(f, "{message}"),
             ErrorKind::SyntaxError(s) => write!(f, "{}", s.report),
+            ErrorKind::RenderingError(s) => write!(f, "{}", s.report),
             ErrorKind::CircularExtend {
                 ref tpl,
                 ref inheritance_chain,
@@ -93,6 +107,14 @@ impl fmt::Display for ErrorKind {
             } => write!(
                 f,
                 "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
+            ),
+            ErrorKind::MacroNotFound {
+                ref tpl,
+                ref namespace,
+                ref name,
+            } => write!(
+                f,
+                "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
             ErrorKind::Io(ref io_error) => {
                 write!(f, "Io error while writing rendered value to output: {:?}", io_error)
@@ -137,7 +159,14 @@ impl Error {
 
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
-            kind: ErrorKind::SyntaxError(SyntaxError::new(message, span)),
+            kind: ErrorKind::SyntaxError(ReportError::new(message, span)),
+            source: None,
+        }
+    }
+
+    pub(crate) fn rendering_error(message: String, span: &Span) -> Self {
+        Self {
+            kind: ErrorKind::RenderingError(ReportError::new(message, span)),
             source: None,
         }
     }
@@ -172,6 +201,20 @@ impl Error {
         }
     }
 
+    pub(crate) fn macro_not_found(
+        tpl: impl ToString,
+        namespace: impl ToString,
+        name: impl ToString,
+    ) -> Self {
+        Self {
+            kind: ErrorKind::MacroNotFound {
+                tpl: tpl.to_string(),
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+            },
+            source: None,
+        }
+    }
     pub(crate) fn io_error(error: std::io::Error) -> Self {
         Self {
             kind: ErrorKind::Io(error.kind()),

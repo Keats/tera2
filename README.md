@@ -40,7 +40,7 @@ TODO:
   - [ ] Fix/remove all the TODOs
   - [ ] Improve perf till it's better than Tera v1
   - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
-  - [ ] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
+  - [x] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
   - [ ] Finish VM
 - [ ] Design filters/functions/tests types
 - [ ] Implement basic builtin filters/functions/tests
@@ -72,7 +72,7 @@ Ideas:
 
 Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `{{ hey }}` should error if hey is undefined
-- `{{ existing.hey }}` sould error if hey is undefined but existing is
+- `{{ existing.hey }}` should error if hey is undefined but existing is
 - `{{ hey or 1 }}` should print 1
 - `{% if hey or true %}` should be truthy
 - `{% if hey.other or true %}` should error if `hey` is not defined (currently truthy)

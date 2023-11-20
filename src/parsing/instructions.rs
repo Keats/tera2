@@ -98,9 +98,7 @@ pub(crate) enum Instruction {
 
 #[derive(Clone, PartialEq, Default)]
 pub struct Chunk {
-    instructions: Vec<Instruction>,
-    /// instruction idx -> Span
-    spans: HashMap<u32, Span>,
+    instructions: Vec<(Instruction, Option<Span>)>,
     /// The template name so we can point to the right place for error messages
     pub name: String,
 }
@@ -109,27 +107,21 @@ impl Chunk {
     pub(crate) fn new(name: &str) -> Self {
         Self {
             instructions: Vec::with_capacity(256),
-            spans: HashMap::with_capacity(256),
             name: name.to_owned(),
         }
     }
 
-    pub(crate) fn add(&mut self, instr: Instruction) -> u32 {
+    pub(crate) fn add(&mut self, instr: Instruction, span: Option<Span>) -> u32 {
         let idx = self.instructions.len();
-        self.instructions.push(instr);
+        self.instructions.push((instr, span));
         idx as u32
     }
 
-    pub(crate) fn add_instruction_with_span(&mut self, instr: Instruction, span: Span) {
-        let idx = self.add(instr);
-        self.spans.insert(idx, span);
-    }
-
-    pub(crate) fn get(&self, idx: usize) -> Option<&Instruction> {
+    pub(crate) fn get(&self, idx: usize) -> Option<&(Instruction, Option<Span>)> {
         self.instructions.get(idx)
     }
 
-    pub(crate) fn get_mut(&mut self, idx: usize) -> Option<&mut Instruction> {
+    pub(crate) fn get_mut(&mut self, idx: usize) -> Option<&mut (Instruction, Option<Span>)> {
         self.instructions.get_mut(idx)
     }
 
@@ -138,7 +130,7 @@ impl Chunk {
     }
 
     pub(crate) fn is_calling_function(&self, fn_name: &str) -> bool {
-        self.instructions.iter().any(|i| match i {
+        self.instructions.iter().any(|(i, _)| match i {
             Instruction::CallFunction(s) => s == fn_name,
             _ => false,
         })
@@ -149,7 +141,7 @@ impl fmt::Debug for Chunk {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "=== {} ===", self.name)?;
 
-        for (offset, instr) in self.instructions.iter().enumerate() {
+        for (offset, (instr, _)) in self.instructions.iter().enumerate() {
             writeln!(f, "{offset:>04} {instr:?}")?;
         }
 
