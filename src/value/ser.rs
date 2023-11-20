@@ -138,7 +138,7 @@ impl Serializer for ValueSerializer {
         T: Serialize,
     {
         let mut map = Map::with_capacity(1);
-        map.insert(Key::String(Cow::Borrowed(variant)), value.serialize(self)?);
+        map.insert(Key::Str(variant), value.serialize(self)?);
         Ok(Value::Map(Arc::new(map)))
     }
 
@@ -279,7 +279,7 @@ impl ser::SerializeTupleVariant for SerializeTupleVariant {
     fn end(self) -> Result<Self::Ok, Self::Error> {
         let mut map = Map::with_capacity(1);
         map.insert(
-            Key::String(Cow::Borrowed(self.name)),
+            Key::Str(self.name),
             Value::Array(Arc::new(self.fields)),
         );
         Ok(Value::Map(Arc::new(map)))
@@ -313,7 +313,7 @@ impl ser::SerializeMap for SerializeMap {
             _ => todo!("to fix"),
         };
         let value = value.serialize(ValueSerializer)?;
-        self.entries.insert(Key::String(Cow::Owned(key)), value);
+        self.entries.insert(Key::String(Arc::from(key)), value);
         Ok(())
     }
 
@@ -339,7 +339,7 @@ impl ser::SerializeStruct for SerializeStruct {
         T: Serialize,
     {
         let value = value.serialize(ValueSerializer)?;
-        self.fields.insert(Key::String(Cow::Borrowed(key)), value);
+        self.fields.insert(Key::Str(key), value);
         Ok(())
     }
 
@@ -366,14 +366,14 @@ impl ser::SerializeStructVariant for SerializeStructVariant {
         T: Serialize,
     {
         let value = value.serialize(ValueSerializer)?;
-        self.fields.insert(Key::String(Cow::Borrowed(key)), value);
+        self.fields.insert(Key::Str(key), value);
         Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
         let mut map = Map::with_capacity(1);
         map.insert(
-            Key::String(Cow::Borrowed(self.variant)),
+            Key::Str(self.variant),
             Value::Map(Arc::new(self.fields)),
         );
         Ok(Value::Map(Arc::new(map)))

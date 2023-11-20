@@ -17,7 +17,7 @@ pub enum ForLoopValues {
     /// Values for a per-character iteration on a string
     String(std::vec::IntoIter<char>),
     /// Values for an object style iteration
-    Object(std::vec::IntoIter<(Key, Value)>),
+    Object(std::vec::IntoIter<(Key<'static>, Value)>),
 }
 
 impl ForLoopValues {

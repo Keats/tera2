@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::iter::Peekable;
+use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
@@ -380,7 +381,7 @@ impl<'a> Parser<'a> {
 
             let key = match self.next_or_error()? {
                 // TODO: can we borrow there?
-                (Token::String(key), _) => Key::String(Cow::Owned(key.to_string())),
+                (Token::String(key), _) => Key::String(Arc::from(key.to_string())),
                 (Token::Integer(key), _) => Key::I64(key),
                 (Token::Bool(key), _) => Key::Bool(key),
                 (token, span) => {

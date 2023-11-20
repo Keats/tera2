@@ -273,7 +273,7 @@ impl fmt::Display for BinaryOperation {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Map {
-    pub items: BTreeMap<Key, Expression>,
+    pub items: BTreeMap<Key<'static>, Expression>,
 }
 
 impl fmt::Display for Map {
