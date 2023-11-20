@@ -28,7 +28,7 @@ impl ForLoopValues {
             ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.next().unwrap() as u64)),
             ForLoopValues::String(a) => (
                 Value::Null,
-                Value::String(Arc::new(a.next().unwrap().to_string()), StringKind::Normal),
+                Value::String(Arc::from(a.next().unwrap().to_string()), StringKind::Normal),
             ),
             #[cfg(feature = "unicode")]
             ForLoopValues::Graphemes(a) => (Value::Null, a.next().unwrap()),

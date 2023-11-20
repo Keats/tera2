@@ -46,7 +46,7 @@ pub enum Value {
     // TODO: do we want bytes? Do we assume they are utf8?
     Bytes(Arc<Vec<u8>>),
     // TODO: string interning?
-    String(Arc<String>, StringKind),
+    String(Arc<str>, StringKind),
     Map(Arc<Map>),
 }
 
@@ -271,7 +271,7 @@ impl Value {
             Value::U64(v) => Key::U64(*v),
             Value::I64(v) => Key::I64(*v),
             // TODO: not ideal to clone the actual string.
-            Value::String(v, _) => Key::String(Cow::Owned(v.as_str().to_string())),
+            Value::String(v, _) => Key::String(Cow::Owned(v.to_string())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
         Ok(key)
@@ -390,13 +390,13 @@ impl From<bool> for Value {
 
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        Value::String(Arc::new(value.to_owned()), StringKind::Normal)
+        Value::String(Arc::from(value), StringKind::Normal)
     }
 }
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::String(Arc::new(value), StringKind::Normal)
+        Value::String(Arc::from(value), StringKind::Normal)
     }
 }
 
@@ -448,7 +448,7 @@ impl From<Key> for Value {
             Key::Bool(b) => Value::Bool(b),
             Key::U64(u) => Value::U64(u),
             Key::I64(i) => Value::I64(i),
-            Key::String(s) => Value::String(Arc::new(s.to_string()), StringKind::Normal),
+            Key::String(s) => Value::String(Arc::from(s), StringKind::Normal),
         }
     }
 }

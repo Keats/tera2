@@ -74,11 +74,11 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(Arc::new(v.to_string()), StringKind::Normal))
+        Ok(Value::String(Arc::from(v.to_string()), StringKind::Normal))
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(Arc::new(v.to_owned()), StringKind::Normal))
+        Ok(Value::String(Arc::from(v), StringKind::Normal))
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
@@ -111,7 +111,7 @@ impl Serializer for ValueSerializer {
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
         Ok(Value::String(
-            Arc::new(variant.to_owned()),
+            Arc::from(variant),
             StringKind::Normal,
         ))
     }
