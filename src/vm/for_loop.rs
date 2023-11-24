@@ -194,18 +194,23 @@ impl ForLoop {
 
     pub(crate) fn get(&self, name: &str) -> Option<Value> {
         // Special casing the loop variable
-        if name == "loop" {
-            return Some(Value::from_serializable(&self.loop_data));
-        }
+        match name {
+            "__tera_loop_index" => Some(Value::U64(self.loop_data.index as u64)),
+            "__tera_loop_index0" => Some(Value::U64(self.loop_data.index0 as u64)),
+            "__tera_loop_first" => Some(Value::Bool(self.loop_data.first)),
+            "__tera_loop_last" => Some(Value::Bool(self.loop_data.last)),
+            "__tera_loop_length" => Some(Value::U64(self.loop_data.length as u64)),
+            _ => {
+                if self.value_name.as_deref() == Some(name) {
+                    return Some(self.current_values.1.clone());
+                }
 
-        if self.value_name.as_deref() == Some(name) {
-            return Some(self.current_values.1.clone());
-        }
+                if self.key_name.as_deref() == Some(name) {
+                    return Some(self.current_values.0.clone());
+                }
 
-        if self.key_name.as_deref() == Some(name) {
-            return Some(self.current_values.0.clone());
+                self.context.get(name).cloned()
+            }
         }
-
-        self.context.get(name).cloned()
     }
 }
