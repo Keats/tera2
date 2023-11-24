@@ -300,7 +300,7 @@ impl Value {
     /// When doing hello.name, name is the attr
     pub(crate) fn get_attr(&self, attr: &str) -> Value {
         match self {
-            Value::Map(m) => m.get(&Key::String(Arc::from(attr))).cloned().unwrap_or(Value::Undefined),
+            Value::Map(m) => m.get(&Key::Str(attr)).cloned().unwrap_or(Value::Undefined),
             _ => Value::Undefined,
         }
     }

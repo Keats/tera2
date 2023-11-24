@@ -145,7 +145,6 @@ impl<'tera> VirtualMachine<'tera> {
                     if a == Value::Undefined {
                         rendering_error!(format!("Container is not defined"), a_span);
                     }
-                    // println!("{a:?}");
                     state
                         .stack
                         .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
