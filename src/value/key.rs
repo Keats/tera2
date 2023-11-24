@@ -1,3 +1,5 @@
+use crate::value::StringKind;
+use crate::Value;
 use serde::ser::Impossible;
 use serde::{Serialize, Serializer};
 use std::borrow::Cow;
@@ -6,8 +8,6 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use crate::Value;
-use crate::value::StringKind;
 
 use crate::value::utils::SerializationFailed;
 

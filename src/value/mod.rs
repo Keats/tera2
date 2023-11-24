@@ -447,7 +447,7 @@ impl From<Key<'static>> for Value {
             Key::Bool(b) => Value::Bool(b),
             Key::U64(u) => Value::U64(u),
             Key::I64(i) => Value::I64(i),
-            Key::String(s) => Value::String(Arc::from(s), StringKind::Normal),
+            Key::String(s) => Value::String(s, StringKind::Normal),
             Key::Str(s) => Value::String(Arc::from(s), StringKind::Normal),
         }
     }

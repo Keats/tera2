@@ -110,10 +110,7 @@ impl Serializer for ValueSerializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Ok(Value::String(
-            Arc::from(variant),
-            StringKind::Normal,
-        ))
+        Ok(Value::String(Arc::from(variant), StringKind::Normal))
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -278,10 +275,7 @@ impl ser::SerializeTupleVariant for SerializeTupleVariant {
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
         let mut map = Map::with_capacity(1);
-        map.insert(
-            Key::Str(self.name),
-            Value::Array(Arc::new(self.fields)),
-        );
+        map.insert(Key::Str(self.name), Value::Array(Arc::new(self.fields)));
         Ok(Value::Map(Arc::new(map)))
     }
 }
@@ -372,10 +366,7 @@ impl ser::SerializeStructVariant for SerializeStructVariant {
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
         let mut map = Map::with_capacity(1);
-        map.insert(
-            Key::Str(self.variant),
-            Value::Map(Arc::new(self.fields)),
-        );
+        map.insert(Key::Str(self.variant), Value::Map(Arc::new(self.fields)));
         Ok(Value::Map(Arc::new(map)))
     }
 }
