@@ -679,6 +679,8 @@ dependencies = [
  "iai-callgrind",
  "indexmap",
  "insta",
+ "itoa",
+ "ryu",
  "serde",
  "serde_derive",
  "unic-segment",

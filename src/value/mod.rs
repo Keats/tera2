@@ -50,11 +50,83 @@ pub enum Value {
     Map(Arc<Map>),
 }
 
+impl Value {
+    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Value::Null | Value::Undefined => Ok(()),
+            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            Value::Bytes(v) => f.write_all(v),
+            Value::String(v, kind) => {
+                if matches!(kind, StringKind::Safe) {
+                    f.write_all(v.as_bytes())
+                } else {
+                    f.write_all(escape_html(v).as_bytes())
+                }
+            }
+            Value::Array(v) => {
+                let mut it = v.iter();
+                f.write_all(b"[")?;
+                // First value
+                if let Some(elem) = it.next() {
+                    elem.format(f)?;
+                }
+                // Every other value
+                for elem in it {
+                    f.write_all(b", ")?;
+                    elem.format(f)?;
+                }
+                f.write_all(b"]")
+            }
+            Value::Map(v) => {
+                let mut key_val: Box<_> = v.iter().collect();
+                // Keys are sorted to have deterministic output
+                // TODO: Consider using sort_unstable_by_key
+                key_val.sort_by_key(|elem| elem.0);
+                let mut it = key_val.iter();
+                f.write_all(b"{")?;
+                // First value
+                if let Some((key, value)) = it.next() {
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    value.format(f)?;
+                }
+                // Every other value
+                for (key, value) in it {
+                    f.write_all(b", ")?;
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    value.format(f)?;
+                }
+                f.write_all(b"}")
+            }
+            Value::F64(v) => {
+                let mut buf = ryu::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            Value::U64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            Value::I64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            Value::U128(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            Value::I128(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+        }
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Undefined => Ok(()),
-            Value::Null => Ok(()),
+            Value::Undefined | Value::Null => Ok(()),
             Value::Bool(v) => write!(f, "{v}"),
             Value::U64(v) => write!(f, "{v}"),
             Value::I64(v) => write!(f, "{v}"),

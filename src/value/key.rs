@@ -39,7 +39,24 @@ impl<'a> Key<'a> {
             Key::Str(b) => Value::String(Arc::from(*b), StringKind::Normal),
         }
     }
+
+    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Key::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            Key::String(v) => f.write_all(v.as_bytes()),
+            Key::Str(v) => f.write_all(v.as_bytes()),
+            Key::U64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            Key::I64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+        }
+    }
 }
+
 impl<'a> PartialEq for Key<'a> {
     fn eq(&self, other: &Self) -> bool {
         if let (Some(a), Some(b)) = (self.as_str(), other.as_str()) {
@@ -77,6 +94,7 @@ impl<'a> Hash for Key<'a> {
         }
     }
 }
+
 impl<'a> fmt::Display for Key<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {

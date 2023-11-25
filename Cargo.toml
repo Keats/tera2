@@ -10,6 +10,8 @@ serde = "1"
 indexmap = { version = "2", optional = true }
 hashbrown = { version = "0.14", optional = true }
 unic-segment = {version = "0.9", optional = true}
+itoa = "1.0.9"
+ryu = "1.0.15"
 
 [features]
 default = []
