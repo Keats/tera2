@@ -21,10 +21,10 @@ use crate::{escape_html, HashMap};
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
-pub type Map = HashMap<Key, Value>;
+pub type Map = HashMap<Key<'static>, Value>;
 
 #[cfg(feature = "preserve_order")]
-pub type Map = IndexMap<Key, Value>;
+pub type Map = IndexMap<Key<'static>, Value>;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum StringKind {
@@ -46,7 +46,7 @@ pub enum Value {
     // TODO: do we want bytes? Do we assume they are utf8?
     Bytes(Arc<Vec<u8>>),
     // TODO: string interning?
-    String(Arc<String>, StringKind),
+    String(Arc<str>, StringKind),
     Map(Arc<Map>),
 }
 
@@ -265,13 +265,12 @@ impl Value {
         )
     }
 
-    pub(crate) fn as_key(&self) -> TeraResult<Key> {
+    pub(crate) fn as_key(&self) -> TeraResult<Key<'static>> {
         let key = match self {
             Value::Bool(v) => Key::Bool(*v),
             Value::U64(v) => Key::U64(*v),
             Value::I64(v) => Key::I64(*v),
-            // TODO: not ideal to clone the actual string.
-            Value::String(v, _) => Key::String(Cow::Owned(v.as_str().to_string())),
+            Value::String(v, _) => Key::String(v.clone()),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
         Ok(key)
@@ -301,7 +300,7 @@ impl Value {
     /// When doing hello.name, name is the attr
     pub(crate) fn get_attr(&self, attr: &str) -> Value {
         match self {
-            Value::Map(m) => m.get(&Key::from(attr)).cloned().unwrap_or(Value::Undefined),
+            Value::Map(m) => m.get(&Key::Str(attr)).cloned().unwrap_or(Value::Undefined),
             _ => Value::Undefined,
         }
     }
@@ -390,13 +389,13 @@ impl From<bool> for Value {
 
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        Value::String(Arc::new(value.to_owned()), StringKind::Normal)
+        Value::String(Arc::from(value), StringKind::Normal)
     }
 }
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::String(Arc::new(value), StringKind::Normal)
+        Value::String(Arc::from(value), StringKind::Normal)
     }
 }
 
@@ -442,13 +441,14 @@ impl From<f64> for Value {
     }
 }
 
-impl From<Key> for Value {
-    fn from(value: Key) -> Self {
+impl From<Key<'static>> for Value {
+    fn from(value: Key<'static>) -> Self {
         match value {
             Key::Bool(b) => Value::Bool(b),
             Key::U64(u) => Value::U64(u),
             Key::I64(i) => Value::I64(i),
-            Key::String(s) => Value::String(Arc::new(s.to_string()), StringKind::Normal),
+            Key::String(s) => Value::String(s, StringKind::Normal),
+            Key::Str(s) => Value::String(Arc::from(s), StringKind::Normal),
         }
     }
 }
@@ -465,7 +465,7 @@ impl<T: Into<Value>> From<BTreeSet<T>> for Value {
     }
 }
 
-impl<K: Into<Key>, T: Into<Value>> From<HashMap<K, T>> for Value {
+impl<K: Into<Key<'static>>, T: Into<Value>> From<HashMap<K, T>> for Value {
     fn from(input: HashMap<K, T>) -> Self {
         let mut map = Map::with_capacity(input.len());
         for (key, value) in input {
@@ -475,7 +475,7 @@ impl<K: Into<Key>, T: Into<Value>> From<HashMap<K, T>> for Value {
     }
 }
 
-impl<K: Into<Key>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
+impl<K: Into<Key<'static>>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
     fn from(input: BTreeMap<K, T>) -> Self {
         let mut map = Map::with_capacity(input.len());
         for (key, value) in input {
@@ -486,7 +486,7 @@ impl<K: Into<Key>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
 }
 
 #[cfg(feature = "preserve_order")]
-impl<K: Into<Key>, T: Into<Value>> From<IndexMap<K, T>> for Value {
+impl<K: Into<Key<'static>>, T: Into<Value>> From<IndexMap<K, T>> for Value {
     fn from(input: IndexMap<K, T>) -> Self {
         let mut map = Map::with_capacity(input.len());
         for (key, value) in input {

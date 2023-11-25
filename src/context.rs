@@ -37,8 +37,8 @@ impl Context {
     }
 
     /// Remove a key from the context, returning the value at the key if the key was previously inserted into the context.
-    pub fn remove(&mut self, index: &str) -> Option<Value> {
-        self.data.remove(index)
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        self.data.remove(key)
     }
 
     /// Appends the data of the `source` parameter to `self`, overwriting existing keys.

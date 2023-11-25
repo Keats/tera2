@@ -23,10 +23,6 @@ impl<'t> Stack<'t> {
         self.values.push((val, Some(Cow::Borrowed(span))));
     }
 
-    pub(crate) fn push_owned(&mut self, val: Value, span: Span) {
-        self.values.push((val, Some(Cow::Owned(span))));
-    }
-
     pub(crate) fn pop(&mut self) -> (Value, Option<Cow<'t, Span>>) {
         self.values.pop().expect("to have a value")
     }

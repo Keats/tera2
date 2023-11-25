@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::iter::Peekable;
+use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
@@ -173,6 +174,13 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn is_in_loop(&self) -> bool {
+        self
+            .body_contexts
+            .iter()
+            .any(|b| *b == BodyContext::ForLoop)
+    }
+
     /// Can be just an ident or a macro call/fn
     fn parse_ident(&mut self, ident: &str) -> TeraResult<Expression> {
         let mut start_span = self.current_span.clone();
@@ -189,13 +197,36 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Dot, _))) => {
                     expect_token!(self, Token::Dot, ".")?;
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    expr = Expression::GetAttr(Spanned::new(
-                        GetAttr {
-                            expr,
-                            name: attr.to_string(),
-                        },
-                        span.clone(),
-                    ));
+                    if ident == "loop" && self.is_in_loop() {
+                        let new_name = match attr {
+                            "index" => "__tera_loop_index",
+                            "index0" => "__tera_loop_index0",
+                            "first" => "__tera_loop_first",
+                            "last" => "__tera_loop_last",
+                            "length" => "__tera_loop_length",
+                            _ => {
+                                return Err(Error::syntax_error(
+                                    format!("Found invalid field of `loop`: {attr}. Only `index`, `index0`, `first`, `last` and `length` exist."),
+                                    &self.current_span,
+                                ));
+                            }
+                        };
+
+                        expr = Expression::Var(Spanned::new(
+                            Var {
+                                name: new_name.to_string(),
+                            },
+                            span.clone(),
+                        ));
+                    } else {
+                        expr = Expression::GetAttr(Spanned::new(
+                            GetAttr {
+                                expr,
+                                name: attr.to_string(),
+                            },
+                            span.clone(),
+                        ));
+                    }
                 }
                 Some(Ok((Token::LeftBracket, _))) => {
                     expect_token!(self, Token::LeftBracket, "[")?;
@@ -380,7 +411,7 @@ impl<'a> Parser<'a> {
 
             let key = match self.next_or_error()? {
                 // TODO: can we borrow there?
-                (Token::String(key), _) => Key::String(Cow::Owned(key.to_string())),
+                (Token::String(key), _) => Key::String(Arc::from(key.to_string())),
                 (Token::Integer(key), _) => Key::I64(key),
                 (Token::Bool(key), _) => Key::Bool(key),
                 (token, span) => {
@@ -994,10 +1025,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("break") | Token::Ident("continue") => {
                 let is_break = tag_token == Token::Ident("break");
-                if !self
-                    .body_contexts
-                    .iter()
-                    .any(|b| *b == BodyContext::ForLoop)
+                if !self.is_in_loop()
                 {
                     return Err(Error::syntax_error(
                         format!(

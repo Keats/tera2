@@ -251,7 +251,7 @@ impl<'tera> VirtualMachine<'tera> {
 
                     let compiled_macro_def = &curr_template.macro_calls_def[*idx];
                     for (key, value) in &compiled_macro_def.kwargs {
-                        match kwargs.get(&Key::from(key.as_str())) {
+                        match kwargs.get(&Key::Str(key)) {
                             Some(kwarg_val) => {
                                 context.insert(key, kwarg_val);
                             }
