@@ -258,6 +258,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
 name = "globset"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,9 +301,9 @@ checksum = "d77f7ec81a6d05a3abb01ab6eb7590f6083d08449fe5a1c8b1e620283546ccb7"
 
 [[package]]
 name = "iai-callgrind"
-version = "0.7.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2679de583a9f5232b45b1f3a31b5e2f739bccfee9b7902488aca8f8c2c5482d1"
+checksum = "b1ab716cc13aa1b829cfc53968f8495f27b98837cddee6f26b965658518e7ffc"
 dependencies = [
  "bincode",
  "iai-callgrind-macros",
@@ -318,10 +324,12 @@ dependencies = [
 
 [[package]]
 name = "iai-callgrind-runner"
-version = "0.7.3"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12cc1093f263249d7c541c53849dac74f4ae756cd31e3cac1a12204efcec68bd"
+checksum = "1cf4da4dbfb1167faad0b13db6368e3be11b6fb09fb1d4161672b468841561d4"
 dependencies = [
+ "glob",
+ "regex",
  "serde",
 ]
 

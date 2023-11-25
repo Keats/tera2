@@ -22,7 +22,7 @@ unicode = ["dep:unic-segment"]
 
 [dev-dependencies]
 criterion = "0.5"
-iai-callgrind = "0.7.1"
+iai-callgrind = "0.8.0"
 insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
 
