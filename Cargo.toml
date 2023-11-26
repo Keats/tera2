@@ -41,14 +41,16 @@ harness = false
 name = "templates"
 harness = false
 
-[[bench]]
-name = "iai-value"
-harness = false
-
-[[bench]]
-name = "iai-escape"
-harness = false
-
-[[bench]]
-name = "iai-templates"
-harness = false
+# you can enable the benches below on Linux provided you have everything installed.
+# see https://github.com/iai-callgrind/iai-callgrind for details
+#[[bench]]
+#name = "iai-value"
+#harness = false
+#
+#[[bench]]
+#name = "iai-escape"
+#harness = false
+#
+#[[bench]]
+#name = "iai-templates"
+#harness = false
