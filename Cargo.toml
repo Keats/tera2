@@ -9,9 +9,9 @@ serde = "1"
 # Optional deps
 indexmap = { version = "2", optional = true }
 hashbrown = { version = "0.14", optional = true }
-unic-segment = {version = "0.9", optional = true}
-itoa = "1.0.9"
-ryu = "1.0.15"
+unic-segment = { version = "0.9", optional = true }
+itoa = { version = "1.0.9", optional = true }
+ryu = { version = "1.0.15", optional = true }
 
 [features]
 default = []
@@ -21,6 +21,10 @@ ahash = ["hashbrown", "hashbrown/serde"]
 preserve_order = ["dep:indexmap"]
 # If we want Tera to work with graphemes clusters rather than utf-8 characters
 unicode = ["dep:unic-segment"]
+# Improve performance by adding extra dependencies
+fast = ["no-fmt"]
+# Use itoa/ryu to format numbers (instead of std::fmt)
+no-fmt = ["itoa", "ryu"]
 
 [dev-dependencies]
 criterion = "0.5"

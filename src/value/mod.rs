@@ -100,24 +100,49 @@ impl Value {
                 f.write_all(b"}")
             }
             Value::F64(v) => {
-                let mut buf = ryu::Buffer::new();
-                f.write_all(buf.format(*v).as_bytes())
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = ryu::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
             }
             Value::U64(v) => {
-                let mut buf = itoa::Buffer::new();
-                f.write_all(buf.format(*v).as_bytes())
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
             }
             Value::I64(v) => {
-                let mut buf = itoa::Buffer::new();
-                f.write_all(buf.format(*v).as_bytes())
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
             }
             Value::U128(v) => {
-                let mut buf = itoa::Buffer::new();
-                f.write_all(buf.format(*v).as_bytes())
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
             }
             Value::I128(v) => {
-                let mut buf = itoa::Buffer::new();
-                f.write_all(buf.format(*v).as_bytes())
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
             }
         }
     }
