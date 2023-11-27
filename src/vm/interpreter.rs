@@ -167,7 +167,11 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::WriteText(t) => {
-                    write_to_buffer!(t);
+                    if let Some(captured) = state.capture_buffers.last_mut() {
+                        captured.write_all(t.as_bytes())?;
+                    } else {
+                        output.write_all(t.as_bytes())?;
+                    }
                 }
                 Instruction::WriteTop => {
                     let (top, top_span) = state.stack.pop();
@@ -177,7 +181,11 @@ impl<'tera> VirtualMachine<'tera> {
                             top_span
                         );
                     }
-                    write_to_buffer!(top);
+                    if let Some(captured) = state.capture_buffers.last_mut() {
+                        top.format(captured)?;
+                    } else {
+                        top.format(output)?;
+                    }
                 }
                 Instruction::Set(name) => {
                     // TODO: do we need to keep those spans?

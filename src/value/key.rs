@@ -1,15 +1,11 @@
 use crate::value::StringKind;
 use crate::Value;
-use serde::ser::Impossible;
 use serde::{Serialize, Serializer};
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-
-use crate::value::utils::SerializationFailed;
 
 /// The key of anything looking like a hashmap (struct/hashmaps)
 #[derive(Debug, Clone)]
@@ -39,7 +35,28 @@ impl<'a> Key<'a> {
             Key::Str(b) => Value::String(Arc::from(*b), StringKind::Normal),
         }
     }
+
+    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Key::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            Key::String(v) => f.write_all(v.as_bytes()),
+            Key::Str(v) => f.write_all(v.as_bytes()),
+            #[cfg(feature = "no-fmt")]
+            Key::U64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            #[cfg(feature = "no-fmt")]
+            Key::I64(v) => {
+                let mut buf = itoa::Buffer::new();
+                f.write_all(buf.format(*v).as_bytes())
+            }
+            #[cfg(not(feature = "no-fmt"))]
+            _ => write!(f, "{self}"),
+        }
+    }
 }
+
 impl<'a> PartialEq for Key<'a> {
     fn eq(&self, other: &Self) -> bool {
         if let (Some(a), Some(b)) = (self.as_str(), other.as_str()) {
@@ -77,6 +94,7 @@ impl<'a> Hash for Key<'a> {
         }
     }
 }
+
 impl<'a> fmt::Display for Key<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
