@@ -1,8 +1,8 @@
 use std::hint::black_box;
 
-use iai_callgrind::main;
 use iai_callgrind::library_benchmark;
 use iai_callgrind::library_benchmark_group;
+use iai_callgrind::main;
 
 use tera::escape_html;
 

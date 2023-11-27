@@ -244,8 +244,7 @@ impl<'s> Compiler<'s> {
     }
 
     fn get_current_loop(&self) -> Option<&ProcessingBody> {
-        self
-            .processing_bodies
+        self.processing_bodies
             .iter()
             .rev()
             .find(|b| matches!(b, ProcessingBody::Loop(..)))
@@ -348,8 +347,7 @@ impl<'s> Compiler<'s> {
                 self.chunk.add(Instruction::Break, None);
             }
             Node::Continue => {
-                if let ProcessingBody::Loop(idx) = self.get_current_loop().unwrap()
-                {
+                if let ProcessingBody::Loop(idx) = self.get_current_loop().unwrap() {
                     self.chunk.add(Instruction::Jump(*idx), None);
                 }
             }

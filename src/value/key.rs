@@ -80,7 +80,7 @@ impl<'a> Ord for Key<'a> {
         if let (Some(a), Some(b)) = (self.as_str(), other.as_str()) {
             a.cmp(b)
         } else {
-            todo!("implement ord for Value")
+            self.as_value().cmp(&other.as_value())
         }
     }
 }
@@ -90,7 +90,7 @@ impl<'a> Hash for Key<'a> {
         if let Some(s) = self.as_str() {
             s.hash(state)
         } else {
-            todo!("implement hash for Value")
+            self.as_value().hash(state)
         }
     }
 }

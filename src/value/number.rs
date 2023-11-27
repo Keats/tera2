@@ -1,11 +1,21 @@
 use crate::errors::{Error, TeraResult};
 use crate::value::Value;
+use std::hash::{Hash, Hasher};
 
 /// Simpler representation of numbers
 /// So operations are simpler to handle
 pub(crate) enum Number {
     Integer(i128),
     Float(f64),
+}
+
+impl Hash for Number {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Number::Integer(v) => v.hash(state),
+            Number::Float(v) => v.to_bits().hash(state),
+        }
+    }
 }
 
 impl Number {

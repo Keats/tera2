@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Formatter;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 #[cfg(feature = "preserve_order")]
@@ -149,53 +150,16 @@ impl Value {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Value::Undefined | Value::Null => Ok(()),
-            Value::Bool(v) => write!(f, "{v}"),
-            Value::U64(v) => write!(f, "{v}"),
-            Value::I64(v) => write!(f, "{v}"),
-            Value::F64(v) => write!(f, "{v}"),
-            Value::U128(v) => write!(f, "{v}"),
-            Value::I128(v) => write!(f, "{v}"),
-            Value::Array(v) => {
-                let mut it = v.iter();
-                write!(f, "[")?;
-                // First value
-                if let Some(elem) = it.next() {
-                    write!(f, "{elem}")?;
-                }
-                // Every other value
-                for elem in it {
-                    write!(f, ", {elem}")?;
-                }
-                write!(f, "]")
-            }
-            Value::Bytes(v) => write!(f, "{}", String::from_utf8_lossy(v)),
-            Value::String(v, kind) => {
-                if matches!(kind, StringKind::Safe) {
-                    f.write_str(v)
-                } else {
-                    f.write_str(&escape_html(v))
-                }
-            }
-            Value::Map(v) => {
-                let mut key_val: Box<_> = v.iter().collect();
-                // Keys are sorted to have deterministic output
-                // TODO: Consider using sort_unstable_by_key
-                key_val.sort_by_key(|elem| elem.0);
-                let mut it = key_val.iter();
-                write!(f, "{{")?;
-                // First value
-                if let Some((key, value)) = it.next() {
-                    write!(f, "{key}: {value}")?;
-                }
-                // Every other value
-                for (key, value) in it {
-                    write!(f, ", {key}: {value}")?;
-                }
-                write!(f, "}}")
-            }
+        let mut out = Vec::new();
+        let res = self.format(&mut out);
+        if res.is_err() {
+            return Err(fmt::Error);
         }
+        write!(
+            f,
+            "{}",
+            std::str::from_utf8(&out).expect("valid utf-8 in display")
+        )
     }
 }
 
@@ -256,6 +220,36 @@ impl PartialOrd for Value {
             | (_, Value::U128(_))
             | (_, Value::I128(_)) => self.as_i128()?.partial_cmp(&other.as_i128()?),
             (_, _) => None,
+        }
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if let Some(res) = self.partial_cmp(other) {
+            return res;
+        }
+
+        // Nonsensical hardcoded ordering, don't compare arrays and integers...
+        Ordering::Greater
+    }
+}
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Value::Undefined | Value::Null => 0.hash(state),
+            Value::Bool(v) => v.hash(state),
+            Value::U64(_) | Value::I64(_) | Value::U128(_) | Value::I128(_) | Value::F64(_) => {
+                self.as_number().hash(state)
+            }
+            Value::Bytes(v) => v.hash(state),
+            Value::String(v, _) => v.hash(state),
+            Value::Array(v) => v.hash(state),
+            Value::Map(v) => v.iter().for_each(|(k, v)| {
+                k.hash(state);
+                v.hash(state);
+            }),
         }
     }
 }
