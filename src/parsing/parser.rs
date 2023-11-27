@@ -174,8 +174,7 @@ impl<'a> Parser<'a> {
     }
 
     fn is_in_loop(&self) -> bool {
-        self
-            .body_contexts
+        self.body_contexts
             .iter()
             .any(|b| *b == BodyContext::ForLoop)
     }
@@ -1024,8 +1023,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("break") | Token::Ident("continue") => {
                 let is_break = tag_token == Token::Ident("break");
-                if !self.is_in_loop()
-                {
+                if !self.is_in_loop() {
                     return Err(Error::syntax_error(
                         format!(
                             "{} can only be used in a for loop",
