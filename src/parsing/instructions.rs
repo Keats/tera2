@@ -1,6 +1,5 @@
 use crate::utils::Span;
 use crate::value::Value;
-use crate::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 

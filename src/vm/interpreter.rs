@@ -121,16 +121,6 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        macro_rules! write_to_buffer {
-            ($val:expr) => {{
-                if let Some(captured) = state.capture_buffers.last_mut() {
-                    write!(captured, "{}", $val)?;
-                } else {
-                    write!(output, "{}", $val)?;
-                }
-            }};
-        }
-
         // TODO later: tests/filters/fns
         // println!("{:?}", self.template.macro_calls_def);
         while let Some((instr, span)) = state.chunk.get(ip) {
