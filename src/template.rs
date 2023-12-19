@@ -9,9 +9,9 @@ pub struct Template {
     pub(crate) source: String,
     pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,
-    /// (file, name)
+    /// (file, name, [kwargs name])
     /// Used for its index in instructions
-    pub(crate) macro_calls: Vec<(String, String)>,
+    pub(crate) macro_calls: Vec<(String, String, Vec<String>)>,
     /// Same as above, but just the definition directly
     pub(crate) macro_calls_def: Vec<CompiledMacroDefinition>,
     /// The blocks contained in this template only
@@ -55,29 +55,41 @@ impl Template {
 
         // We need the macro handling logic both for the template and for each macro
         let macro_defs = parser_output.macro_definitions.clone();
-        let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
-            if &namespace == "self" {
-                if !macro_defs.iter().any(|x| x.name == macro_name) {
-                    return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
+        let mut handle_macro_call =
+            |namespace: String, macro_name: String, kwargs_name: Vec<String>| -> TeraResult<()> {
+                if &namespace == "self" {
+                    if let Some(macro_def) = macro_defs.iter().find(|x| x.name == macro_name) {
+                        for name in &kwargs_name {
+                            if !macro_def.kwargs.contains_key(name) {
+                                return Err(Error::message(format!(
+                                    "Template {tpl_name} is calling macro {macro_name} \
+                                    with an argument {name} which isn't present in its definition. \
+                                    Only {:?} are allowed.",
+                                    macro_def.kwargs.keys().collect::<Vec<_>>()
+                                )));
+                            }
+                        }
+                        macro_calls.push((tpl_name.to_string(), macro_name, kwargs_name));
+                    } else {
+                        return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
+                    }
+                    return Ok(());
                 }
-                macro_calls.push((tpl_name.to_string(), macro_name));
-                return Ok(());
-            }
 
-            if let Some((filename, _)) = parser_output
-                .macro_imports
-                .iter()
-                .find(|(_, n)| n == &namespace)
-            {
-                macro_calls.push((filename.to_string(), macro_name));
-                Ok(())
-            } else {
-                Err(Error::namespace_not_loaded(tpl_name, namespace))
-            }
-        };
+                if let Some((filename, _)) = parser_output
+                    .macro_imports
+                    .iter()
+                    .find(|(_, n)| n == &namespace)
+                {
+                    macro_calls.push((filename.to_string(), macro_name, kwargs_name));
+                    Ok(())
+                } else {
+                    Err(Error::namespace_not_loaded(tpl_name, namespace))
+                }
+            };
 
-        for (namespace, macro_name) in body_compiler.macro_calls {
-            handle_macro_call(namespace, macro_name)?;
+        for (namespace, macro_name, kwargs_name) in body_compiler.macro_calls {
+            handle_macro_call(namespace, macro_name, kwargs_name)?;
         }
 
         let chunk = body_compiler.chunk;
@@ -91,8 +103,8 @@ impl Template {
             let mut compiler = Compiler::new(&macro_def_name, source);
             compiler.compile(macro_def.body);
 
-            for (namespace, macro_name) in compiler.macro_calls {
-                handle_macro_call(namespace, macro_name)?;
+            for (namespace, macro_name, kwargs_name) in compiler.macro_calls {
+                handle_macro_call(namespace, macro_name, kwargs_name)?;
             }
 
             macro_definitions.insert(

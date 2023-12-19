@@ -122,7 +122,7 @@ impl Tera {
         let mut tpl_blocks = HashMap::with_capacity(self.templates.len());
         for (name, tpl) in &self.templates {
             let mut definitions = Vec::new();
-            for (tpl_name, macro_name) in &tpl.macro_calls {
+            for (tpl_name, macro_name, kwargs_name) in &tpl.macro_calls {
                 let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
                     Error::message(format!(
                         "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"
@@ -137,6 +137,17 @@ impl Tera {
                             "Template `{name}` is using macros `{macro_name}` from `{tpl_name}` which wasn't found",
                         ))
                     })?;
+
+                for kwarg_name in kwargs_name {
+                    if !definition.kwargs.contains_key(kwarg_name) {
+                        return Err(Error::message(
+                            format!(
+                                "Template `{name}` is calling macro `{macro_name}` \
+                                    with an argument `{kwarg_name}` which isn't present in its definition. Existing arguments: {}", definition.kwargs.keys().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")
+                            )
+                        ));
+                    }
+                }
 
                 definitions.push(definition.clone());
             }

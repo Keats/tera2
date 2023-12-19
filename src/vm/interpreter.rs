@@ -431,7 +431,7 @@ impl<'tera> VirtualMachine<'tera> {
 
     fn render_macro(
         &self,
-        info: &(String, String),
+        info: &(String, String, Vec<String>),
         macro_def: &CompiledMacroDefinition,
         context: Context,
     ) -> TeraResult<String> {

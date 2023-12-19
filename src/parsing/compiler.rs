@@ -26,8 +26,8 @@ pub(crate) struct Compiler<'s> {
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
-    // (namespace, name)
-    pub(crate) macro_calls: Vec<(String, String)>,
+    // (namespace, name, [kwargs names])
+    pub(crate) macro_calls: Vec<(String, String, Vec<String>)>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -129,6 +129,7 @@ impl<'s> Compiler<'s> {
             }
             Expression::MacroCall(e) => {
                 let (macro_call, span) = e.into_parts();
+                let list_kwargs = macro_call.kwargs.keys().cloned().collect::<Vec<String>>();
                 self.compile_kwargs(macro_call.kwargs);
                 let call_idx = if let Some(idx) = self
                     .macro_calls
@@ -139,7 +140,7 @@ impl<'s> Compiler<'s> {
                 } else {
                     let len = self.macro_calls.len();
                     self.macro_calls
-                        .push((macro_call.namespace, macro_call.name));
+                        .push((macro_call.namespace, macro_call.name, list_kwargs));
                     len
                 };
 
