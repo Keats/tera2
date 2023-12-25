@@ -58,3 +58,57 @@ impl Context {
         self.data.append(&mut source.data);
     }
 }
+
+/// Creates a context from key value pairs
+///
+/// Example:
+/// ```rust
+/// let ctx = context! {
+///     name => "Brian",
+///     age => &24
+/// };
+/// ```
+/// Expands to:
+/// ```
+/// let ctx = {
+///     let mut context = Context::new();
+///     context.insert("name", "Brian");
+///     context.insert("age", &24);
+///     context
+/// };
+///
+#[macro_export]
+macro_rules! context {
+    (
+        $(
+            $key:ident $(=> $value:expr)? $(,)*
+        )*
+    ) => {
+        {
+            let mut context = Context::new();
+            $(
+                context.insert(stringify!($key), $($value)?);
+            )*
+            context
+        }
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn context_macro_builder() {
+        let left = context! {
+            foo => "Bar",
+            con => &69
+        };
+
+        let mut right = Context::new();
+        right.insert("foo", "Bar");
+        right.insert("con", &69);
+
+        assert_eq!(left, right);
+    }
+}
