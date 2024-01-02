@@ -19,6 +19,7 @@ pub struct Tera {
     autoescape_suffixes: Vec<&'static str>,
     #[doc(hidden)]
     escape_fn: EscapeFn,
+    global_context: Context,
 }
 
 impl Tera {
@@ -276,7 +277,37 @@ impl Tera {
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
         let template = self.get_template(template_name)?;
         let mut vm = VirtualMachine::new(self, template);
-        vm.render(context)
+        // POC implementation of a global context
+        // TODO: Optimize this with removing .clones()
+        let mut ctx = self.global_context.clone();
+        ctx.extend(context.clone());
+        vm.render(&ctx)
+    }
+
+    /// Returns the global context, allowing modifications to it
+    ///
+    /// The global context is automatically included into every template,
+    /// which is useful for sharing common data
+    ///
+    /// ```
+    /// let mut tera = Tera::new();
+    /// tera.global_context().insert("name", "John Doe");
+    ///
+    /// let content = tera
+    ///     .render_str("Hello, {{ name }}!", &Context::new())
+    ///     .unwrap();
+    /// assert_eq!(content, "Hello, John Doe!".to_string());
+    ///
+    /// let content2 = tera
+    ///     .render_str(
+    ///         "UserID: {{ id }}, Username: {{ name }}",
+    ///         &context! { id => &7489 },
+    ///     )
+    ///     .unwrap();
+    /// assert_eq!(content2, "UserID: 7489, Username: John Doe");
+    ///
+    pub fn global_context(&mut self) -> &mut Context {
+        &mut self.global_context
     }
 
     /// Renders a one off template (for example a template coming from a user
@@ -328,6 +359,33 @@ impl Default for Tera {
             templates: HashMap::new(),
             autoescape_suffixes: vec![".html", ".htm", ".xml"],
             escape_fn: escape_html,
+            global_context: Context::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::context;
+
+    use super::*;
+
+    #[test]
+    fn global_context() {
+        let mut tera = Tera::new();
+        tera.global_context().insert("name", "John Doe");
+
+        let content = tera
+            .render_str("Hello, {{ name }}!", &Context::new())
+            .unwrap();
+        assert_eq!(content, "Hello, John Doe!".to_string());
+
+        let content2 = tera
+            .render_str(
+                "UserID: {{ id }}, Username: {{ name }}",
+                &context! { id => &7489 },
+            )
+            .unwrap();
+        assert_eq!(content2, "UserID: 7489, Username: John Doe");
     }
 }
