@@ -19,7 +19,7 @@ impl fmt::Display for Expressions {
 
 #[test]
 fn parser_expressions_idents_success() {
-    insta::glob!("parser_inputs/success/{expressions,idents}.txt", |path| {
+    insta::glob!("parser_inputs/success/expr/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
@@ -39,7 +39,7 @@ fn parser_expressions_idents_success() {
 
 #[test]
 fn parser_errors() {
-    insta::glob!("parser_inputs/errors/macro_self_inexisting.txt", |path| {
+    insta::glob!("parser_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res = Template::new(
             path.file_name().unwrap().to_string_lossy().as_ref(),
@@ -59,6 +59,7 @@ fn parser_tags_success() {
             let nodes = &Parser::new(&contents).parse().unwrap().nodes;
             let mut res_nodes = Vec::with_capacity(nodes.len());
             // println!("{:?}", nodes);
+            // TODO
             for node in nodes {
                 if matches!(
                     node,

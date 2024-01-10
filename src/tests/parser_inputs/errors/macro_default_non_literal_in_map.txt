@@ -1,0 +1,1 @@
+{% macro array(array={"hello": a}) %}{% endmacro %}

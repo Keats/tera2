@@ -115,6 +115,13 @@ impl Expression {
         matches!(self, Expression::Const(..))
     }
 
+    pub(crate) fn as_value(&self) -> Option<Value> {
+        match self {
+            Expression::Const(c) => Some(c.node().clone()),
+            _ => None,
+        }
+    }
+
     pub fn span(&self) -> &Span {
         match self {
             Expression::Const(s) => s.span(),

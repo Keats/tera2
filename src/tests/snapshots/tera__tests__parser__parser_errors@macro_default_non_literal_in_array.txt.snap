@@ -1,0 +1,10 @@
+---
+source: src/tests/parser.rs
+expression: res.unwrap_err()
+input_file: src/tests/parser_inputs/errors/macro_default_non_literal_in_array.txt
+---
+ Syntax error --> [macro_default_non_literal_in_array.txt:1:21]
+  |
+1 | {% macro array(array=[a]) %}{% endmacro %}
+  |                      ^---
+  = Invalid default argument: this array should only contain literal values.
