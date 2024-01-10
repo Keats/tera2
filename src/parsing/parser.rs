@@ -794,7 +794,7 @@ impl<'a> Parser<'a> {
                                 val
                             } else {
                                 return Err(Error::syntax_error(
-                                    format!("Invalid default argument: this array should only contain literal values."),
+                                    "Invalid default argument: this array should only contain literal values.".to_string(),
                                     array.span(),
                                 ));
                             }
@@ -806,7 +806,7 @@ impl<'a> Parser<'a> {
                                 val
                             } else {
                                 return Err(Error::syntax_error(
-                                    format!("Invalid default argument: this map should only contain literal values."),
+                                    "Invalid default argument: this map should only contain literal values.".to_string(),
                                     map.span(),
                                 ));
                             }
