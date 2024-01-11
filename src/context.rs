@@ -57,6 +57,16 @@ impl Context {
     pub fn extend(&mut self, mut source: Context) {
         self.data.append(&mut source.data);
     }
+
+    /// Checks if a value exists for given key.
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.data.contains_key(key)
+    }
+
+    /// Returns the value at the given key
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.data.get(key)
+    }
 }
 
 /// Creates a context from key value pairs
@@ -110,5 +120,20 @@ mod tests {
         right.insert("con", &69);
 
         assert_eq!(left, right);
+    }
+
+    #[test]
+    fn context_tests() {
+        let ctx = context! {
+            name => "John Doe",
+            age => &42,
+        };
+
+        assert_eq!(
+            "{\"age\":42,\"name\":\"John Doe\"}".to_string(),
+            ctx.to_json().unwrap()
+        );
+        assert_eq!(ctx.contains_key("age"), true);
+        assert_eq!(ctx.get("age"), Some(&Value::I64(42)));
     }
 }
