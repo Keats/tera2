@@ -471,7 +471,6 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            // parse_array is always called from inner_parse_expression
             items.push(self.inner_parse_expression(0)?);
         }
 
@@ -782,16 +781,16 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Assign, _))) => {
                     self.next_or_error()?;
 
-                    let val = match &self.next {
-                        Some(Ok((Token::Bool(b), _))) => Value::from(*b),
-                        Some(Ok((Token::String(b), _))) => Value::from(*b),
-                        Some(Ok((Token::Integer(b), _))) => Value::from(*b),
-                        Some(Ok((Token::Float(b), _))) => Value::from(*b),
+                    let (val, eat_next) = match &self.next {
+                        Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::String(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
                         Some(Ok((Token::LeftBracket, _))) => {
-                            expect_token!(self, Token::LeftBracket, ")")?;
+                            expect_token!(self, Token::LeftBracket, "[")?;
                             let array = self.parse_array()?;
                             if let Some(val) = array.as_value() {
-                                val
+                                (val, false)
                             } else {
                                 return Err(Error::syntax_error(
                                     "Invalid default argument: this array should only contain literal values.".to_string(),
@@ -800,10 +799,10 @@ impl<'a> Parser<'a> {
                             }
                         }
                         Some(Ok((Token::LeftBrace, _))) => {
-                            expect_token!(self, Token::LeftBrace, ")")?;
+                            expect_token!(self, Token::LeftBrace, "{")?;
                             let map = self.parse_map()?;
                             if let Some(val) = map.as_value() {
-                                val
+                                (val, false)
                             } else {
                                 return Err(Error::syntax_error(
                                     "Invalid default argument: this map should only contain literal values.".to_string(),
@@ -825,7 +824,9 @@ impl<'a> Parser<'a> {
                         }
                         None => return Err(self.eoi()),
                     };
-                    self.next_or_error()?;
+                    if eat_next {
+                        self.next_or_error()?;
+                    }
 
                     kwargs.insert(arg_name.to_string(), Some(val));
 
@@ -840,6 +841,7 @@ impl<'a> Parser<'a> {
                 _ => continue,
             }
         }
+
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body = self.parse_until(|tok| matches!(tok, Token::Ident("endmacro")))?;
         self.next_or_error()?;

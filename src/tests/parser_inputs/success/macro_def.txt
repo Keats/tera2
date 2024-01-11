@@ -1,3 +1,0 @@
-{% macro popup() -%} hello {%- endmacro %}
-{% macro another(hey='ho', optional) -%} hello {%- endmacro another %}
-{% macro array(array=[], map={}, array_of_maps=[{"hello": 1}]) %}{% endmacro %}

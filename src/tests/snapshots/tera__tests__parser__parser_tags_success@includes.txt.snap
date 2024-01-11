@@ -1,0 +1,16 @@
+---
+source: src/tests/parser.rs
+expression: "&res_nodes"
+input_file: src/tests/parser_inputs/success/tags/includes.txt
+---
+[
+    Include {
+        name: "a.html",
+    },
+    Include {
+        name: "a.html",
+    },
+    Include {
+        name: "a.html",
+    },
+]

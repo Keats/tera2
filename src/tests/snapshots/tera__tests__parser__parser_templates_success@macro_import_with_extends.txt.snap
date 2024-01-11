@@ -1,0 +1,6 @@
+---
+source: src/tests/parser.rs
+expression: "&nodes"
+input_file: src/tests/parser_inputs/success/tpl/macro_import_with_extends.txt
+---
+[]
