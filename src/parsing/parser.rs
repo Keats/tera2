@@ -446,16 +446,24 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_array(&mut self) -> TeraResult<Vec<Expression>> {
-        let mut vals = Vec::new();
+    fn parse_array(&mut self) -> TeraResult<Expression> {
+        self.array_dimension += 1;
+        let mut span = self.current_span.clone();
+        if self.array_dimension > MAX_DIMENSION_ARRAY {
+            return Err(Error::syntax_error(
+                format!("Arrays can have a maximum of {MAX_DIMENSION_ARRAY} dimensions."),
+                &span,
+            ));
+        }
 
+        let mut items = Vec::new();
         loop {
             if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
             }
 
             // trailing commas
-            if !vals.is_empty() {
+            if !items.is_empty() {
                 expect_token!(self, Token::Comma, ",")?;
             }
 
@@ -463,11 +471,19 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            // parse_array is always called from inner_parse_expression
-            vals.push(self.inner_parse_expression(0)?);
+            items.push(self.inner_parse_expression(0)?);
         }
 
-        Ok(vals)
+        self.array_dimension -= 1;
+        expect_token!(self, Token::RightBracket, "]")?;
+        span.expand(&self.current_span);
+        let array = Array { items };
+
+        if let Some(const_array) = array.as_const() {
+            Ok(Expression::Const(Spanned::new(const_array, span)))
+        } else {
+            Ok(Expression::Array(Spanned::new(array, span)))
+        }
     }
 
     /// This is called recursively so we do put a limit as to how many times it can call itself
@@ -516,25 +532,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
             Token::LeftBrace => self.parse_map()?,
-            Token::LeftBracket => {
-                self.array_dimension += 1;
-                if self.array_dimension > MAX_DIMENSION_ARRAY {
-                    return Err(Error::syntax_error(
-                        format!("Arrays can have a maximum of {MAX_DIMENSION_ARRAY} dimensions."),
-                        &self.current_span,
-                    ));
-                }
-                let items = self.parse_array()?;
-                self.array_dimension -= 1;
-                expect_token!(self, Token::RightBracket, "]")?;
-                span.expand(&self.current_span);
-                let array = Array { items };
-                if let Some(const_array) = array.as_const() {
-                    Expression::Const(Spanned::new(const_array, span.clone()))
-                } else {
-                    Expression::Array(Spanned::new(array, span.clone()))
-                }
-            }
+            Token::LeftBracket => self.parse_array()?,
             Token::LeftParen => {
                 let mut lhs = self.inner_parse_expression(0)?;
                 expect_token!(self, Token::RightParen, ")")?;
@@ -783,14 +781,38 @@ impl<'a> Parser<'a> {
                 Some(Ok((Token::Assign, _))) => {
                     self.next_or_error()?;
 
-                    let val = match &self.next {
-                        Some(Ok((Token::Bool(b), _))) => Value::from(*b),
-                        Some(Ok((Token::String(b), _))) => Value::from(*b),
-                        Some(Ok((Token::Integer(b), _))) => Value::from(*b),
-                        Some(Ok((Token::Float(b), _))) => Value::from(*b),
+                    let (val, eat_next) = match &self.next {
+                        Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::String(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::LeftBracket, _))) => {
+                            expect_token!(self, Token::LeftBracket, "[")?;
+                            let array = self.parse_array()?;
+                            if let Some(val) = array.as_value() {
+                                (val, false)
+                            } else {
+                                return Err(Error::syntax_error(
+                                    "Invalid default argument: this array should only contain literal values.".to_string(),
+                                    array.span(),
+                                ));
+                            }
+                        }
+                        Some(Ok((Token::LeftBrace, _))) => {
+                            expect_token!(self, Token::LeftBrace, "{")?;
+                            let map = self.parse_map()?;
+                            if let Some(val) = map.as_value() {
+                                (val, false)
+                            } else {
+                                return Err(Error::syntax_error(
+                                    "Invalid default argument: this map should only contain literal values.".to_string(),
+                                    map.span(),
+                                ));
+                            }
+                        }
                         Some(Ok((token, span))) => {
                             return Err(Error::syntax_error(
-                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float"),
+                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float, array or map"),
                                 span,
                             ));
                         }
@@ -802,7 +824,9 @@ impl<'a> Parser<'a> {
                         }
                         None => return Err(self.eoi()),
                     };
-                    self.next_or_error()?;
+                    if eat_next {
+                        self.next_or_error()?;
+                    }
 
                     kwargs.insert(arg_name.to_string(), Some(val));
 
@@ -817,6 +841,7 @@ impl<'a> Parser<'a> {
                 _ => continue,
             }
         }
+
         expect_token!(self, Token::TagEnd(..), "%}")?;
         let body = self.parse_until(|tok| matches!(tok, Token::Ident("endmacro")))?;
         self.next_or_error()?;

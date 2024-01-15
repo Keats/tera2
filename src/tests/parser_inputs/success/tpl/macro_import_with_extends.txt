@@ -1,0 +1,3 @@
+{% import "macros.html" as macros %}
+{%- extends "a" %}
+{#- this should just not error #}

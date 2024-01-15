@@ -19,7 +19,7 @@ impl fmt::Display for Expressions {
 
 #[test]
 fn parser_expressions_idents_success() {
-    insta::glob!("parser_inputs/success/{expressions,idents}.txt", |path| {
+    insta::glob!("parser_inputs/success/expr/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
@@ -39,7 +39,7 @@ fn parser_expressions_idents_success() {
 
 #[test]
 fn parser_errors() {
-    insta::glob!("parser_inputs/errors/macro_self_inexisting.txt", |path| {
+    insta::glob!("parser_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let res = Template::new(
             path.file_name().unwrap().to_string_lossy().as_ref(),
@@ -51,31 +51,50 @@ fn parser_errors() {
 }
 
 #[test]
-fn parser_tags_success() {
-    insta::glob!(
-        "parser_inputs/success/{tags,blocks,for,if,filter_section,set}.txt",
-        |path| {
-            let contents = std::fs::read_to_string(path).unwrap();
-            let nodes = &Parser::new(&contents).parse().unwrap().nodes;
-            let mut res_nodes = Vec::with_capacity(nodes.len());
-            // println!("{:?}", nodes);
-            for node in nodes {
-                if matches!(
-                    node,
-                    Node::Set(..)
-                        | Node::BlockSet(..)
-                        | Node::Include(..)
-                        | Node::Block(..)
-                        | Node::ForLoop(..)
-                        | Node::If(..)
-                        | Node::FilterSection(..)
-                ) {
-                    res_nodes.push(node);
+fn parser_macros_success() {
+    insta::glob!("parser_inputs/success/macros/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
+        println!("{nodes:?}");
+
+        let mut expr_nodes = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            match node {
+                Node::Expression(n) => {
+                    expr_nodes.push(n.clone());
                 }
+                _ => (),
             }
-            insta::assert_debug_snapshot!(&res_nodes);
         }
-    );
+        if !expr_nodes.is_empty() {
+            insta::assert_display_snapshot!(Expressions(expr_nodes));
+        }
+    });
+}
+
+#[test]
+fn parser_tags_success() {
+    insta::glob!("parser_inputs/success/tags/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
+        let mut res_nodes = Vec::with_capacity(nodes.len());
+        // println!("{:?}", nodes);
+        for node in nodes {
+            if matches!(
+                node,
+                Node::Set(..)
+                    | Node::BlockSet(..)
+                    | Node::Include(..)
+                    | Node::Block(..)
+                    | Node::ForLoop(..)
+                    | Node::If(..)
+                    | Node::FilterSection(..)
+            ) {
+                res_nodes.push(node);
+            }
+        }
+        insta::assert_debug_snapshot!(&res_nodes);
+    });
 }
 
 #[test]
@@ -149,7 +168,7 @@ fn parser_can_convert_array_to_const_when_possible() {
 
 #[test]
 fn parser_templates_success() {
-    insta::glob!("parser_inputs/success/tpl_*.txt", |path| {
+    insta::glob!("parser_inputs/success/tpl/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         insta::assert_debug_snapshot!(&nodes);

@@ -57,7 +57,7 @@ impl Template {
         let macro_defs = parser_output.macro_definitions.clone();
         let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
             if &namespace == "self" {
-                if macro_defs.iter().find(|x| x.name == macro_name).is_none() {
+                if !macro_defs.iter().any(|x| x.name == macro_name) {
                     return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
                 }
                 macro_calls.push((tpl_name.to_string(), macro_name));

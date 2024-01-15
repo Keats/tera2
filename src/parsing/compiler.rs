@@ -225,7 +225,7 @@ impl<'s> Compiler<'s> {
         }
         self.macro_calls = compiler.macro_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
-        self.blocks.extend(compiler.blocks.into_iter());
+        self.blocks.extend(compiler.blocks);
         self.blocks.insert(block.name.clone(), compiler.chunk);
         self.chunk.add(Instruction::RenderBlock(block.name), None);
     }
