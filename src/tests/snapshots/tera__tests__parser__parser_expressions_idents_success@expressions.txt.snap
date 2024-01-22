@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: Expressions(expr_nodes)
-input_file: src/tests/parser_inputs/success/expressions.txt
+input_file: src/tests/parser_inputs/success/expr/expressions.txt
 ---
 (- 1)
 1
@@ -86,4 +86,6 @@ get_url{}
 macros::input{label='Name', type='text'}
 (| macros::input{} safe{})
 macros::input{n=(- a 1)}
+macros::input{label=null}
+(== a null)
 

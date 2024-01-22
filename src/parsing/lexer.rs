@@ -80,6 +80,7 @@ pub enum Token<'a> {
     Integer(i64),
     Float(f64),
     Bool(bool),
+    Null,
 
     // math
     Mul,
@@ -133,6 +134,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::Integer(i) => write!(f, "INTEGER({i:?})"),
             Token::Float(v) => write!(f, "FLOAT({v:?})"),
             Token::Bool(v) => write!(f, "BOOL({v:?})"),
+            Token::Null => write!(f, "NULL"),
             Token::Plus => write!(f, "PLUS"),
             Token::Minus => write!(f, "MINUS"),
             Token::Mul => write!(f, "MUL"),
@@ -179,6 +181,7 @@ impl<'a> fmt::Display for Token<'a> {
             Token::Integer(_) => write!(f, "integer"),
             Token::Float(_) => write!(f, "float"),
             Token::Bool(_) => write!(f, "bool"),
+            Token::Null => write!(f, "null"),
             Token::Plus => write!(f, "`+`"),
             Token::Minus => write!(f, "`-`"),
             Token::Mul => write!(f, "`*`"),
@@ -536,6 +539,10 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     }
                     if ident == "false" || ident == "False" {
                         return Some(Ok((Token::Bool(false), make_span!(start_loc))));
+                    }
+
+                    if ident == "null" {
+                        return Some(Ok((Token::Null, make_span!(start_loc))));
                     }
 
                     return Some(Ok((Token::Ident(ident), make_span!(start_loc))));
