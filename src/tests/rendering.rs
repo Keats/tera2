@@ -55,6 +55,13 @@ impl Review {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct NestedObject {
+    pub label: String,
+    pub parent: Option<Box<NestedObject>>,
+    pub numbers: Vec<usize>,
+}
+
 fn get_context() -> Context {
     let mut context = Context::new();
     context.insert("name", &"Bob");
@@ -64,6 +71,17 @@ fn get_context() -> Context {
     context.insert("product", &Product::new());
     context.insert("vectors", &vec![vec![0, 3, 6], vec![1, 4, 7]]);
     context.insert("empty", &Vec::<usize>::new());
+    let parent = NestedObject {
+        label: "Parent".to_string(),
+        parent: None,
+        numbers: vec![1, 2, 3],
+    };
+    let child = NestedObject {
+        label: "Child".to_string(),
+        parent: Some(Box::new(parent)),
+        numbers: vec![1, 2, 3],
+    };
+    context.insert("objects", &vec![child]);
     let mut data: HashMap<String, Value> = HashMap::new();
     data.insert(
         "names".to_string(),
@@ -96,6 +114,17 @@ fn rendering_ok() {
 #[test]
 fn rendering_inheritance_ok() {
     insta::glob!("rendering_inputs/success/inheritance/*.txt", |path| {
+        println!("{path:?}");
+        let contents = std::fs::read_to_string(path).unwrap();
+        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let out = tera.render(&tpl_name, &get_context()).unwrap();
+        insta::assert_display_snapshot!(&out);
+    });
+}
+
+#[test]
+fn rendering_macros_ok() {
+    insta::glob!("rendering_inputs/success/macros/*.txt", |path| {
         println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
         let (tera, tpl_name) = create_multi_templates_tera(&contents);

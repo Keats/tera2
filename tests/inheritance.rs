@@ -27,19 +27,6 @@ use tera::{Context, Tera};
 // }
 
 #[test]
-fn render_super_in_top_block_errors() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![(
-        "index",
-        "{% block content%}{{super()}}{% endblock content %}",
-    )])
-    .unwrap();
-
-    let result = tera.render("index", &Context::new());
-    assert!(result.is_err());
-}
-
-#[test]
 fn errors_when_extending_itself() {
     let mut tera = Tera::default();
     let res = tera.add_raw_templates(vec![("grandparent", "{% extends 'grandparent' %}")]);
