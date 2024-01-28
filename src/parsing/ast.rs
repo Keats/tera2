@@ -1,3 +1,4 @@
+use crate::errors::{Error, TeraResult};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
@@ -365,8 +366,45 @@ impl fmt::Display for Test {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MacroCall {
     pub namespace: String,
+    /// The filename it's defined in
+    pub filename: Option<String>,
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
+}
+
+impl MacroCall {
+    pub fn validate_args_names(
+        &self,
+        tpl_name: &str,
+        kwargs_allowed: &[&String],
+    ) -> TeraResult<()> {
+        let kwargs_names = self.kwargs.keys().collect::<Vec<_>>();
+        for arg_name in &kwargs_names {
+            if !kwargs_allowed.contains(arg_name) {
+                return Err(Error::message(format!(
+                    "Template {tpl_name} is calling macro {} \
+                                    with an argument {arg_name} which isn't present in its definition. \
+                                    Only the following are allowed: {}.",
+                    self.name,
+                    kwargs_allowed.iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")
+                )));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn validate(&self, tpl_name: &str, defs: &[MacroDefinition]) -> TeraResult<()> {
+        if let Some(macro_def) = defs.iter().find(|x| x.name == self.name) {
+            self.validate_args_names(tpl_name, &macro_def.kwargs.keys().collect::<Vec<_>>())
+        } else {
+            Err(Error::macro_not_found(
+                tpl_name,
+                &self.namespace,
+                &self.name,
+            ))
+        }
+    }
 }
 
 impl fmt::Display for MacroCall {

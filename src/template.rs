@@ -1,4 +1,5 @@
 use crate::errors::{Error, ErrorKind, TeraResult};
+use crate::parsing::ast::MacroCall;
 use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Compiler};
 use crate::{HashMap, Parser};
@@ -9,9 +10,8 @@ pub struct Template {
     pub(crate) source: String,
     pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,
-    /// (file, name)
     /// Used for its index in instructions
-    pub(crate) macro_calls: Vec<(String, String)>,
+    pub(crate) macro_calls: Vec<MacroCall>,
     /// Same as above, but just the definition directly
     pub(crate) macro_calls_def: Vec<CompiledMacroDefinition>,
     /// The blocks contained in this template only
@@ -55,29 +55,29 @@ impl Template {
 
         // We need the macro handling logic both for the template and for each macro
         let macro_defs = parser_output.macro_definitions.clone();
-        let mut handle_macro_call = |namespace: String, macro_name: String| -> TeraResult<()> {
-            if &namespace == "self" {
-                if !macro_defs.iter().any(|x| x.name == macro_name) {
-                    return Err(Error::macro_not_found(tpl_name, &namespace, &macro_name));
-                }
-                macro_calls.push((tpl_name.to_string(), macro_name));
+        let mut handle_macro_call = |mut macro_call: MacroCall| -> TeraResult<()> {
+            if macro_call.namespace == "self" {
+                macro_call.validate(tpl_name, &macro_defs)?;
+                macro_call.filename = Some(tpl_name.to_string());
+                macro_calls.push(macro_call);
                 return Ok(());
             }
 
             if let Some((filename, _)) = parser_output
                 .macro_imports
                 .iter()
-                .find(|(_, n)| n == &namespace)
+                .find(|(_, n)| n == &macro_call.namespace)
             {
-                macro_calls.push((filename.to_string(), macro_name));
+                macro_call.filename = Some(filename.to_string());
+                macro_calls.push(macro_call);
                 Ok(())
             } else {
-                Err(Error::namespace_not_loaded(tpl_name, namespace))
+                Err(Error::namespace_not_loaded(tpl_name, macro_call.namespace))
             }
         };
 
-        for (namespace, macro_name) in body_compiler.macro_calls {
-            handle_macro_call(namespace, macro_name)?;
+        for macro_call in body_compiler.macro_calls {
+            handle_macro_call(macro_call)?;
         }
 
         let chunk = body_compiler.chunk;
@@ -91,8 +91,8 @@ impl Template {
             let mut compiler = Compiler::new(&macro_def_name, source);
             compiler.compile(macro_def.body);
 
-            for (namespace, macro_name) in compiler.macro_calls {
-                handle_macro_call(namespace, macro_name)?;
+            for macro_call in compiler.macro_calls {
+                handle_macro_call(macro_call)?;
             }
 
             macro_definitions.insert(

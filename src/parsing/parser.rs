@@ -274,6 +274,7 @@ impl<'a> Parser<'a> {
                         MacroCall {
                             name: macro_name.to_string(),
                             namespace: ident.to_string(),
+                            filename: None,
                             kwargs,
                         },
                         start_span,

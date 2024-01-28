@@ -9,6 +9,7 @@ use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
+use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
@@ -431,11 +432,11 @@ impl<'tera> VirtualMachine<'tera> {
 
     fn render_macro(
         &self,
-        info: &(String, String),
+        call: &MacroCall,
         macro_def: &CompiledMacroDefinition,
         context: Context,
     ) -> TeraResult<String> {
-        let tpl = self.tera.get_template(&info.0)?;
+        let tpl = self.tera.get_template(call.filename.as_ref().unwrap())?;
         let vm = Self {
             tera: self.tera,
             template: tpl,

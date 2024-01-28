@@ -1,5 +1,5 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
+use crate::parsing::ast::{BinaryOperator, Block, Expression, MacroCall, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
 use crate::HashMap;
@@ -26,8 +26,8 @@ pub(crate) struct Compiler<'s> {
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
-    // (namespace, name)
-    pub(crate) macro_calls: Vec<(String, String)>,
+    // We will need the MacroCall later to check if the arguments called actually exist
+    pub(crate) macro_calls: Vec<MacroCall>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -129,19 +129,17 @@ impl<'s> Compiler<'s> {
             }
             Expression::MacroCall(e) => {
                 let (macro_call, span) = e.into_parts();
-                self.compile_kwargs(macro_call.kwargs);
-                let call_idx = if let Some(idx) = self
-                    .macro_calls
-                    .iter()
-                    .position(|x| x.0 == macro_call.namespace && x.1 == macro_call.name)
-                {
-                    idx
-                } else {
-                    let len = self.macro_calls.len();
-                    self.macro_calls
-                        .push((macro_call.namespace, macro_call.name));
-                    len
-                };
+                self.compile_kwargs(macro_call.kwargs.clone());
+                let call_idx =
+                    if let Some(idx) = self.macro_calls.iter().position(|x| {
+                        x.namespace == macro_call.namespace && x.name == macro_call.name
+                    }) {
+                        idx
+                    } else {
+                        let len = self.macro_calls.len();
+                        self.macro_calls.push(macro_call);
+                        len
+                    };
 
                 self.chunk
                     .add(Instruction::RenderMacro(call_idx), Some(span));

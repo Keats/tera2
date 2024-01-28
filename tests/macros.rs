@@ -181,6 +181,23 @@ fn render_macros_override_default_args() {
 }
 
 #[test]
+fn render_macros_unknown_arg() {
+    let mut tera = Tera::default();
+    let res = tera.add_raw_templates(vec![
+        (
+            "macros",
+            "{% macro hello(val=1, other=2) %}{{val}}{% endmacro hello %}",
+        ),
+        (
+            "hello.html",
+            "{% import \"macros\" as macros %}{{macros::hello(lang='en')}}",
+        ),
+    ]);
+    assert!(res.is_err());
+    assert_eq!(format!("{}", res.unwrap_err()), "Template hello.html is calling macro hello with an argument lang which isn't present in its definition. Only the following are allowed: val, other.");
+}
+
+#[test]
 fn render_recursive_macro() {
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![

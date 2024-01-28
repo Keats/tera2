@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: "&nodes"
-input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
+input_file: src/tests/parser_inputs/success/tpl/tpl_slightly_complex.txt
 ---
 [
     "\n\n<html>\n  <head>\n    <title>",
@@ -103,6 +103,7 @@ input_file: src/tests/parser_inputs/success/tpl_slightly_complex.txt
                     Filter {
                         expr: MacroCall {
                             namespace: "macros",
+                            filename: None,
                             name: "cta",
                             kwargs: {
                                 "title": "Buy now" @ 19:33-19:42 (535..544),
