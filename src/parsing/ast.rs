@@ -378,15 +378,22 @@ impl MacroCall {
         tpl_name: &str,
         kwargs_allowed: &[&String],
     ) -> TeraResult<()> {
-        let kwargs_names = self.kwargs.keys().collect::<Vec<_>>();
+        let mut kwargs_names = self.kwargs.keys().collect::<Vec<_>>();
+        kwargs_names.sort();
+        let mut allowed = kwargs_allowed
+            .iter()
+            .map(|x| (*x).as_str())
+            .collect::<Vec<_>>();
+        allowed.sort();
+
         for arg_name in &kwargs_names {
-            if !kwargs_allowed.contains(arg_name) {
+            if !allowed.contains(&arg_name.as_str()) {
                 return Err(Error::message(format!(
                     "Template {tpl_name} is calling macro {} \
                                     with an argument {arg_name} which isn't present in its definition. \
                                     Only the following are allowed: {}.",
                     self.name,
-                    kwargs_allowed.iter().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")
+                    allowed.join(", ")
                 )));
             }
         }

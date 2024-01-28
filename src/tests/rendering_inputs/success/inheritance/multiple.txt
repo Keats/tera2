@@ -1,0 +1,6 @@
+$$ top
+{% block pre %}{% endblock pre %}{% block main %}{% endblock main %}
+$$ mid
+{% extends "top" %}{% block pre %}PRE{% endblock pre %}
+$$ bottom
+{% extends "mid" %}{% block main %}MAIN{% endblock main %}

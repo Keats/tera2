@@ -1,0 +1,4 @@
+$$ top
+{% block main %}TOP{% endblock main %}
+$$ bottom
+{% extends "top" %}{% block main %}{{ super() }}MAIN{% endblock %}

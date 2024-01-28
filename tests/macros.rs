@@ -194,7 +194,7 @@ fn render_macros_unknown_arg() {
         ),
     ]);
     assert!(res.is_err());
-    assert_eq!(format!("{}", res.unwrap_err()), "Template hello.html is calling macro hello with an argument lang which isn't present in its definition. Only the following are allowed: val, other.");
+    assert_eq!(format!("{}", res.unwrap_err()), "Template hello.html is calling macro hello with an argument lang which isn't present in its definition. Only the following are allowed: other, val.");
 }
 
 #[test]
