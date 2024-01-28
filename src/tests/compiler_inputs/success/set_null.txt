@@ -1,1 +1,1 @@
-{% set txt = null %}
+{% set txt = None %}

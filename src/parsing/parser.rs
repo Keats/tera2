@@ -505,7 +505,7 @@ impl<'a> Parser<'a> {
             Token::Float(f) => Expression::Const(Spanned::new(Value::from(f), span.clone())),
             Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
-            Token::Null => Expression::Const(Spanned::new(Value::Null, span.clone())),
+            Token::None => Expression::Const(Spanned::new(Value::Null, span.clone())),
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,

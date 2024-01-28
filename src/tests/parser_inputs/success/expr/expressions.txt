@@ -111,5 +111,5 @@
 {{ macros::input(n=a -1) }}
 
 // null
-{{ macros::input(label=null) }}
-{{ a == null }}
+{{ macros::input(label=none) }}
+{{ a == None }}

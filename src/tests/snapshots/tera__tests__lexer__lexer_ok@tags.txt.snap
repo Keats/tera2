@@ -61,7 +61,6 @@ input_file: src/tests/lexer_inputs/success/tags.txt
     IDENT(set),
     IDENT(txt),
     ASSIGN,
-    NULL,
+    NONE,
     TAG_END(false),
-    CONTENT("q"),
 ]

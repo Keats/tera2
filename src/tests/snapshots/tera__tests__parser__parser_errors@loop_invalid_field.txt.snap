@@ -5,6 +5,6 @@ input_file: src/tests/parser_inputs/errors/loop_invalid_field.txt
 ---
  Syntax error --> [loop_invalid_field.txt:1:23]
   |
-1 | {% for a in v %}{{loop.none}}{% endfor %}
+1 | {% for a in v %}{{loop.unknown}}{% endfor %}
   |                        ^---
-  = Found invalid field of `loop`: none. Only `index`, `index0`, `first`, `last` and `length` exist.
+  = Found invalid field of `loop`: unknown. Only `index`, `index0`, `first`, `last` and `length` exist.
