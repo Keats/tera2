@@ -104,6 +104,8 @@ pub enum Expression {
     Filter(Spanned<Filter>),
     /// my_value is defined
     Test(Spanned<Test>),
+    /// 'a' if truthy else 'b'
+    Ternary(Spanned<Ternary>),
     MacroCall(Spanned<MacroCall>),
     FunctionCall(Spanned<FunctionCall>),
     UnaryOperation(Spanned<UnaryOperation>),
@@ -136,6 +138,7 @@ impl Expression {
             Expression::GetAttr(s) => s.span(),
             Expression::GetItem(s) => s.span(),
             Expression::Filter(s) => s.span(),
+            Expression::Ternary(s) => s.span(),
         }
     }
 
@@ -153,6 +156,7 @@ impl Expression {
             Expression::GetAttr(s) => s.span_mut().expand(span),
             Expression::GetItem(s) => s.span_mut().expand(span),
             Expression::Filter(s) => s.span_mut().expand(span),
+            Expression::Ternary(s) => s.span_mut().expand(span),
         }
     }
 }
@@ -183,6 +187,7 @@ impl fmt::Debug for Expression {
             Var(i) => fmt::Debug::fmt(i, f),
             GetAttr(i) => fmt::Debug::fmt(i, f),
             GetItem(i) => fmt::Debug::fmt(i, f),
+            Ternary(i) => fmt::Debug::fmt(i, f),
         }
     }
 }
@@ -224,6 +229,7 @@ impl fmt::Display for Expression {
             Var(i) => write!(f, "{}", **i),
             GetAttr(i) => write!(f, "{}", **i),
             GetItem(i) => write!(f, "{}", **i),
+            Ternary(i) => write!(f, "{}", **i),
         }
     }
 }
@@ -400,6 +406,23 @@ impl fmt::Display for FunctionCall {
             }
         }
         write!(f, "}}",)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Ternary {
+    pub expr: Expression,
+    pub true_expr: Expression,
+    pub false_expr: Expression,
+}
+
+impl fmt::Display for Ternary {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} if {} else {}",
+            self.true_expr, self.expr, self.false_expr
+        )
     }
 }
 

@@ -115,6 +115,18 @@ impl<'s> Compiler<'s> {
                 self.chunk.add(Instruction::BuildList(num_args), None);
                 self.chunk.add(Instruction::RunTest(test.name), Some(span));
             }
+            Expression::Ternary(e) => {
+                let (ternary, _) = e.into_parts();
+                self.compile_expr(ternary.expr);
+                let idx = self.chunk.add(Instruction::PopJumpIfFalse(0), None) as usize;
+                self.processing_bodies.push(ProcessingBody::Branch(idx));
+                self.compile_expr(ternary.true_expr);
+                let idx = self.chunk.add(Instruction::Jump(0), None) as usize;
+                self.end_branch(self.chunk.len());
+                self.processing_bodies.push(ProcessingBody::Branch(idx));
+                self.compile_expr(ternary.false_expr);
+                self.end_branch(self.chunk.len());
+            }
             Expression::MacroCall(e) => {
                 let (macro_call, span) = e.into_parts();
                 self.compile_kwargs(macro_call.kwargs);

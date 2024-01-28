@@ -18,7 +18,7 @@ impl fmt::Display for Expressions {
 }
 
 #[test]
-fn parser_expressions_idents_success() {
+fn parser_expressions_success() {
     insta::glob!("parser_inputs/success/expr/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;

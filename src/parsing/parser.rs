@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
-    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Test,
-    UnaryOperation, Var,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Ternary,
+    Test, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -551,6 +551,7 @@ impl<'a> Parser<'a> {
         let mut negated = false;
 
         while let Some(Ok((ref token, _))) = self.next {
+            // println!("Next token : {token:?}");
             let op = match token {
                 Token::Mul => BinaryOperator::Mul,
                 Token::Div => BinaryOperator::Div,
@@ -576,6 +577,22 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
+                // A ternary
+                Token::Ident("if") => {
+                    self.next_or_error()?;
+                    let expr = self.parse_expression(0)?;
+                    expect_token!(self, Token::Ident("else"), "else")?;
+                    let false_expr = self.parse_expression(0)?;
+                    span.expand(&self.current_span);
+                    return Ok(Expression::Ternary(Spanned::new(
+                        Ternary {
+                            expr,
+                            true_expr: lhs,
+                            false_expr,
+                        },
+                        span.clone(),
+                    )));
+                }
                 Token::Pipe => BinaryOperator::Pipe,
                 _ => break,
             };

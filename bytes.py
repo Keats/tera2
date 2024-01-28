@@ -1,10 +1,7 @@
 import dis
 
 text = """
-for i in items:
-    a += 1
-else:
-    a = 1
+"majeur" if age >= 18 else "mineur"
 """
 
 print(dis.dis(text))
