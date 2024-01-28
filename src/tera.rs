@@ -122,12 +122,15 @@ impl Tera {
         let mut tpl_blocks = HashMap::with_capacity(self.templates.len());
         for (name, tpl) in &self.templates {
             let mut definitions = Vec::new();
-            for (tpl_name, macro_name, kwargs_name) in &tpl.macro_calls {
+            for macro_call in &tpl.macro_calls {
+                // Safe unwrap, we will have filled the filename before getting there
+                let tpl_name = macro_call.filename.as_ref().unwrap();
                 let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
                     Error::message(format!(
                         "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"
                     ))
                 })?;
+                let macro_name = &macro_call.name;
 
                 let definition = tpl_w_definition
                     .macro_definitions
@@ -137,18 +140,8 @@ impl Tera {
                             "Template `{name}` is using macros `{macro_name}` from `{tpl_name}` which wasn't found",
                         ))
                     })?;
-
-                for kwarg_name in kwargs_name {
-                    if !definition.kwargs.contains_key(kwarg_name) {
-                        return Err(Error::message(
-                            format!(
-                                "Template `{name}` is calling macro `{macro_name}` \
-                                    with an argument `{kwarg_name}` which isn't present in its definition. Existing arguments: {}", definition.kwargs.keys().map(|x| x.as_str()).collect::<Vec<_>>().join(", ")
-                            )
-                        ));
-                    }
-                }
-
+                macro_call
+                    .validate_args_names(name, &definition.kwargs.keys().collect::<Vec<_>>())?;
                 definitions.push(definition.clone());
             }
             tpl_macro_definitions.insert(name.to_string(), definitions);

@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: "&res_nodes"
-input_file: src/tests/parser_inputs/success/set.txt
+input_file: src/tests/parser_inputs/success/tags/set.txt
 ---
 [
     Set {
@@ -33,6 +33,7 @@ input_file: src/tests/parser_inputs/success/set.txt
         name: "a",
         value: MacroCall {
             namespace: "macros",
+            filename: None,
             name: "something",
             kwargs: {},
         } @ 4:11-4:30 (76..95),
