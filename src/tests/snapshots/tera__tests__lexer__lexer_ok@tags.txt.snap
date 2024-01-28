@@ -56,4 +56,11 @@ input_file: src/tests/lexer_inputs/success/tags.txt
     TAG_START(false),
     IDENT(endset),
     TAG_END(false),
+    CONTENT("\n"),
+    TAG_START(false),
+    IDENT(set),
+    IDENT(txt),
+    ASSIGN,
+    NONE,
+    TAG_END(false),
 ]

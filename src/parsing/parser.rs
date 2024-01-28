@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
-    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Test,
-    UnaryOperation, Var,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Ternary,
+    Test, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -66,9 +66,9 @@ macro_rules! expect_token {
     }};
 }
 
-const RESERVED_NAMES: [&str; 13] = [
+const RESERVED_NAMES: [&str; 14] = [
     "true", "True", "false", "False", "loop", "self", "and", "or", "not", "is", "in", "continue",
-    "break",
+    "break", "null",
 ];
 
 /// This enum is only used to error when some tags are used in places they are not allowed
@@ -505,6 +505,7 @@ impl<'a> Parser<'a> {
             Token::Float(f) => Expression::Const(Spanned::new(Value::from(f), span.clone())),
             Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
+            Token::None => Expression::Const(Spanned::new(Value::Null, span.clone())),
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -550,6 +551,7 @@ impl<'a> Parser<'a> {
         let mut negated = false;
 
         while let Some(Ok((ref token, _))) = self.next {
+            // println!("Next token : {token:?}");
             let op = match token {
                 Token::Mul => BinaryOperator::Mul,
                 Token::Div => BinaryOperator::Div,
@@ -575,6 +577,22 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
+                // A ternary
+                Token::Ident("if") => {
+                    self.next_or_error()?;
+                    let expr = self.parse_expression(0)?;
+                    expect_token!(self, Token::Ident("else"), "else")?;
+                    let false_expr = self.parse_expression(0)?;
+                    span.expand(&self.current_span);
+                    return Ok(Expression::Ternary(Spanned::new(
+                        Ternary {
+                            expr,
+                            true_expr: lhs,
+                            false_expr,
+                        },
+                        span.clone(),
+                    )));
+                }
                 Token::Pipe => BinaryOperator::Pipe,
                 _ => break,
             };

@@ -1,0 +1,3 @@
+{{ true if truthy else false }}
+{{ 1 if a == b else null }}
+{{ 'a' if (a > b or a > c) else 'b' }}

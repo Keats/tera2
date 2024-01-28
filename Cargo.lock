@@ -654,7 +654,6 @@ dependencies = [
  "ryu",
  "serde",
  "serde_derive",
- "serde_json",
  "unic-segment",
 ]
 

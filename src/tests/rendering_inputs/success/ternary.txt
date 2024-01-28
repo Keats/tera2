@@ -1,0 +1,2 @@
+{{ "majeur" if age >= 18 else "mineur" }}
+{{ "bob" if age > 99 else "tom" }}

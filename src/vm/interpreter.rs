@@ -123,8 +123,9 @@ impl<'tera> VirtualMachine<'tera> {
 
         // TODO later: tests/filters/fns
         // println!("{:?}", self.template.macro_calls_def);
+        // println!("{:?}", state.chunk);
         while let Some((instr, span)) = state.chunk.get(ip) {
-            // println!("{}. {:?}", state.chunk.name, instr);
+            // println!("{}. {}' {:?}", state.chunk.name, ip, instr);
             match instr {
                 Instruction::LoadConst(v) => {
                     state.stack.push_borrowed(v.clone(), span.as_ref().unwrap())

@@ -110,3 +110,6 @@
 {{ macros::input() | safe }}
 {{ macros::input(n=a -1) }}
 
+// null
+{{ macros::input(label=none) }}
+{{ a == None }}
