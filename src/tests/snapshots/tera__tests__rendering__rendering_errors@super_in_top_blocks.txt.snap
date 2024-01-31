@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/super_in_top_blocks.txt
+input_file: src/tests/rendering_inputs/errors/super_in_top_blocks.txt
 ---
  Rendering error --> ["super_in_top_blocks.txt":2:3]
   |

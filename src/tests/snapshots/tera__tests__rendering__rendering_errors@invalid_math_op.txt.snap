@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/invalid_math_op.txt
+input_file: src/tests/rendering_inputs/errors/invalid_math_op.txt
 ---
  Rendering error --> ["invalid_math_op.txt":1:3]
   |

@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/unknown_top_field.txt
+input_file: src/tests/rendering_inputs/errors/unknown_top_field.txt
 ---
  Rendering error --> ["unknown_top_field.txt":1:3]
   |

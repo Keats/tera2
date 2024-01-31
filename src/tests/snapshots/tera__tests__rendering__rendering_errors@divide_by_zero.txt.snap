@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/divide_by_zero.txt
+input_file: src/tests/rendering_inputs/errors/divide_by_zero.txt
 ---
  Rendering error --> ["divide_by_zero.txt":1:10]
   |

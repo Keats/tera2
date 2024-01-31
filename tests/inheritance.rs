@@ -25,12 +25,3 @@ use tera::{Context, Tera};
 //
 //     assert_eq!(result.unwrap(), "HELLO BOTTOM".to_string());
 // }
-
-#[test]
-fn errors_when_extending_itself() {
-    let mut tera = Tera::default();
-    let res = tera.add_raw_templates(vec![("grandparent", "{% extends 'grandparent' %}")]);
-    assert!(res.is_err());
-    let err = res.unwrap_err();
-    assert!(err.to_string().contains("Circular"));
-}

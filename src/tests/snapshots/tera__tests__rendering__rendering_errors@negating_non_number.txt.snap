@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/negating_non_number.txt
+input_file: src/tests/rendering_inputs/errors/negating_non_number.txt
 ---
  Rendering error --> ["negating_non_number.txt":1:5]
   |

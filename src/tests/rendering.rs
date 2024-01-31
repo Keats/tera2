@@ -3,31 +3,7 @@ use std::collections::HashMap;
 
 use crate::tera::Tera;
 use crate::{Context, Value};
-
-/// This will take our custom insta format to create multiple templates
-/// The format is:
-/// $$ filename
-/// body
-/// $$ other filename
-/// other body
-/// And returns the tera instance as well as the last template name
-fn create_multi_templates_tera(body: &str) -> (Tera, String) {
-    let parts: Vec<_> = body.split("$$ ").skip(1).collect();
-    let mut tera = Tera::default();
-    let mut tpls = Vec::with_capacity(parts.len());
-    let mut last_filename = String::new();
-    for part in parts {
-        let mut chars = part.chars();
-        let filename: String = chars.by_ref().take_while(|&c| c != '\n').collect();
-        let content = chars.collect::<String>().trim().to_string();
-        last_filename = filename.clone();
-        tpls.push((filename, content));
-    }
-
-    tera.add_raw_templates(tpls).unwrap();
-
-    (tera, last_filename)
-}
+use crate::tests::utils::create_multi_templates_tera;
 
 #[derive(Debug, Serialize)]
 pub struct Product {
@@ -133,9 +109,10 @@ fn rendering_macros_ok() {
     });
 }
 
+
 #[test]
-fn rendering_runtime_errors() {
-    insta::glob!("rendering_inputs/runtime_errors/*.txt", |path| {
+fn rendering_errors() {
+    insta::glob!("rendering_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let p = format!("{:?}", path.file_name().unwrap());
         println!("{p:?}");

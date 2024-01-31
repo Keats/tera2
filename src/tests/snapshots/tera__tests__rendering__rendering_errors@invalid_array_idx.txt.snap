@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/invalid_array_idx.txt
+input_file: src/tests/rendering_inputs/errors/invalid_array_idx.txt
 ---
  Rendering error --> ["invalid_array_idx.txt":1:11]
   |

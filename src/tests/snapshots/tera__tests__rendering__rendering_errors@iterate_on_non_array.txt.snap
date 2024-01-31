@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/iterate_on_non_array.txt
+input_file: src/tests/rendering_inputs/errors/iterate_on_non_array.txt
 ---
  Rendering error --> ["iterate_on_non_array.txt":1:12]
   |

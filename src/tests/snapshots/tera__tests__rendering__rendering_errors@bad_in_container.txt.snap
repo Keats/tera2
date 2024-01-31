@@ -1,7 +1,7 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/runtime_errors/bad_in_container.txt
+input_file: src/tests/rendering_inputs/errors/bad_in_container.txt
 ---
  Rendering error --> ["bad_in_container.txt":1:10]
   |
