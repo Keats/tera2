@@ -1,9 +1,9 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/errors/invalid_array_idx.html
+input_file: src/tests/rendering_inputs/runtime_errors/invalid_array_idx.txt
 ---
- Rendering error --> ["invalid_array_idx.html":1:11]
+ Rendering error --> ["invalid_array_idx.txt":1:11]
   |
 1 | {{ vectors[1.1] }}
   |            ^---

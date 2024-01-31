@@ -1,9 +1,9 @@
 ---
 source: src/tests/rendering.rs
 expression: "&err"
-input_file: src/tests/rendering_inputs/errors/unknown_var.html
+input_file: src/tests/rendering_inputs/runtime_errors/unknown_var.txt
 ---
- Rendering error --> ["unknown_var.html":1:9]
+ Rendering error --> ["unknown_var.txt":1:9]
   |
 1 | Hello {{ hey }}
   |          ^---

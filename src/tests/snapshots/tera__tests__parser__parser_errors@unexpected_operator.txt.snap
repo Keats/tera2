@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/unexpected_operator.txt
 1 | {{ / }}
   |    ^---
   = Found `/` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`
-        

@@ -134,8 +134,8 @@ fn rendering_macros_ok() {
 }
 
 #[test]
-fn rendering_errors() {
-    insta::glob!("rendering_inputs/errors/*.html", |path| {
+fn rendering_runtime_errors() {
+    insta::glob!("rendering_inputs/runtime_errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let p = format!("{:?}", path.file_name().unwrap());
         println!("{p:?}");

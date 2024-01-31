@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/extends_in_body.txt
 1 | {% if true %}{% extends "a" %}{% endif %}
   |                         ^---
   = `extends` cannot be nested in other tags.
-        

@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/multiple_extends.txt
 2 | {% extends "b" %}
   |            ^---
   = Template is already extending `a`
-        

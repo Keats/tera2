@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/unexpected_token_test.txt
 1 | {{ a is upper(b=,) }}
   |                ^---
   = Found `=` but expected `)` or `,`.
-        

@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/macro_import_same_namespace.txt
 2 | {% import "macros2.html" as macros %}
   |                             ^---
   = Multiple macros imports using the `macros` namespace
-        
