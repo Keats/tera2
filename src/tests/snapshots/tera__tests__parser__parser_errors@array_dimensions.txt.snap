@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/array_dimensions.txt
 1 | {{ [[[1], [2]], [true]] }}
   |      ^---
   = Arrays can have a maximum of 2 dimensions.
-        

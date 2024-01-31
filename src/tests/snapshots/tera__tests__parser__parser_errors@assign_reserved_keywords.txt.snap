@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/assign_reserved_keywords.txt
 1 | {% set break = false %}
   |        ^---
   = break is a reserved keyword of Tera, it cannot be assigned to.
-        

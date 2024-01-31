@@ -1,0 +1,6 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/inheritance/multiple_super.txt
+---
+dad says hi and grandma says hello sincerely with love

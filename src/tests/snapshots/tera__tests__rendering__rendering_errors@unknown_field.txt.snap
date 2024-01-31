@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/unknown_field.txt
+---
+ Rendering error --> ["unknown_field.txt":1:8]
+  |
+1 | {{ name.unknown }}
+  |         ^---
+  = Tried to render a variable that is not defined

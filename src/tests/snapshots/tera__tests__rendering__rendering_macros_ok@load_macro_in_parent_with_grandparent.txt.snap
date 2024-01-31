@@ -1,0 +1,6 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/macros/load_macro_in_parent_with_grandparent.txt
+---
+1 - Hey

@@ -1,0 +1,6 @@
+$$ top
+{% block title %}Title{% endblock %}
+$$ mid
+{% extends "top" %}
+$$ bottom
+{% extends "mid" %}{% block title %}{{ super() }} - More{% endblock %}

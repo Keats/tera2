@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: "&res_nodes"
-input_file: src/tests/parser_inputs/success/filter_section.txt
+input_file: src/tests/parser_inputs/success/tags/filter_section.txt
 ---
 [
     FilterSection {

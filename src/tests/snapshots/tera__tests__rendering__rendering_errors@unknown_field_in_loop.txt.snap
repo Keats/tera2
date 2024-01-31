@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/unknown_field_in_loop.txt
+---
+ Rendering error --> ["unknown_field_in_loop.txt":3:5]
+  |
+3 | {{ r.random }}
+  |      ^---
+  = Tried to render a variable that is not defined

@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: "&nodes"
-input_file: src/tests/parser_inputs/success/tpl_simple.txt
+input_file: src/tests/parser_inputs/success/tpl/tpl_simple.txt
 ---
 [
     "<html>\n  ",

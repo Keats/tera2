@@ -1,0 +1,2 @@
+$$ tpl
+{% macro hello()%}Hello{% endmacro hello %}{% block hey %}{{self::hello()}}{% endblock hey %}

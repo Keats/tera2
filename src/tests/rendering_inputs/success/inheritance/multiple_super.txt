@@ -1,0 +1,6 @@
+$$ top
+{% block hey %}hello{% endblock hey %} {% block ending %}sincerely{% endblock ending %}
+$$ mid
+{% extends "top" %}{% block hey %}hi and grandma says {{ super() }}{% endblock hey %}
+$$ bottom
+{% extends "mid" %}{% block hey %}dad says {{ super() }}{% endblock hey %}{% block ending %}{{ super() }} with love{% endblock ending %}

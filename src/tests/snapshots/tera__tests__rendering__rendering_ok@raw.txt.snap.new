@@ -1,0 +1,7 @@
+---
+source: src/tests/rendering.rs
+assertion_line: 86
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/raw.txt
+---
+    yaml_test:     

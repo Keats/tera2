@@ -1,7 +1,7 @@
 ---
 source: src/tests/parser.rs
 expression: "&res_nodes"
-input_file: src/tests/parser_inputs/success/blocks.txt
+input_file: src/tests/parser_inputs/success/tags/blocks.txt
 ---
 [
     Block {

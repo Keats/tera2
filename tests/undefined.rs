@@ -6,6 +6,7 @@ use tera::{Context, Tera};
 pub struct SomeStruct {
     pub label: String,
 }
+
 // - `{{ hey }}` should error if hey is undefined
 // - `{{ existing.hey }}` sould error if hey is undefined but existing is
 // - `{{ hey or 1 }}` should print 1

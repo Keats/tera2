@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/duplicate_block_nested.txt
 1 | {% block hello %}{% block hello %}{% endblock %}{% endblock %}
   |                           ^---
   = Template already contains a block named `hello`
-        

@@ -1,0 +1,6 @@
+$$ top
+{% block content%}INDEX{% endblock content %}
+$$ mid
+{% extends "top" %}{% block content%}DOCS{% block more %}MORE{% endblock more %}{% endblock content %}
+$$ bottom
+{% extends "mid" %}{% block more %}PAGE{% endblock more %}

@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/unclosed_tag.txt
 1 | {% if i + 2 | integer > x %
   |                            ^---
   = Unexpected end of input
-        

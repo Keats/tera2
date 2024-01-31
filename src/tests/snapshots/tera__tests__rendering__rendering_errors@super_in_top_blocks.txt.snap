@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/super_in_top_blocks.txt
+---
+ Rendering error --> ["super_in_top_blocks.txt":2:3]
+  |
+2 | {{ super() }}
+  |    ^---
+  = Tried to use super() in the top level block

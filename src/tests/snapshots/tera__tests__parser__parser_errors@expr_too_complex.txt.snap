@@ -8,4 +8,3 @@ input_file: src/tests/parser_inputs/errors/expr_too_complex.txt
 1 | {{ (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((
   |                                                                                                       ^---
   = The expression is too complex
-        
