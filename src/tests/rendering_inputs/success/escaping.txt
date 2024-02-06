@@ -1,1 +1,5 @@
 {{ description }}
+{%- set foo = 'def' %}
+{{ 'abcdef' == 'abc' ~ foo }}
+{{ 'abc/def' == 'abc/' ~ 'def' }}
+{{ 'abc/def' == 'abc/' ~ foo }}

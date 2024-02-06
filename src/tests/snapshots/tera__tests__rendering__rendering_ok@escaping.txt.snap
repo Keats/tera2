@@ -4,3 +4,6 @@ expression: "&out"
 input_file: src/tests/rendering_inputs/success/escaping.txt
 ---
 &lt;p&gt;I should be escaped by default&lt;/p&gt;
+true
+true
+true
