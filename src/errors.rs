@@ -72,6 +72,10 @@ pub enum ErrorKind {
     },
     /// A template was missing
     TemplateNotFound(String),
+    /// A function/test/filter argument was not the expected type
+    InvalidArgument { arg_name: String },
+    /// A function/test/filter was expecting an argument but it wasn't found
+    MissingArgument { arg_name: String },
     /// An IO error occurred
     Io(std::io::ErrorKind),
     /// UTF-8 conversion error when converting output to UTF-8
@@ -116,6 +120,8 @@ impl fmt::Display for ErrorKind {
                 f,
                 "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
+            ErrorKind::InvalidArgument {arg_name} => write!(f, "TODO invalid arg"),
+            ErrorKind::MissingArgument {arg_name} => write!(f, "TODO missing arg"),
             ErrorKind::Io(ref io_error) => {
                 write!(f, "Io error while writing rendered value to output: {:?}", io_error)
             }
@@ -225,6 +231,15 @@ impl Error {
     pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
         Self {
             kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
+    }
+
+    pub(crate) fn missing_arg() -> Self {
+        Self {
+            kind: ErrorKind::MissingArgument {
+                arg_name: String::new(),
+            },
             source: None,
         }
     }

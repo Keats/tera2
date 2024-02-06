@@ -1,5 +1,6 @@
 mod context;
 mod errors;
+mod filters;
 mod parsing;
 mod reporting;
 mod template;
