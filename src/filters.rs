@@ -17,11 +17,11 @@ pub trait Filter<Arg, Res>: Sync + Send + 'static {
 }
 
 impl<Func, Arg, Res> Filter<Arg, Res> for Func
-    where
-        Func: Fn(Arg, Kwargs) -> Res + Sync + Send + 'static,
-        Arg: for<'a> ArgFromValue<'a>,
-        Res: FunctionResult {
-
+where
+    Func: Fn(Arg, Kwargs) -> Res + Sync + Send + 'static,
+    Arg: for<'a> ArgFromValue<'a>,
+    Res: FunctionResult,
+{
     fn call(&self, value: Arg, kwargs: Kwargs) -> Res {
         (self)(value, kwargs)
     }
@@ -37,17 +37,22 @@ impl StoredFilter {
     where
         Func: Filter<Arg, Res>,
         Arg: for<'a> ArgFromValue<'a>,
-        Res: FunctionResult
+        Res: FunctionResult,
     {
-        let closure = move |arg, kwargs| -> TeraResult<Value> {
-            f.call(arg, kwargs).into_result()
+        let closure = move |arg: &Value, kwargs| -> TeraResult<Value> {
+            f.call(ArgFromValue::from_value(Some(arg))?, kwargs)
+                .into_result()
         };
 
         StoredFilter(Arc::new(closure))
     }
+
+    pub fn call(&self, arg: &Value, kwargs: Kwargs) -> TeraResult<Value> {
+        (self.0)(arg, kwargs)
+    }
 }
 
-fn some_filter(value: u8) -> u8 {
+fn some_filter(value: u8, _kwargs: Kwargs) -> u8 {
     value
 }
 
@@ -60,8 +65,13 @@ mod tests {
         filters: Vec<StoredFilter>,
     }
     impl Tester {
-        fn add_filter<Func>(&mut self, f: Func) {
-            self.filters.push(Arc::new(f));
+        fn add_filter<Func, Arg, Res>(&mut self, f: Func)
+        where
+            Func: Filter<Arg, Res>,
+            Arg: for<'a> ArgFromValue<'a>,
+            Res: FunctionResult,
+        {
+            self.filters.push(StoredFilter::new(f));
         }
     }
 

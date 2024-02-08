@@ -4,11 +4,8 @@ use crate::errors::{Error, TeraResult};
 use crate::value::{Key, Map};
 use crate::Value;
 
-
-pub trait ArgFromValue<'k> {
-    type Output;
-
-    fn from_value(value: Option<&'k Value>) -> TeraResult<Self::Output>;
+pub trait ArgFromValue<'k>: Sized {
+    fn from_value(value: Option<&'k Value>) -> TeraResult<Self>;
 }
 
 // TODO: Need to add 2 error types: one for unsupported ops and one for missing args: same one maybe?
@@ -33,7 +30,6 @@ macro_rules! impl_for_literal {
         }
 
         impl<'k> ArgFromValue<'k> for $ty {
-            type Output = Self;
             fn from_value(value: Option<&Value>) -> Result<Self, Error> {
                 match value {
                     Some(value) => TryFrom::try_from(value.clone()),
@@ -87,25 +83,10 @@ impl_for_literal!(f64, {
     Value::F64(b) => b,
 });
 
-impl<'k> ArgFromValue<'k> for &str {
-    type Output = &'k str;
-
-    fn from_value(value: Option<&'k Value>) -> TeraResult<Self::Output> {
+impl<'k> ArgFromValue<'k> for Value {
+    fn from_value(value: Option<&'k Value>) -> TeraResult<Self> {
         match value {
-            Some(value) => value
-                .as_str()
-                .ok_or_else(|| panic!("TODO: {}, {}", value.name(), "&str")),
-            None => Err(Error::missing_arg()),
-        }
-    }
-}
-
-impl<'k> ArgFromValue<'k> for &Value {
-    type Output = &'k Value;
-
-    fn from_value(value: Option<&'k Value>) -> TeraResult<Self::Output> {
-        match value {
-            Some(value) => Ok(value),
+            Some(value) => Ok(value.clone()),
             None => Err(Error::missing_arg()),
         }
     }
@@ -125,7 +106,7 @@ impl Kwargs {
 
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<T>
     where
-        T: ArgFromValue<'k, Output = T>,
+        T: ArgFromValue<'k>,
     {
         T::from_value(self.values.get(&Key::Str(key)))
     }
@@ -138,6 +119,16 @@ impl Default for Kwargs {
         }
     }
 }
+
+// TODO: add all impls for things to return
+
+impl From<u8> for Value {
+    #[inline(always)]
+    fn from(val: u8) -> Self {
+        Value::U64(val as u64)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
