@@ -2,7 +2,6 @@ use serde_derive::Serialize;
 
 use tera::{Context, Tera};
 
-
 // #[test]
 // fn macro_param_arent_escaped() {
 //     let mut tera = Tera::default();
@@ -23,4 +22,3 @@ use tera::{Context, Tera};
 //
 //     assert_eq!(result.unwrap(), "&".to_string());
 // }
-

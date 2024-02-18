@@ -83,4 +83,4 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 
 - `{{ falsy or "hello" }}` prints "hello" instead of "true"
 - `{% if not_existing.field %}` errors if `not_existing` is undefined, we only allow one level of undefinedness (hello undefined is not an object)
-- include ignore missing has been removed
+- `include [...] ignore missing` has been removed

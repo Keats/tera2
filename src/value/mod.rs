@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 mod key;
+pub(crate) mod kwargs;
 pub(crate) mod number;
 mod ser;
 mod utils;
@@ -48,104 +49,6 @@ pub enum Value {
     // TODO: string interning?
     String(Arc<str>, StringKind),
     Map(Arc<Map>),
-}
-
-impl Value {
-    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
-        match self {
-            Value::Null | Value::Undefined => Ok(()),
-            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
-            Value::Bytes(v) => f.write_all(v),
-            Value::String(v, kind) => {
-                if matches!(kind, StringKind::Safe) {
-                    f.write_all(v.as_bytes())
-                } else {
-                    f.write_all(escape_html(v).as_bytes())
-                }
-            }
-            Value::Array(v) => {
-                let mut it = v.iter();
-                f.write_all(b"[")?;
-                // First value
-                if let Some(elem) = it.next() {
-                    elem.format(f)?;
-                }
-                // Every other value
-                for elem in it {
-                    f.write_all(b", ")?;
-                    elem.format(f)?;
-                }
-                f.write_all(b"]")
-            }
-            Value::Map(v) => {
-                let mut key_val: Box<_> = v.iter().collect();
-                // Keys are sorted to have deterministic output
-                // TODO: Consider using sort_unstable_by_key
-                key_val.sort_by_key(|elem| elem.0);
-                let mut it = key_val.iter();
-                f.write_all(b"{")?;
-                // First value
-                if let Some((key, value)) = it.next() {
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    value.format(f)?;
-                }
-                // Every other value
-                for (key, value) in it {
-                    f.write_all(b", ")?;
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    value.format(f)?;
-                }
-                f.write_all(b"}")
-            }
-            Value::F64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = ryu::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::U64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::I64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::U128(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::I128(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-        }
-    }
 }
 
 impl fmt::Display for Value {
@@ -255,6 +158,102 @@ impl Hash for Value {
 }
 
 impl Value {
+    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Value::Null | Value::Undefined => Ok(()),
+            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            Value::Bytes(v) => f.write_all(v),
+            Value::String(v, kind) => {
+                if matches!(kind, StringKind::Safe) {
+                    f.write_all(v.as_bytes())
+                } else {
+                    f.write_all(escape_html(v).as_bytes())
+                }
+            }
+            Value::Array(v) => {
+                let mut it = v.iter();
+                f.write_all(b"[")?;
+                // First value
+                if let Some(elem) = it.next() {
+                    elem.format(f)?;
+                }
+                // Every other value
+                for elem in it {
+                    f.write_all(b", ")?;
+                    elem.format(f)?;
+                }
+                f.write_all(b"]")
+            }
+            Value::Map(v) => {
+                let mut key_val: Box<_> = v.iter().collect();
+                // Keys are sorted to have deterministic output
+                // TODO: Consider using sort_unstable_by_key
+                key_val.sort_by_key(|elem| elem.0);
+                let mut it = key_val.iter();
+                f.write_all(b"{")?;
+                // First value
+                if let Some((key, value)) = it.next() {
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    value.format(f)?;
+                }
+                // Every other value
+                for (key, value) in it {
+                    f.write_all(b", ")?;
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    value.format(f)?;
+                }
+                f.write_all(b"}")
+            }
+            Value::F64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = ryu::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::U64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::I64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::U128(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::I128(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+        }
+    }
+
     pub fn from_serializable<T: Serialize + ?Sized>(value: &T) -> Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
     }
@@ -583,5 +582,21 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<IndexMap<K, T>> for Value {
             map.insert(key.into(), value.into());
         }
         Value::Map(Arc::new(map))
+    }
+}
+
+pub trait FunctionResult {
+    fn into_result(self) -> TeraResult<Value>;
+}
+
+impl<I: Into<Value>> FunctionResult for TeraResult<I> {
+    fn into_result(self) -> TeraResult<Value> {
+        self.map(Into::into)
+    }
+}
+
+impl<I: Into<Value>> FunctionResult for I {
+    fn into_result(self) -> TeraResult<Value> {
+        Ok(self.into())
     }
 }

@@ -2,8 +2,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 use crate::tera::Tera;
-use crate::{Context, Value};
 use crate::tests::utils::create_multi_templates_tera;
+use crate::{Context, Value};
 
 #[derive(Debug, Serialize)]
 pub struct Product {
@@ -108,7 +108,6 @@ fn rendering_macros_ok() {
         insta::assert_display_snapshot!(&out);
     });
 }
-
 
 #[test]
 fn rendering_errors() {
