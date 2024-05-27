@@ -17,11 +17,11 @@ pub trait Filter<Arg, Res>: Sync + Send + 'static {
 }
 
 impl<Func, Arg, Res> Filter<Arg, Res> for Func
-    where
-        Func: Fn(Arg, Kwargs) -> Res + Sync + Send + 'static,
-        Arg: for<'a> ArgFromValue<'a>,
-        Res: FunctionResult {
-
+where
+    Func: Fn(Arg, Kwargs) -> Res + Sync + Send + 'static,
+    Arg: for<'a> ArgFromValue<'a>,
+    Res: FunctionResult,
+{
     fn call(&self, value: Arg, kwargs: Kwargs) -> Res {
         (self)(value, kwargs)
     }
@@ -35,20 +35,24 @@ pub(crate) struct StoredFilter(Arc<FilterFunc>);
 impl StoredFilter {
     pub fn new<Func, Arg, Res>(f: Func) -> Self
     where
-        Func: Filter<Arg, Res>,
+        Func: Filter<Arg, Res> + for<'a> Filter<<Arg as ArgFromValue<'a>>::Output, Res>,
         Arg: for<'a> ArgFromValue<'a>,
-        Res: FunctionResult
+        Res: FunctionResult,
     {
         let closure = move |arg, kwargs| -> TeraResult<Value> {
-            f.call(arg, kwargs).into_result()
+            f.call(Arg::from_value(arg)?, kwargs).into_result()
         };
 
         StoredFilter(Arc::new(closure))
     }
 }
 
-fn some_filter(value: u8) -> u8 {
+fn some_filter(value: u64, _kwargs: Kwargs) -> u64 {
     value
+}
+
+fn another_filter(_value: &str, _kwargs: Kwargs) -> &str {
+    "hello"
 }
 
 #[cfg(test)]
@@ -59,9 +63,15 @@ mod tests {
     struct Tester {
         filters: Vec<StoredFilter>,
     }
+
     impl Tester {
-        fn add_filter<Func>(&mut self, f: Func) {
-            self.filters.push(Arc::new(f));
+        pub fn add_filter<Func, Arg, Res>(&mut self, f: Func)
+        where
+            Func: Filter<Arg, Res> + for<'a> Filter<<Arg as ArgFromValue<'a>>::Output, Res>,
+            Arg: for<'a> ArgFromValue<'a>,
+            Res: FunctionResult,
+        {
+            self.filters.push(StoredFilter::new(f));
         }
     }
 
@@ -69,5 +79,6 @@ mod tests {
     fn test_def() {
         let mut tester = Tester { filters: vec![] };
         tester.add_filter(some_filter);
+        tester.add_filter(another_filter);
     }
 }

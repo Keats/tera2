@@ -488,6 +488,18 @@ impl From<String> for Value {
     }
 }
 
+impl From<u8> for Value {
+    fn from(value: u8) -> Self {
+        Value::U64(value as u64)
+    }
+}
+
+impl From<i8> for Value {
+    fn from(value: i8) -> Self {
+        Value::I64(value as i64)
+    }
+}
+
 impl From<u32> for Value {
     fn from(value: u32) -> Self {
         Value::U64(value as u64)
