@@ -29,7 +29,6 @@ where
 
 type FilterFunc = dyn Fn(&Value, Kwargs) -> TeraResult<Value> + Sync + Send + 'static;
 
-#[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
 
 impl StoredFilter {
@@ -39,11 +38,15 @@ impl StoredFilter {
         Arg: for<'a> ArgFromValue<'a>,
         Res: FunctionResult,
     {
-        let closure = move |arg, kwargs| -> TeraResult<Value> {
+        let closure = move |arg: &Value, kwargs| -> TeraResult<Value> {
             f.call(Arg::from_value(arg)?, kwargs).into_result()
         };
 
         StoredFilter(Arc::new(closure))
+    }
+
+    pub fn call(&self, arg: &Value, kwargs: Kwargs) -> TeraResult<Value> {
+        (self.0)(arg, kwargs)
     }
 }
 
@@ -51,8 +54,8 @@ fn some_filter(value: u64, _kwargs: Kwargs) -> u64 {
     value
 }
 
-fn another_filter(_value: &str, _kwargs: Kwargs) -> &str {
-    "hello"
+fn another_filter(_value: &str, _kwargs: Kwargs) -> &'static str {
+    "hello world"
 }
 
 #[cfg(test)]
@@ -73,12 +76,19 @@ mod tests {
         {
             self.filters.push(StoredFilter::new(f));
         }
+
+        pub fn call(&self, arg: &Value, kwargs: Kwargs) -> TeraResult<Value> {
+            self.filters[0].call(arg, kwargs)
+        }
     }
 
     #[test]
     fn test_def() {
         let mut tester = Tester { filters: vec![] };
-        tester.add_filter(some_filter);
         tester.add_filter(another_filter);
+        tester.add_filter(some_filter);
+        let res = tester.call(&Value::from("hello"), Kwargs::default());
+        println!("{res:?}");
+        assert!(false);
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
-use crate::value::{Key, Map};
+use crate::value::Map;
 use crate::Value;
 
 pub trait ArgFromValue<'k> {
@@ -127,9 +127,4 @@ impl Default for Kwargs {
             values: Default::default(),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
 }
