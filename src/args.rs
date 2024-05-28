@@ -92,6 +92,7 @@ impl<'k> ArgFromValue<'k> for &str {
             .ok_or_else(|| panic!("TODO: {}, {}", value.name(), "&str"))
     }
 }
+// TODO: impl for Cow, &'a [Value], Vec, String
 
 impl<'k> ArgFromValue<'k> for &Value {
     type Output = &'k Value;
@@ -101,6 +102,7 @@ impl<'k> ArgFromValue<'k> for &Value {
     }
 }
 
+// TODO: deserialize into a struct instead
 #[derive(Debug, Clone)]
 pub struct Kwargs {
     values: Arc<Map>,
@@ -110,8 +112,6 @@ impl Kwargs {
     pub(crate) fn new(values: Arc<Map>) -> Self {
         Self { values }
     }
-
-    // pub fn set_filter_name("")
 
     // pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<T>
     // where

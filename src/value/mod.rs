@@ -10,8 +10,8 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
+mod de;
 mod key;
-pub(crate) mod kwargs;
 pub(crate) mod number;
 mod ser;
 mod utils;
@@ -299,7 +299,7 @@ impl Value {
         )
     }
 
-    fn as_str(&self) -> Option<&str> {
+    pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(s, _) => Some(s),
             _ => None,
@@ -597,6 +597,7 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<IndexMap<K, T>> for Value {
     }
 }
 
+// TODO: move somewhere else
 pub trait FunctionResult {
     fn into_result(self) -> TeraResult<Value>;
 }

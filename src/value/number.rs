@@ -2,8 +2,7 @@ use crate::errors::{Error, TeraResult};
 use crate::value::Value;
 use std::hash::{Hash, Hasher};
 
-/// Simpler representation of numbers
-/// So operations are simpler to handle
+/// Simpler representation of numbers so operations are simpler to handle
 pub(crate) enum Number {
     Integer(i128),
     Float(f64),

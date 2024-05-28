@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
+use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::TeraResult;
-use crate::value::kwargs::{ArgFromValue, Kwargs};
 use crate::value::FunctionResult;
 use crate::Value;
 
@@ -11,6 +11,7 @@ pub trait Filter<Arg, Res>: Sync + Send + 'static {
     fn call(&self, value: Arg, kwargs: Kwargs) -> Res;
 
     /// Whether the current filter's output should be treated as safe, defaults to `false`
+    /// Only needs to be defined if the filter returns a string
     fn is_safe(&self) -> bool {
         false
     }
@@ -89,6 +90,5 @@ mod tests {
         tester.add_filter(some_filter);
         let res = tester.call(&Value::from("hello"), Kwargs::default());
         println!("{res:?}");
-        assert!(false);
     }
 }
