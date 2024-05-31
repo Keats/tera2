@@ -1,7 +1,11 @@
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
-use crate::value::Map;
+use crate::value::{Key, Map};
+use crate::HashMap;
 use crate::Value;
 
 pub trait ArgFromValue<'k> {
@@ -102,23 +106,31 @@ impl<'k> ArgFromValue<'k> for &Value {
     }
 }
 
-// TODO: deserialize into a struct instead
 #[derive(Debug, Clone)]
 pub struct Kwargs {
     values: Arc<Map>,
 }
 
 impl Kwargs {
-    pub(crate) fn new(values: Arc<Map>) -> Self {
-        Self { values }
+    pub fn new(map: Map) -> Self {
+        Self {
+            values: Arc::new(map),
+        }
     }
 
-    // pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<T>
-    // where
-    //     T: ArgFromValue<'k, Output = T>,
-    // {
-    //     T::from_value(self.values.get(&Key::Str(key)))
-    // }
+    pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
+        T::deserialize(&Value::Map(self.values.clone())).or_else(|_| todo!("error for deser"))
+    }
+
+    pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>
+    where
+        T: ArgFromValue<'k, Output = T>,
+    {
+        match self.values.get(&Key::Str(key)) {
+            Some(v) => T::from_value(v).map(|v| Some(v)),
+            None => Ok(None),
+        }
+    }
 }
 
 impl Default for Kwargs {
@@ -126,5 +138,30 @@ impl Default for Kwargs {
         Self {
             values: Default::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_get_kwarg_with_type() {
+        #[derive(Debug, Deserialize)]
+        struct Data {
+            hello: String,
+            num: f64,
+        }
+
+        let mut map = Map::new();
+        map.insert("hello".into(), Value::from("world"));
+        map.insert("num".into(), Value::from(1.1));
+        let kwargs = Kwargs::new(map);
+        assert_eq!(kwargs.get("hello").unwrap(), Some("world"));
+        assert_eq!(kwargs.get("num").unwrap(), Some(1.1));
+        assert_eq!(kwargs.get::<i64>("unknown").unwrap(), None);
+
+        let data: Data = kwargs.deserialize().unwrap();
+        assert_eq!(data.num, 1.1);
     }
 }
