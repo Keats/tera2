@@ -1,11 +1,8 @@
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
 use crate::value::{Key, Map};
-use crate::HashMap;
 use crate::Value;
 
 pub trait ArgFromValue<'k> {
@@ -31,7 +28,7 @@ macro_rules! impl_for_literal {
                     _ => None
                 };
 
-                res.ok_or_else(|| panic!("TODO: {}, {}", value.name(), stringify!($ty)))
+                res.ok_or_else(|| Error::invalid_arg_type(stringify!($ty), value.name()))
             }
         }
 
@@ -93,10 +90,11 @@ impl<'k> ArgFromValue<'k> for &str {
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
         value
             .as_str()
-            .ok_or_else(|| panic!("TODO: {}, {}", value.name(), "&str"))
+            .ok_or_else(|| Error::invalid_arg_type("&str", value.name()))
     }
 }
-// TODO: impl for Cow, &'a [Value], Vec, String
+
+// TODO: impl for Cow, &'a [Value], Vec, String?
 
 impl<'k> ArgFromValue<'k> for &Value {
     type Output = &'k Value;
@@ -112,14 +110,14 @@ pub struct Kwargs {
 }
 
 impl Kwargs {
-    pub fn new(map: Map) -> Self {
+    pub(crate) fn new(map: Map) -> Self {
         Self {
             values: Arc::new(map),
         }
     }
 
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
-        T::deserialize(&Value::Map(self.values.clone())).or_else(|_| todo!("error for deser"))
+        T::deserialize(&Value::Map(self.values.clone())).or_else(|_| Err(Error::message("Failed to deserialize")))
     }
 
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>

@@ -30,6 +30,7 @@ where
 
 type FilterFunc = dyn Fn(&Value, Kwargs) -> TeraResult<Value> + Sync + Send + 'static;
 
+#[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
 
 impl StoredFilter {
@@ -51,18 +52,18 @@ impl StoredFilter {
     }
 }
 
-fn some_filter(value: u64, _kwargs: Kwargs) -> u64 {
-    value
-}
-
-fn another_filter(_value: &str, _kwargs: Kwargs) -> &'static str {
-    "hello world"
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    fn some_filter(value: u64, _kwargs: Kwargs) -> u64 {
+        value
+    }
+
+    fn another_filter(_value: &str, _kwargs: Kwargs) -> &'static str {
+        "hello world"
+    }
 
     struct Tester {
         filters: Vec<StoredFilter>,

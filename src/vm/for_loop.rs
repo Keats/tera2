@@ -184,10 +184,6 @@ impl ForLoop {
         self.loop_data.index0 > 0
     }
 
-    pub(crate) fn clear_context(&mut self) {
-        self.context.clear();
-    }
-
     pub(crate) fn store(&mut self, name: &str, value: Value) {
         self.context.insert(name.to_string(), value);
     }

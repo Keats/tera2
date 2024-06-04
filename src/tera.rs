@@ -1,5 +1,8 @@
+use crate::args::ArgFromValue;
 use crate::errors::{Error, TeraResult};
+use crate::filters::{Filter, StoredFilter};
 use crate::template::{find_parents, Template};
+use crate::value::FunctionResult;
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context, HashMap};
 
@@ -20,6 +23,7 @@ pub struct Tera {
     #[doc(hidden)]
     escape_fn: EscapeFn,
     global_context: Context,
+    filters: HashMap<&'static str, StoredFilter>,
 }
 
 impl Tera {
@@ -91,6 +95,22 @@ impl Tera {
     /// Reset escape function to default [`escape_html()`].
     pub fn reset_escape_fn(&mut self) {
         self.escape_fn = escape_html;
+    }
+
+    /// Register a filter with Tera.
+    ///
+    /// If a filter with that name already exists, it will be overwritten
+    ///
+    /// ```no_compile
+    /// tera.register_filter("upper", string::upper);
+    /// ```
+    pub fn register_filter<Func, Arg, Res>(&mut self, name: &'static str, filter: Func)
+    where
+        Func: Filter<Arg, Res> + for<'a> Filter<<Arg as ArgFromValue<'a>>::Output, Res>,
+        Arg: for<'a> ArgFromValue<'a>,
+        Res: FunctionResult,
+    {
+        self.filters.insert(name, StoredFilter::new(filter));
     }
 
     /// Optimizes the templates when possible and doing some light
@@ -364,6 +384,7 @@ impl Default for Tera {
             autoescape_suffixes: vec![".html", ".htm", ".xml"],
             escape_fn: escape_html,
             global_context: Context::new(),
+            filters: HashMap::new(),
         }
     }
 }
