@@ -13,4 +13,4 @@ Fanny
 1
 2
 [Bob, 18, 10, hello]
-{hello: Bob}
+{hello: 'Bob'}

@@ -195,14 +195,26 @@ impl Value {
                 if let Some((key, value)) = it.next() {
                     key.format(f)?;
                     f.write_all(b": ")?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                     value.format(f)?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                 }
                 // Every other value
                 for (key, value) in it {
                     f.write_all(b", ")?;
                     key.format(f)?;
                     f.write_all(b": ")?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                     value.format(f)?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                 }
                 f.write_all(b"}")
             }
@@ -281,7 +293,9 @@ impl Value {
         }
     }
 
-    fn as_number(&self) -> Option<Number> {
+    pub(crate) fn as_number(&self) -> Option<Number> {
+        // TODO: this might be problematic to convert u128 to i128
+        // We should probably expand the Number Enum
         match self {
             Value::U64(v) => Some(Number::Integer(*v as i128)),
             Value::I64(v) => Some(Number::Integer(*v as i128)),
@@ -313,6 +327,13 @@ impl Value {
         }
     }
 
+    pub fn as_vec(&self) -> Option<&Vec<Value>> {
+        match self {
+            Value::Array(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn into_map(self) -> Option<Arc<Map>> {
         match self {
             Value::Map(s) => Some(s),
@@ -334,6 +355,32 @@ impl Value {
             Value::Bytes(v) => !v.is_empty(),
             Value::String(v, _) => !v.is_empty(),
             Value::Map(v) => !v.is_empty(),
+        }
+    }
+
+    pub fn len(&self) -> Option<usize> {
+        match self {
+            Value::Map(v) => Some(v.len()),
+            Value::Array(v) => Some(v.len()),
+            Value::Bytes(v) => Some(v.len()),
+            Value::String(v, _) => Some(v.chars().count()),
+            _ => None,
+        }
+    }
+
+    pub fn reverse(&self) -> TeraResult<Value> {
+        match self {
+            Value::Array(v) => {
+                let mut rev = (**v).clone();
+                rev.reverse();
+                Ok(Self::from(rev))
+            }
+            Value::Bytes(v) => Ok(Self::from(v.iter().rev().copied().collect::<Vec<_>>())),
+            Value::String(v, _) => Ok(Self::from(String::from_iter(v.chars().rev()))),
+            _ => Err(Error::message(format!(
+                "Value of type {} cannot be reversed",
+                self.name()
+            ))),
         }
     }
 
@@ -513,6 +560,12 @@ impl From<u64> for Value {
     }
 }
 
+impl From<usize> for Value {
+    fn from(value: usize) -> Self {
+        Value::U64(value as u64)
+    }
+}
+
 impl From<u128> for Value {
     fn from(value: u128) -> Self {
         Value::U128(value)
@@ -528,6 +581,12 @@ impl From<i32> for Value {
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
         Value::I64(value)
+    }
+}
+
+impl From<isize> for Value {
+    fn from(value: isize) -> Self {
+        Value::I64(value as i64)
     }
 }
 
@@ -552,6 +611,12 @@ impl From<Key<'static>> for Value {
             Key::String(s) => Value::String(s, StringKind::Normal),
             Key::Str(s) => Value::String(Arc::from(s), StringKind::Normal),
         }
+    }
+}
+
+impl From<&[Value]> for Value {
+    fn from(value: &[Value]) -> Self {
+        Value::Array(Arc::new(value.to_vec()))
     }
 }
 

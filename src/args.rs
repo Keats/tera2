@@ -104,6 +104,14 @@ impl<'k> ArgFromValue<'k> for &Value {
     }
 }
 
+impl<'k> ArgFromValue<'k> for Value {
+    type Output = Value;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        Ok(value.clone())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Kwargs {
     values: Arc<Map>,
@@ -117,7 +125,8 @@ impl Kwargs {
     }
 
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
-        T::deserialize(&Value::Map(self.values.clone())).or_else(|_| Err(Error::message("Failed to deserialize")))
+        T::deserialize(&Value::Map(self.values.clone()))
+            .or_else(|_| Err(Error::message("Failed to deserialize")))
     }
 
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>
@@ -127,6 +136,17 @@ impl Kwargs {
         match self.values.get(&Key::Str(key)) {
             Some(v) => T::from_value(v).map(|v| Some(v)),
             None => Ok(None),
+        }
+    }
+
+    pub fn must_get<'k, T>(&'k self, key: &'k str) -> TeraResult<T>
+    where
+        T: ArgFromValue<'k, Output = T>,
+    {
+        if let Some(v) = self.get(key)? {
+            Ok(v)
+        } else {
+            Err(Error::missing_arg(key))
         }
     }
 }

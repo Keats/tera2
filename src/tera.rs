@@ -113,6 +113,29 @@ impl Tera {
         self.filters.insert(name, StoredFilter::new(filter));
     }
 
+    fn register_builtin_filters(&mut self) {
+        self.register_filter("upper", crate::filters::upper);
+        self.register_filter("lower", crate::filters::lower);
+        self.register_filter("trim", crate::filters::trim);
+        self.register_filter("trim_start", crate::filters::trim_start);
+        self.register_filter("trim_end", crate::filters::trim_end);
+        self.register_filter("replace", crate::filters::replace);
+        self.register_filter("capitalize", crate::filters::capitalize);
+        self.register_filter("title", crate::filters::title);
+        self.register_filter("str", crate::filters::str);
+        self.register_filter("int", crate::filters::int);
+        self.register_filter("float", crate::filters::float);
+        self.register_filter("length", crate::filters::length);
+        self.register_filter("reverse", crate::filters::reverse);
+        self.register_filter("split", crate::filters::split);
+        self.register_filter("abs", crate::filters::abs);
+        self.register_filter("round", crate::filters::round);
+        self.register_filter("first", crate::filters::first);
+        self.register_filter("last", crate::filters::last);
+        self.register_filter("nth", crate::filters::nth);
+        self.register_filter("join", crate::filters::join);
+    }
+
     /// Optimizes the templates when possible and doing some light
     /// checks like whether blocks/macros/templates all exist when they are used
     fn finalize_templates(&mut self) -> TeraResult<()> {
@@ -379,13 +402,15 @@ impl Tera {
 
 impl Default for Tera {
     fn default() -> Self {
-        Self {
+        let mut tera = Self {
             templates: HashMap::new(),
             autoescape_suffixes: vec![".html", ".htm", ".xml"],
             escape_fn: escape_html,
             global_context: Context::new(),
             filters: HashMap::new(),
-        }
+        };
+        tera.register_builtin_filters();
+        tera
     }
 }
 
