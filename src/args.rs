@@ -94,7 +94,7 @@ impl<'k> ArgFromValue<'k> for &str {
     }
 }
 
-// TODO: impl for Cow, &'a [Value], Vec, String?
+// TODO: impl for Cow?
 
 impl<'k> ArgFromValue<'k> for &Value {
     type Output = &'k Value;
@@ -112,16 +112,31 @@ impl<'k> ArgFromValue<'k> for Value {
     }
 }
 
+impl<'k, T: ArgFromValue<'k, Output = T>> ArgFromValue<'k> for Vec<T> {
+    type Output = Vec<T>;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        match value {
+            Value::Array(arr) => {
+                let mut res = Vec::with_capacity(arr.len());
+                for v in arr.iter() {
+                    res.push(T::from_value(v)?);
+                }
+                Ok(res)
+            }
+            _ => Err(Error::invalid_arg_type("Vec<Value>", value.name())),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Kwargs {
     values: Arc<Map>,
 }
 
 impl Kwargs {
-    pub(crate) fn new(map: Map) -> Self {
-        Self {
-            values: Arc::new(map),
-        }
+    pub(crate) fn new(map: Arc<Map>) -> Self {
+        Self { values: map }
     }
 
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
@@ -174,7 +189,7 @@ mod tests {
         let mut map = Map::new();
         map.insert("hello".into(), Value::from("world"));
         map.insert("num".into(), Value::from(1.1));
-        let kwargs = Kwargs::new(map);
+        let kwargs = Kwargs::new(Arc::new(map));
         assert_eq!(kwargs.get("hello").unwrap(), Some("world"));
         assert_eq!(kwargs.get("num").unwrap(), Some(1.1));
         assert_eq!(kwargs.get::<i64>("unknown").unwrap(), None);

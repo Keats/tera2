@@ -1,0 +1,39 @@
+---
+source: src/tests/rendering.rs
+expression: "&out"
+input_file: src/tests/rendering_inputs/success/filters.txt
+---
+&lt;html&gt;
+<html>
+B&amp;b
+B&b
+should not print
+1
+Default val
+Default val
+3
+[abc, efgh, ijklm]
+6
+HTML
+<html>
+&lt;HTML&gt;
+<HTML>
+&lt;HTML&gt;
+<HTML>
+2
+2
+19
+2.2
+true
+true
+True
+[3, 2, 1]
+1
+3
+2
+1, 2, 3
+[2, 3]
+[1]
+[3]
+[1, 2]
+[1, 2, 3, 4]

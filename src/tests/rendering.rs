@@ -71,6 +71,8 @@ fn get_context() -> Context {
     data.insert("weights".to_string(), vec![50.6, 70.1].into());
     context.insert("data", &data);
     context.insert("reviews", &vec![Review::new(), Review::new()]);
+    context.insert("to", &"&");
+    context.insert("malicious", &"<html>");
     context
 }
 

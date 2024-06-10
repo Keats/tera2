@@ -72,16 +72,13 @@ pub enum ErrorKind {
     },
     /// A template was missing
     TemplateNotFound(String),
-    /// A function/test/filter argument was not the expected type
+    /// A filter/test main value was not the expected type
     InvalidArgument {
-        arg_name: String,
         expected_type: String,
         actual_type: String,
-        context: String,
     },
     /// A function/test/filter was expecting an argument but it wasn't found
-    /// This error is called from the user code, not directly in Tera
-    MissingArgument { arg_name: String, context: String },
+    MissingArgument { arg_name: String },
     /// An IO error occurred
     Io(std::io::ErrorKind),
     /// UTF-8 conversion error when converting output to UTF-8
@@ -126,8 +123,8 @@ impl fmt::Display for ErrorKind {
                 f,
                 "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
-            ErrorKind::InvalidArgument {arg_name, expected_type, actual_type, context} => write!(f, "TODO invalid arg"),
-            ErrorKind::MissingArgument {arg_name, context} => write!(f, "Missing argument {arg_name} in {context}"),
+            ErrorKind::InvalidArgument {expected_type, actual_type} => write!(f, "Invalid type for the value, expected `{expected_type}` but got `{actual_type}`"),
+            ErrorKind::MissingArgument {arg_name} => write!(f, "Missing keyword argument `{arg_name}`"),
             ErrorKind::Io(ref io_error) => {
                 write!(f, "Io error while writing rendered value to output: {:?}", io_error)
             }
@@ -241,28 +238,23 @@ impl Error {
         }
     }
 
-    // TODO: We can pass things automatically
     pub(crate) fn invalid_arg_type(
         expected_type: impl ToString,
         actual_type: impl ToString,
     ) -> Self {
         Self {
             kind: ErrorKind::InvalidArgument {
-                arg_name: String::new(),
-                context: String::new(),
-                expected_type: String::new(),
-                actual_type: String::new(),
+                expected_type: expected_type.to_string(),
+                actual_type: actual_type.to_string(),
             },
             source: None,
         }
     }
 
-    // TODO: make it ergonomic for end users. (automatically pass context?)
-    pub fn missing_arg(arg_name: impl ToString) -> Self {
+    pub(crate) fn missing_arg(arg_name: impl ToString) -> Self {
         Self {
             kind: ErrorKind::MissingArgument {
                 arg_name: arg_name.to_string(),
-                context: String::new(),
             },
             source: None,
         }

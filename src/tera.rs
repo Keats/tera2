@@ -23,7 +23,7 @@ pub struct Tera {
     #[doc(hidden)]
     escape_fn: EscapeFn,
     global_context: Context,
-    filters: HashMap<&'static str, StoredFilter>,
+    pub(crate) filters: HashMap<&'static str, StoredFilter>,
 }
 
 impl Tera {
@@ -114,6 +114,8 @@ impl Tera {
     }
 
     fn register_builtin_filters(&mut self) {
+        self.register_filter("safe", crate::filters::safe);
+        self.register_filter("default", crate::filters::default);
         self.register_filter("upper", crate::filters::upper);
         self.register_filter("lower", crate::filters::lower);
         self.register_filter("trim", crate::filters::trim);
@@ -134,6 +136,8 @@ impl Tera {
         self.register_filter("last", crate::filters::last);
         self.register_filter("nth", crate::filters::nth);
         self.register_filter("join", crate::filters::join);
+        self.register_filter("slice", crate::filters::slice);
+        self.register_filter("unique", crate::filters::unique);
     }
 
     /// Optimizes the templates when possible and doing some light

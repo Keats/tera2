@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -50,6 +51,19 @@ impl StoredFilter {
 
     pub fn call(&self, arg: &Value, kwargs: Kwargs) -> TeraResult<Value> {
         (self.0)(arg, kwargs)
+    }
+}
+
+pub(crate) fn safe(val: &str, _: Kwargs) -> Value {
+    Value::safe_string(val)
+}
+
+pub(crate) fn default(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
+    let default_val = kwargs.must_get::<Value>("value")?;
+
+    match val {
+        Value::Undefined => Ok(default_val),
+        _ => Ok(val),
     }
 }
 
@@ -267,107 +281,102 @@ pub(crate) fn round(val: f64, kwargs: Kwargs) -> TeraResult<Value> {
         Some(m) => Err(Error::message(format!(
             "Invalid argument for `method`: {m}. \
                 Only `ceil` and `floor` are allowed. \
-                Do not fill this parameter if you want a classic round"
+                Do not fill this parameter if you want a classic round."
         ))),
     }
 }
 
 /// Returns the first element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn first(val: Value, _: Kwargs) -> TeraResult<Value> {
-    match val.as_vec() {
-        Some(v) => Ok(v.first().cloned().unwrap_or(Value::Null)),
-        None => Err(Error::message(format!(
-            "This filter can only be used on an array, received `{}`.",
-            val.name()
-        ))),
-    }
+pub(crate) fn first(val: Vec<Value>, _: Kwargs) -> TeraResult<Value> {
+    Ok(val.first().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the last element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn last(val: Value, _: Kwargs) -> TeraResult<Value> {
-    match val.as_vec() {
-        Some(v) => Ok(v.last().cloned().unwrap_or(Value::Null)),
-        None => Err(Error::message(format!(
-            "This filter can only be used on an array, received `{}`.",
-            val.name()
-        ))),
-    }
+pub(crate) fn last(val: Vec<Value>, _: Kwargs) -> TeraResult<Value> {
+    Ok(val.last().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the nth element of an array. Null if there isn't an element at that index.
 /// and errors if the value is not an array
-pub(crate) fn nth(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
-    match val.as_vec() {
-        Some(v) => Ok(v.iter().nth(n).cloned().unwrap_or(Value::Null)),
-        None => Err(Error::message(format!(
-            "This filter can only be used on an array, received `{}`.",
-            val.name()
-        ))),
-    }
+    Ok(val.into_iter().nth(n).unwrap_or(Value::Null))
 }
 
 /// Joins the elements
-pub(crate) fn join(val: Value, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<String> {
     let sep = kwargs.get::<&str>("sep")?.unwrap_or("");
-
-    match val.as_vec() {
-        Some(v) => Ok(v
-            .iter()
-            .map(|x| format!("{x}"))
-            .collect::<Vec<_>>()
-            .join(sep)),
-        None => Err(Error::message(format!(
-            "This filter can only be used on an array, received `{}`.",
-            val.name()
-        ))),
-    }
+    Ok(val
+        .into_iter()
+        .map(|x| format!("{x}"))
+        .collect::<Vec<_>>()
+        .join(sep))
 }
 
 /// Slice the array
 /// Use the `start` argument to define where to start (inclusive, default to `0`)
 /// and `end` argument to define where to stop (exclusive, default to the length of the array)
 /// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
-    match val.as_vec() {
-        Some(v) => {
-            if v.is_empty() {
-                return Ok(val);
-            }
-            let get_index = |i| {
-                if i >= 0 {
-                    i as usize
-                } else {
-                    (v.len() as isize + i) as usize
-                }
-            };
-            let start = get_index(kwargs.get::<isize>("start")?.unwrap_or_default());
-            let mut end = get_index(
-                kwargs
-                    .get::<isize>("end")?
-                    .unwrap_or_else(|| v.len() as isize),
-            );
-            if end > v.len() {
-                end = v.len();
-            }
-            // Not an error, but returns an empty Vec
-            if start >= end {
-                return Ok(Value::Array(Arc::new(Vec::new())));
-            }
-            Ok(v[start..end].into())
-        }
-        None => Err(Error::message(format!(
-            "This filter can only be used on an array, received `{}`.",
-            val.name()
-        ))),
+pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Value> {
+    if val.is_empty() {
+        return Ok(Value::Array(Arc::new(Vec::new())));
     }
+
+    let get_index = |i| {
+        if i >= 0 {
+            i as usize
+        } else {
+            (val.len() as isize + i) as usize
+        }
+    };
+    let start = get_index(kwargs.get::<isize>("start")?.unwrap_or_default());
+    let mut end = get_index(
+        kwargs
+            .get::<isize>("end")?
+            .unwrap_or_else(|| val.len() as isize),
+    );
+    if end > val.len() {
+        end = val.len();
+    }
+    // Not an error, but returns an empty Vec
+    if start >= end {
+        return Ok(Value::Array(Arc::new(Vec::new())));
+    }
+    Ok(val[start..end].into())
 }
 
-// TODO: missing from array sort, unique, group_by, filter, map
+pub(crate) fn unique(val: Vec<Value>, _: Kwargs) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut res = Vec::with_capacity(val.len());
 
+    for v in val {
+        if !seen.contains(&v) {
+            seen.insert(v.clone());
+            res.push(v);
+        }
+    }
+
+    res
+}
+
+/// Map retrieves an attribute from a list of objects.
+/// The 'attribute' argument specifies what to retrieve.
+pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Vec<Value>> {
+    let attribute = kwargs.must_get::<&str>("attribute")?;
+    // TODO: allow passing a filter/test name to apply to every element?
+    // TODO: allow passing a default value when it's undefined
+    Ok(val
+        .into_iter()
+        .map(|x| x.get_from_path(attribute))
+        .collect::<Vec<_>>())
+}
+
+// TODO: missing from array sort, group_by, filter, map
+// TODO: handle error for wrong arguments in the interpreter
 // TODO: add indent after making sure it's good. Tests could be insta for easy viz
+// TODO: allow accessing some state (context, filters, tests etc) from filter (3rd arg)
 
 #[cfg(test)]
 mod tests {
@@ -389,7 +398,10 @@ mod tests {
         assert_eq!(trim("  hello  ", Kwargs::default()).unwrap(), "hello");
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
-        assert_eq!(trim("$ hello $", Kwargs::new(map)).unwrap(), " hello ");
+        assert_eq!(
+            trim("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            " hello "
+        );
     }
 
     #[test]
@@ -401,7 +413,7 @@ mod tests {
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim_start("$ hello $", Kwargs::new(map)).unwrap(),
+            trim_start("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
             " hello $"
         );
     }
@@ -411,7 +423,10 @@ mod tests {
         assert_eq!(trim_end("  hello  ", Kwargs::default()).unwrap(), "  hello");
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
-        assert_eq!(trim_end("$ hello $", Kwargs::new(map)).unwrap(), "$ hello ");
+        assert_eq!(
+            trim_end("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            "$ hello "
+        );
     }
 
     #[test]
@@ -419,7 +434,10 @@ mod tests {
         let mut map = Map::new();
         map.insert("from".into(), "$".into());
         map.insert("to".into(), "€".into());
-        assert_eq!(replace("$ hello $", Kwargs::new(map)).unwrap(), "€ hello €");
+        assert_eq!(
+            replace("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            "€ hello €"
+        );
     }
 
     #[test]
@@ -485,7 +503,10 @@ mod tests {
 
         let mut map = Map::new();
         map.insert("base".into(), 2.into());
-        assert_eq!(int("0b1010".into(), Kwargs::new(map)).unwrap(), 10.into());
+        assert_eq!(
+            int("0b1010".into(), Kwargs::new(Arc::new(map))).unwrap(),
+            10.into()
+        );
 
         // We don't do anything in that case
         assert_eq!(
@@ -531,23 +552,29 @@ mod tests {
 
         let mut map = Map::new();
         map.insert("method".into(), "ceil".into());
-        assert_eq!(round((2.1).into(), Kwargs::new(map)).unwrap(), 3.into());
+        assert_eq!(
+            round((2.1).into(), Kwargs::new(Arc::new(map))).unwrap(),
+            3.into()
+        );
 
         let mut map = Map::new();
         map.insert("method".into(), "floor".into());
-        assert_eq!(round((2.9).into(), Kwargs::new(map)).unwrap(), 2.into());
+        assert_eq!(
+            round((2.9).into(), Kwargs::new(Arc::new(map))).unwrap(),
+            2.into()
+        );
 
         let mut map = Map::new();
         map.insert("precision".into(), 2.into());
         assert_eq!(
-            round((2.245).into(), Kwargs::new(map)).unwrap(),
+            round((2.245).into(), Kwargs::new(Arc::new(map))).unwrap(),
             (2.25).into()
         );
     }
 
     #[test]
     fn test_slice() {
-        let v: Value = vec![1, 2, 3, 4, 5].into();
+        let v: Vec<Value> = vec![1, 2, 3, 4, 5].into_iter().map(Into::into).collect();
 
         let inputs = vec![
             ((Some(1), None), vec![2, 3, 4, 5]),
@@ -568,7 +595,7 @@ mod tests {
                 map.insert("end".into(), s.into());
             }
             assert_eq!(
-                slice(v.clone(), Kwargs::new(map)).unwrap(),
+                slice(v.clone(), Kwargs::new(Arc::new(map))).unwrap(),
                 Value::from(expected)
             );
         }

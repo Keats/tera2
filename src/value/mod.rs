@@ -270,6 +270,10 @@ impl Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
     }
 
+    pub fn safe_string(val: &str) -> Value {
+        Value::String(Arc::from(val), StringKind::Safe)
+    }
+
     fn as_i128(&self) -> Option<i128> {
         match self {
             Value::U64(v) => Some(*v as i128),
@@ -339,6 +343,38 @@ impl Value {
             Value::Map(s) => Some(s),
             _ => None,
         }
+    }
+
+    /// Returns the Value at the given path, or Undefined if there's nothing there.
+    pub fn get_from_path(&self, path: &str) -> Value {
+        let mut res = self.clone();
+
+        for elem in path.split(".") {
+            match elem.parse::<usize>() {
+                Ok(idx) => match res {
+                    Value::Array(arr) => {
+                        if let Some(v) = arr.get(idx) {
+                            res = v.clone();
+                        } else {
+                            return Value::Undefined;
+                        }
+                    }
+                    _ => return Value::Undefined,
+                },
+                Err(_) => match res {
+                    Value::Map(map) => {
+                        if let Some(v) = map.get(&Key::Str(elem)) {
+                            res = v.clone();
+                        } else {
+                            return Value::Undefined;
+                        }
+                    }
+                    _ => return Value::Undefined,
+                },
+            }
+        }
+
+        res
     }
 
     pub fn is_truthy(&self) -> bool {
