@@ -240,10 +240,8 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::ApplyFilter(name) => {
                     if let Some(f) = self.tera.filters.get(name.as_str()) {
-                        let (kwargs, kwargs_span) = state.stack.pop();
+                        let (kwargs, _) = state.stack.pop();
                         let (value, value_span) = state.stack.pop();
-                        println!("{:?} {:?} {:?}", kwargs, kwargs_span, span);
-                        // TODO: match on the error type here to provide additional info for wrong arguments + span
                         let val = match f.call(
                             &value,
                             Kwargs::new(kwargs.into_map().unwrap()),

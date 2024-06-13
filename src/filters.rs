@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use crate::args::{ArgFromValue, Env, Kwargs};
 use crate::errors::{Error, TeraResult};
-use crate::value::FunctionResult;
-use crate::Value;
+use crate::value::{FunctionResult, Key, Map};
+use crate::{HashMap, Value};
 
 /// The filter function type definition
 pub trait Filter<Arg, Res>: Sync + Send + 'static {
@@ -319,9 +319,9 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<String
 /// Use the `start` argument to define where to start (inclusive, default to `0`)
 /// and `end` argument to define where to stop (exclusive, default to the length of the array)
 /// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
-        return Ok(Value::Array(Arc::new(Vec::new())));
+        return Ok(Vec::new());
     }
 
     let get_index = |i| {
@@ -342,12 +342,16 @@ pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Value
     }
     // Not an error, but returns an empty Vec
     if start >= end {
-        return Ok(Value::Array(Arc::new(Vec::new())));
+        return Ok(Vec::new());
     }
-    Ok(val[start..end].into())
+    Ok(val[start..end].to_vec())
 }
 
 pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: Env) -> Vec<Value> {
+    if val.is_empty() {
+        return val;
+    }
+
     let mut seen = BTreeSet::new();
     let mut res = Vec::with_capacity(val.len());
 
@@ -363,19 +367,91 @@ pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: Env) -> Vec<Value> {
 
 /// Map retrieves an attribute from a list of objects.
 /// The 'attribute' argument specifies what to retrieve.
+/// If a value is undefined, it will error
 pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
+    if val.is_empty() {
+        return Ok(val);
+    }
     let attribute = kwargs.must_get::<&str>("attribute")?;
     // TODO: allow passing a filter/test name to apply to every element?
-    // TODO: allow passing a default value when it's undefined
-    Ok(val
-        .into_iter()
-        .map(|x| x.get_from_path(attribute))
-        .collect::<Vec<_>>())
+    // TODO: allow passing a default value if it's undefined?
+    let mut res = Vec::with_capacity(val.len());
+    for v in val {
+        match v.get_from_path(attribute) {
+            // TODO: should we error or not?
+            Value::Undefined => {
+                return Err(Error::message(format!(
+                    "Value {v} does not an attribute after following path; {attribute}"
+                )));
+            }
+            x => res.push(x),
+        }
+    }
+
+    Ok(res)
 }
 
-// TODO: missing from array sort, group_by, filter, map
+pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
+    if val.is_empty() {
+        return Ok(val);
+    }
+    let attribute = kwargs.must_get::<&str>("attribute")?;
+    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::Null);
+    let mut res = Vec::with_capacity(val.len());
+
+    // TODO: filter with filters? Eg filter all elements where attribute | length == 3 for example
+    // how would that look from the template?
+    for v in val {
+        match v.get_from_path(attribute) {
+            // TODO: should we error or not?
+            Value::Undefined => {
+                return Err(Error::message(format!(
+                    "Value {v} does not an attribute after following path; {attribute}"
+                )));
+            }
+            x => {
+                if x == value {
+                    res.push(v)
+                }
+            }
+        }
+    }
+
+    Ok(res)
+}
+
+pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Map> {
+    if val.is_empty() {
+        return Ok(Map::new());
+    }
+
+    let attribute = kwargs.must_get::<&str>("attribute")?;
+    let mut grouped: HashMap<Key, Vec<Value>> = HashMap::new();
+    for v in val {
+        match v.get_from_path(attribute) {
+            // TODO: should we error or not?
+            Value::Undefined => {
+                return Err(Error::message(format!(
+                    "Value {v} does not an attribute after following path; {attribute}"
+                )));
+            }
+            Value::Null => (),
+            x => {
+                let key = x.as_key()?;
+                if let Some(arr) = grouped.get_mut(&key) {
+                    arr.push(v);
+                } else {
+                    grouped.insert(key, vec![v]);
+                }
+            }
+        }
+    }
+
+    Ok(grouped.into_iter().map(|(k, v)| (k, v.into())).collect())
+}
+
+// TODO: missing from array sort, group_by
 // TODO: add indent after making sure it's good. Tests could be insta for easy viz
-// TODO: allow accessing some state (context, filters, tests etc) from filter (3rd arg)
 
 #[cfg(test)]
 mod tests {
@@ -625,7 +701,7 @@ mod tests {
             }
             assert_eq!(
                 slice(v.clone(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
-                Value::from(expected)
+                expected.into_iter().map(|x| x.into()).collect::<Vec<_>>()
             );
         }
     }

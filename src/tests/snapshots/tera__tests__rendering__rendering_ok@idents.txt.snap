@@ -9,8 +9,8 @@ Moto G
 Tchoupi
 Fanny
 [50.6, 70.1]
-{names: [Tchoupi, Pilou, Fanny], weights: [50.6, 70.1]}
+{names: ['Tchoupi', 'Pilou', 'Fanny'], weights: [50.6, 70.1]}
 1
 2
-[Bob, 18, 10, hello]
+['Bob', 18, 10, 'hello']
 {hello: 'Bob'}

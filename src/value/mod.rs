@@ -175,12 +175,24 @@ impl Value {
                 f.write_all(b"[")?;
                 // First value
                 if let Some(elem) = it.next() {
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                     elem.format(f)?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                 }
                 // Every other value
                 for elem in it {
                     f.write_all(b", ")?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                     elem.format(f)?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
                 }
                 f.write_all(b"]")
             }

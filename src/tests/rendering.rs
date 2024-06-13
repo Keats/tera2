@@ -38,6 +38,12 @@ pub struct NestedObject {
     pub numbers: Vec<usize>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct YearData {
+    id: usize,
+    year: Option<usize>,
+}
+
 fn get_context() -> Context {
     let mut context = Context::new();
     context.insert("name", &"Bob");
@@ -73,6 +79,36 @@ fn get_context() -> Context {
     context.insert("reviews", &vec![Review::new(), Review::new()]);
     context.insert("to", &"&");
     context.insert("malicious", &"<html>");
+    context.insert(
+        "year_data",
+        &vec![
+            YearData {
+                id: 1,
+                year: Some(2015),
+            },
+            YearData {
+                id: 2,
+                year: Some(2015),
+            },
+            YearData {
+                id: 3,
+                year: Some(2016),
+            },
+            YearData {
+                id: 4,
+                year: Some(2017),
+            },
+            YearData {
+                id: 5,
+                year: Some(2018),
+            },
+            YearData { id: 6, year: None },
+            YearData {
+                id: 7,
+                year: Some(2018),
+            },
+        ],
+    );
     context
 }
 

@@ -183,11 +183,11 @@ impl Env {
         Env {}
     }
 
-    pub fn get_value(&self) {}
+    pub fn get_value(&self, path: &str) {}
 
-    pub fn get_filter(&self) {}
+    pub fn get_filter(&self, name: &str) {}
 
-    pub fn get_test(&self) {}
+    pub fn get_test(&self, name: &str) {}
 }
 
 #[cfg(test)]

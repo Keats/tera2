@@ -32,3 +32,8 @@
 {{ [1, 2, 3] | slice(start=-1) }}
 {{ [1, 2, 3] | slice(start=0, end=2) }}
 {{ [1, 2, 3, 2, 3, 4] | unique }}
+{{ reviews | map(attribute="title") }}
+{{ year_data | map(attribute="year") }}
+{{ vectors | filter(attribute="0", value=0) }}
+{{ reviews | filter(attribute="title", value="My review") }}
+{{ year_data | group_by(attribute="year") }}

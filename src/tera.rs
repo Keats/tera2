@@ -138,6 +138,9 @@ impl Tera {
         self.register_filter("join", crate::filters::join);
         self.register_filter("slice", crate::filters::slice);
         self.register_filter("unique", crate::filters::unique);
+        self.register_filter("map", crate::filters::map);
+        self.register_filter("filter", crate::filters::filter);
+        self.register_filter("group_by", crate::filters::group_by);
     }
 
     /// Optimizes the templates when possible and doing some light
