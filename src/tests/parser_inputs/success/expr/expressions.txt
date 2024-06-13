@@ -81,6 +81,7 @@
 {{ a ~ b | upper }}
 {{ status == 'needs_restart' | ternary(truthy='restart', falsy='continue') }}
 {{ (status == 'needs_restart') | ternary(truthy='restart', falsy='continue') }}
+{{ "one\ntwo\nthree" | indent }}
 
 // Parentheses
 {{ ((1)) }}

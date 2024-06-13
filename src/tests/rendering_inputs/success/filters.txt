@@ -37,3 +37,6 @@
 {{ vectors | filter(attribute="0", value=0) }}
 {{ reviews | filter(attribute="title", value="My review") }}
 {{ year_data | group_by(attribute="year") }}
+indent1:{{ "one\ntwo\nthree" | indent }}
+indent2:{{ "one\ntwo\nthree" | indent(first=true, width=2) }}
+indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}

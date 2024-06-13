@@ -139,6 +139,36 @@ pub(crate) fn title(val: &str, _: Kwargs, _: Env) -> String {
     res
 }
 
+/// Return a copy of the string with each line indented by 4 spaces.
+/// The first line and blank lines are not indented by default.
+pub(crate) fn indent(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+    let width = kwargs.get::<usize>("width")?.unwrap_or(4);
+    let indent_first_line = kwargs.get::<bool>("first")?.unwrap_or(false);
+    let indent_blank_line = kwargs.get::<bool>("blank")?.unwrap_or(false);
+
+    let indent = " ".repeat(width);
+    let mut res = String::with_capacity(val.len() * 2);
+    println!("{val:?}");
+
+    let mut first_line = true;
+    for line in val.lines() {
+        if first_line {
+            if indent_first_line {
+                res.push_str(&indent);
+            }
+            first_line = false
+        } else {
+            res.push('\n');
+            if !line.is_empty() || indent_blank_line {
+                res.push_str(&indent);
+            }
+        }
+        res.push_str(line);
+    }
+
+    Ok(res)
+}
+
 pub(crate) fn str(val: Value, _: Kwargs, _: Env) -> String {
     format!("{val}")
 }
@@ -450,7 +480,7 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Ma
     Ok(grouped.into_iter().map(|(k, v)| (k, v.into())).collect())
 }
 
-// TODO: missing from array sort, group_by
+// TODO: missing from array sort
 // TODO: add indent after making sure it's good. Tests could be insta for easy viz
 
 #[cfg(test)]

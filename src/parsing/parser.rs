@@ -410,7 +410,7 @@ impl<'a> Parser<'a> {
 
             let key = match self.next_or_error()? {
                 // TODO: can we borrow there?
-                (Token::String(key), _) => Key::String(Arc::from(key.to_string())),
+                (Token::Str(key), _) => Key::String(Arc::from(key.to_string())),
                 (Token::Integer(key), _) => Key::I64(key),
                 (Token::Bool(key), _) => Key::Bool(key),
                 (token, span) => {
@@ -504,6 +504,7 @@ impl<'a> Parser<'a> {
         let mut lhs = match token {
             Token::Integer(i) => Expression::Const(Spanned::new(Value::from(i), span.clone())),
             Token::Float(f) => Expression::Const(Spanned::new(Value::from(f), span.clone())),
+            Token::Str(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
             Token::None => Expression::Const(Spanned::new(Value::Null, span.clone())),
@@ -802,7 +803,7 @@ impl<'a> Parser<'a> {
 
                     let (val, eat_next) = match &self.next {
                         Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::String(b), _))) => (Value::from(*b), true),
+                        Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
                         Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
                         Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
                         Some(Ok((Token::LeftBracket, _))) => {
@@ -946,13 +947,13 @@ impl<'a> Parser<'a> {
                 self.parse_set(tag_token == Token::Ident("set_global"))?,
             )),
             Token::Ident("include") => {
-                let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
+                let (name, _) = expect_token!(self, Token::Str(s) => s, "identifier")?;
                 Ok(Some(Node::Include(Include {
                     name: name.to_string(),
                 })))
             }
             Token::Ident("extends") => {
-                let (name, _) = expect_token!(self, Token::String(s) => s, "identifier")?;
+                let (name, _) = expect_token!(self, Token::Str(s) => s, "identifier")?;
                 if let Some(ref parent) = self.output.parent {
                     return Err(Error::syntax_error(
                         format!("Template is already extending `{parent}`"),
@@ -1047,7 +1048,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("import") => {
                 // {% import 'macros.html' as macros %}
-                let (filename, _) = expect_token!(self, Token::String(s) => s, "string")?;
+                let (filename, _) = expect_token!(self, Token::Str(s) => s, "string")?;
                 expect_token!(self, Token::Ident("as"), "as")?;
                 let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
 

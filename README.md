@@ -87,3 +87,6 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - trim filters have been merged in trim/trim_start/trim_end with an optional `pat` argument for start/end rather than separate filters
 - `int` and `float` filter do not have a default anymore
 - `round` filter does not take a `common` method anymore, it's the default and should not be filled if needed
+- `indent` filter now takes a `width` param rather than `prefix`
+- `map`, `group_by` and `filter` filter will error if the attribute ends up being undefined on one of the value
+- `as_str` has been renamed to `str`
