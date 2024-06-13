@@ -9,7 +9,7 @@ use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
-use crate::args::Kwargs;
+use crate::args::{Env, Kwargs};
 use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
@@ -244,7 +244,11 @@ impl<'tera> VirtualMachine<'tera> {
                         let (value, value_span) = state.stack.pop();
                         println!("{:?} {:?} {:?}", kwargs, kwargs_span, span);
                         // TODO: match on the error type here to provide additional info for wrong arguments + span
-                        let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap())) {
+                        let val = match f.call(
+                            &value,
+                            Kwargs::new(kwargs.into_map().unwrap()),
+                            Env::new(),
+                        ) {
                             Ok(v) => v,
                             // TODO: do we need to merge everything here?
                             Err(err) => match err.kind {
@@ -252,7 +256,7 @@ impl<'tera> VirtualMachine<'tera> {
                                     rendering_error!(format!("{err}"), value_span)
                                 }
                                 _ => rendering_error!(format!("{err}"), span),
-                            }
+                            },
                         };
                         // TODO: Need to expand the span?
                         state

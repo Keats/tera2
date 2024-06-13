@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use crate::args::{ArgFromValue, Kwargs};
+use crate::args::{ArgFromValue, Env, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::FunctionResult;
 use crate::Value;
@@ -10,7 +10,7 @@ use crate::Value;
 /// The filter function type definition
 pub trait Filter<Arg, Res>: Sync + Send + 'static {
     /// The filter function type definition
-    fn call(&self, value: Arg, kwargs: Kwargs) -> Res;
+    fn call(&self, value: Arg, kwargs: Kwargs, env: Env) -> Res;
 
     /// Whether the current filter's output should be treated as safe, defaults to `false`
     /// Only needs to be defined if the filter returns a string
@@ -21,16 +21,16 @@ pub trait Filter<Arg, Res>: Sync + Send + 'static {
 
 impl<Func, Arg, Res> Filter<Arg, Res> for Func
 where
-    Func: Fn(Arg, Kwargs) -> Res + Sync + Send + 'static,
+    Func: Fn(Arg, Kwargs, Env) -> Res + Sync + Send + 'static,
     Arg: for<'a> ArgFromValue<'a>,
     Res: FunctionResult,
 {
-    fn call(&self, value: Arg, kwargs: Kwargs) -> Res {
-        (self)(value, kwargs)
+    fn call(&self, value: Arg, kwargs: Kwargs, env: Env) -> Res {
+        (self)(value, kwargs, env)
     }
 }
 
-type FilterFunc = dyn Fn(&Value, Kwargs) -> TeraResult<Value> + Sync + Send + 'static;
+type FilterFunc = dyn Fn(&Value, Kwargs, Env) -> TeraResult<Value> + Sync + Send + 'static;
 
 #[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
@@ -42,23 +42,23 @@ impl StoredFilter {
         Arg: for<'a> ArgFromValue<'a>,
         Res: FunctionResult,
     {
-        let closure = move |arg: &Value, kwargs| -> TeraResult<Value> {
-            f.call(Arg::from_value(arg)?, kwargs).into_result()
+        let closure = move |arg: &Value, kwargs, env| -> TeraResult<Value> {
+            f.call(Arg::from_value(arg)?, kwargs, env).into_result()
         };
 
         StoredFilter(Arc::new(closure))
     }
 
-    pub fn call(&self, arg: &Value, kwargs: Kwargs) -> TeraResult<Value> {
-        (self.0)(arg, kwargs)
+    pub fn call(&self, arg: &Value, kwargs: Kwargs, env: Env) -> TeraResult<Value> {
+        (self.0)(arg, kwargs, env)
     }
 }
 
-pub(crate) fn safe(val: &str, _: Kwargs) -> Value {
+pub(crate) fn safe(val: &str, _: Kwargs, _: Env) -> Value {
     Value::safe_string(val)
 }
 
-pub(crate) fn default(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn default(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
 
     match val {
@@ -67,15 +67,15 @@ pub(crate) fn default(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn upper(val: &str, _: Kwargs) -> String {
+pub(crate) fn upper(val: &str, _: Kwargs, _: Env) -> String {
     val.to_uppercase()
 }
 
-pub(crate) fn lower(val: &str, _: Kwargs) -> String {
+pub(crate) fn lower(val: &str, _: Kwargs, _: Env) -> String {
     val.to_lowercase()
 }
 
-pub(crate) fn trim(val: &str, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn trim(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val
             .trim_start_matches(pat)
@@ -86,7 +86,7 @@ pub(crate) fn trim(val: &str, kwargs: Kwargs) -> TeraResult<String> {
     }
 }
 
-pub(crate) fn trim_start(val: &str, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn trim_start(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val.trim_start_matches(pat).to_string())
     } else {
@@ -94,7 +94,7 @@ pub(crate) fn trim_start(val: &str, kwargs: Kwargs) -> TeraResult<String> {
     }
 }
 
-pub(crate) fn trim_end(val: &str, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn trim_end(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val.trim_end_matches(pat).to_string())
     } else {
@@ -102,7 +102,7 @@ pub(crate) fn trim_end(val: &str, kwargs: Kwargs) -> TeraResult<String> {
     }
 }
 
-pub(crate) fn replace(val: &str, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn replace(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     let from = kwargs.must_get::<&str>("from")?;
     let to = kwargs.must_get::<&str>("to")?;
 
@@ -110,7 +110,7 @@ pub(crate) fn replace(val: &str, kwargs: Kwargs) -> TeraResult<String> {
 }
 
 /// Uppercase the first char and lowercase the rest.
-pub(crate) fn capitalize(val: &str, _: Kwargs) -> String {
+pub(crate) fn capitalize(val: &str, _: Kwargs, _: Env) -> String {
     let mut chars = val.chars();
     match chars.next() {
         None => String::new(),
@@ -119,7 +119,7 @@ pub(crate) fn capitalize(val: &str, _: Kwargs) -> String {
 }
 
 /// Uppercase the first letter of each word
-pub(crate) fn title(val: &str, _: Kwargs) -> String {
+pub(crate) fn title(val: &str, _: Kwargs, _: Env) -> String {
     let mut res = String::with_capacity(val.len());
     let mut capitalize = true;
     for c in val.chars() {
@@ -139,12 +139,12 @@ pub(crate) fn title(val: &str, _: Kwargs) -> String {
     res
 }
 
-pub(crate) fn str(val: Value, _: Kwargs) -> String {
+pub(crate) fn str(val: Value, _: Kwargs, _: Env) -> String {
     format!("{val}")
 }
 
 /// Converts a Value into an int. It defaults to a base of `10` but can be changed.
-pub(crate) fn int(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn int(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     let base = kwargs.get::<u32>("base")?.unwrap_or(10);
 
     let handle_f64 = |v: f64| {
@@ -196,7 +196,7 @@ pub(crate) fn int(val: Value, kwargs: Kwargs) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn float(val: Value, _: Kwargs) -> TeraResult<f64> {
+pub(crate) fn float(val: Value, _: Kwargs, _: Env) -> TeraResult<f64> {
     match val {
         Value::String(s, _) => {
             let s = s.trim();
@@ -221,7 +221,7 @@ pub(crate) fn float(val: Value, _: Kwargs) -> TeraResult<f64> {
     }
 }
 
-pub(crate) fn length(val: Value, _: Kwargs) -> TeraResult<usize> {
+pub(crate) fn length(val: Value, _: Kwargs, _: Env) -> TeraResult<usize> {
     match val.len() {
         Some(v) => Ok(v),
         None => Err(Error::message(format!(
@@ -231,11 +231,11 @@ pub(crate) fn length(val: Value, _: Kwargs) -> TeraResult<usize> {
     }
 }
 
-pub(crate) fn reverse(val: Value, _: Kwargs) -> TeraResult<Value> {
+pub(crate) fn reverse(val: Value, _: Kwargs, _: Env) -> TeraResult<Value> {
     val.reverse()
 }
 
-pub(crate) fn split(val: &str, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn split(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     let pat = kwargs.must_get::<&str>("pat")?;
     Ok(val
         .split(pat)
@@ -244,7 +244,7 @@ pub(crate) fn split(val: &str, kwargs: Kwargs) -> TeraResult<Value> {
         .into())
 }
 
-pub(crate) fn abs(val: Value, _: Kwargs) -> TeraResult<Value> {
+pub(crate) fn abs(val: Value, _: Kwargs, _: Env) -> TeraResult<Value> {
     match val {
         Value::U64(_) | Value::U128(_) => Ok(val),
         Value::F64(v) => Ok(v.abs().into()),
@@ -265,7 +265,7 @@ pub(crate) fn abs(val: Value, _: Kwargs) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn round(val: f64, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn round(val: f64, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     let method = kwargs.get::<&str>("method")?;
     let precision = kwargs.get::<i32>("precision")?.unwrap_or_default();
     let multiplier = if precision == 0 {
@@ -288,25 +288,25 @@ pub(crate) fn round(val: f64, kwargs: Kwargs) -> TeraResult<Value> {
 
 /// Returns the first element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn first(val: Vec<Value>, _: Kwargs) -> TeraResult<Value> {
+pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: Env) -> TeraResult<Value> {
     Ok(val.first().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the last element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn last(val: Vec<Value>, _: Kwargs) -> TeraResult<Value> {
+pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: Env) -> TeraResult<Value> {
     Ok(val.last().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the nth element of an array. Null if there isn't an element at that index.
 /// and errors if the value is not an array
-pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
     Ok(val.into_iter().nth(n).unwrap_or(Value::Null))
 }
 
 /// Joins the elements
-pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<String> {
+pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     let sep = kwargs.get::<&str>("sep")?.unwrap_or("");
     Ok(val
         .into_iter()
@@ -319,7 +319,7 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<String> {
 /// Use the `start` argument to define where to start (inclusive, default to `0`)
 /// and `end` argument to define where to stop (exclusive, default to the length of the array)
 /// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Value> {
+pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     if val.is_empty() {
         return Ok(Value::Array(Arc::new(Vec::new())));
     }
@@ -347,7 +347,7 @@ pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Value> {
     Ok(val[start..end].into())
 }
 
-pub(crate) fn unique(val: Vec<Value>, _: Kwargs) -> Vec<Value> {
+pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: Env) -> Vec<Value> {
     let mut seen = BTreeSet::new();
     let mut res = Vec::with_capacity(val.len());
 
@@ -363,7 +363,7 @@ pub(crate) fn unique(val: Vec<Value>, _: Kwargs) -> Vec<Value> {
 
 /// Map retrieves an attribute from a list of objects.
 /// The 'attribute' argument specifies what to retrieve.
-pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Vec<Value>> {
+pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
     let attribute = kwargs.must_get::<&str>("attribute")?;
     // TODO: allow passing a filter/test name to apply to every element?
     // TODO: allow passing a default value when it's undefined
@@ -374,7 +374,6 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs) -> TeraResult<Vec<Value>> {
 }
 
 // TODO: missing from array sort, group_by, filter, map
-// TODO: handle error for wrong arguments in the interpreter
 // TODO: add indent after making sure it's good. Tests could be insta for easy viz
 // TODO: allow accessing some state (context, filters, tests etc) from filter (3rd arg)
 
@@ -385,21 +384,24 @@ mod tests {
 
     #[test]
     fn test_upper() {
-        assert_eq!(upper("hello", Kwargs::default()), "HELLO");
+        assert_eq!(upper("hello", Kwargs::default(), Env::new()), "HELLO");
     }
 
     #[test]
     fn test_lower() {
-        assert_eq!(lower("HELLO", Kwargs::default()), "hello");
+        assert_eq!(lower("HELLO", Kwargs::default(), Env::new()), "hello");
     }
 
     #[test]
     fn test_trim() {
-        assert_eq!(trim("  hello  ", Kwargs::default()).unwrap(), "hello");
+        assert_eq!(
+            trim("  hello  ", Kwargs::default(), Env::new()).unwrap(),
+            "hello"
+        );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            trim("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             " hello "
         );
     }
@@ -407,24 +409,27 @@ mod tests {
     #[test]
     fn test_trim_start() {
         assert_eq!(
-            trim_start("  hello  ", Kwargs::default()).unwrap(),
+            trim_start("  hello  ", Kwargs::default(), Env::new()).unwrap(),
             "hello  "
         );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim_start("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            trim_start("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             " hello $"
         );
     }
 
     #[test]
     fn test_trim_end() {
-        assert_eq!(trim_end("  hello  ", Kwargs::default()).unwrap(), "  hello");
+        assert_eq!(
+            trim_end("  hello  ", Kwargs::default(), Env::new()).unwrap(),
+            "  hello"
+        );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim_end("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            trim_end("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             "$ hello "
         );
     }
@@ -435,14 +440,14 @@ mod tests {
         map.insert("from".into(), "$".into());
         map.insert("to".into(), "€".into());
         assert_eq!(
-            replace("$ hello $", Kwargs::new(Arc::new(map))).unwrap(),
+            replace("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             "€ hello €"
         );
     }
 
     #[test]
     fn test_capitalize() {
-        assert_eq!(capitalize("HELLO", Kwargs::default()), "Hello");
+        assert_eq!(capitalize("HELLO", Kwargs::default(), Env::new()), "Hello");
     }
 
     #[test]
@@ -466,21 +471,24 @@ mod tests {
             ("foo's bar", "Foo's Bar"),
         ];
         for (input, expected) in tests {
-            assert_eq!(title(input, Kwargs::default()), expected);
+            assert_eq!(title(input, Kwargs::default(), Env::new()), expected);
         }
     }
 
     #[test]
     fn test_str() {
-        assert_eq!(str((2.1).into(), Kwargs::default()), "2.1");
-        assert_eq!(str(2.into(), Kwargs::default()), "2");
-        assert_eq!(str(true.into(), Kwargs::default()), "true");
-        assert_eq!(str(vec![1, 2, 3].into(), Kwargs::default()), "[1, 2, 3]");
+        assert_eq!(str((2.1).into(), Kwargs::default(), Env::new()), "2.1");
+        assert_eq!(str(2.into(), Kwargs::default(), Env::new()), "2");
+        assert_eq!(str(true.into(), Kwargs::default(), Env::new()), "true");
+        assert_eq!(
+            str(vec![1, 2, 3].into(), Kwargs::default(), Env::new()),
+            "[1, 2, 3]"
+        );
         let mut map = Map::new();
         map.insert("hello".into(), "world".into());
         map.insert("other".into(), 2.into());
         assert_eq!(
-            str(map.into(), Kwargs::default()),
+            str(map.into(), Kwargs::default(), Env::new()),
             "{hello: 'world', other: 2}"
         );
     }
@@ -496,7 +504,7 @@ mod tests {
         ];
         for (input, expected) in tests {
             assert_eq!(
-                int(input.into(), Kwargs::default()).unwrap(),
+                int(input.into(), Kwargs::default(), Env::new()).unwrap(),
                 expected.into()
             );
         }
@@ -504,70 +512,91 @@ mod tests {
         let mut map = Map::new();
         map.insert("base".into(), 2.into());
         assert_eq!(
-            int("0b1010".into(), Kwargs::new(Arc::new(map))).unwrap(),
+            int("0b1010".into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             10.into()
         );
 
         // We don't do anything in that case
         assert_eq!(
-            int((-5 as i128).into(), Kwargs::default()).unwrap(),
+            int((-5 as i128).into(), Kwargs::default(), Env::new()).unwrap(),
             (-5 as i128).into()
         );
 
         // Can't convert without truncating
-        assert!(int(1.12.into(), Kwargs::default()).is_err());
+        assert!(int(1.12.into(), Kwargs::default(), Env::new()).is_err());
 
         // Doesn't make sense
-        assert!(int("hello".into(), Kwargs::default()).is_err());
-        assert!(int(vec![1, 2].into(), Kwargs::default()).is_err());
+        assert!(int("hello".into(), Kwargs::default(), Env::new()).is_err());
+        assert!(int(vec![1, 2].into(), Kwargs::default(), Env::new()).is_err());
     }
 
     #[test]
     fn test_float() {
-        assert_eq!(float("1".into(), Kwargs::default()).unwrap(), 1.0.into());
         assert_eq!(
-            float("3.14".into(), Kwargs::default()).unwrap(),
+            float("1".into(), Kwargs::default(), Env::new()).unwrap(),
+            1.0.into()
+        );
+        assert_eq!(
+            float("3.14".into(), Kwargs::default(), Env::new()).unwrap(),
             3.14.into()
         );
-        assert_eq!(float(1.into(), Kwargs::default()).unwrap(), 1.0.into());
+        assert_eq!(
+            float(1.into(), Kwargs::default(), Env::new()).unwrap(),
+            1.0.into()
+        );
         // noop
-        assert_eq!(float(1.12.into(), Kwargs::default()).unwrap(), 1.12.into());
+        assert_eq!(
+            float(1.12.into(), Kwargs::default(), Env::new()).unwrap(),
+            1.12.into()
+        );
         // Doesn't make sense
-        assert!(float("hello".into(), Kwargs::default()).is_err());
-        assert!(float(vec![1, 2].into(), Kwargs::default()).is_err());
+        assert!(float("hello".into(), Kwargs::default(), Env::new()).is_err());
+        assert!(float(vec![1, 2].into(), Kwargs::default(), Env::new()).is_err());
     }
 
     #[test]
     fn test_abs() {
-        assert_eq!(abs(1.into(), Kwargs::default()).unwrap(), 1.into());
-        assert_eq!(abs((-1i64).into(), Kwargs::default()).unwrap(), 1.into());
-        assert_eq!(abs((-1.0).into(), Kwargs::default()).unwrap(), (1.0).into());
-        assert!(abs(i128::MIN.into(), Kwargs::default()).is_err());
-        assert!(abs("hello".into(), Kwargs::default()).is_err());
+        assert_eq!(
+            abs(1.into(), Kwargs::default(), Env::new()).unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            abs((-1i64).into(), Kwargs::default(), Env::new()).unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            abs((-1.0).into(), Kwargs::default(), Env::new()).unwrap(),
+            (1.0).into()
+        );
+        assert!(abs(i128::MIN.into(), Kwargs::default(), Env::new()).is_err());
+        assert!(abs("hello".into(), Kwargs::default(), Env::new()).is_err());
     }
 
     #[test]
     fn test_round() {
-        assert_eq!(round((2.1).into(), Kwargs::default()).unwrap(), 2.into());
+        assert_eq!(
+            round((2.1).into(), Kwargs::default(), Env::new()).unwrap(),
+            2.into()
+        );
 
         let mut map = Map::new();
         map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round((2.1).into(), Kwargs::new(Arc::new(map))).unwrap(),
+            round((2.1).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             3.into()
         );
 
         let mut map = Map::new();
         map.insert("method".into(), "floor".into());
         assert_eq!(
-            round((2.9).into(), Kwargs::new(Arc::new(map))).unwrap(),
+            round((2.9).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             2.into()
         );
 
         let mut map = Map::new();
         map.insert("precision".into(), 2.into());
         assert_eq!(
-            round((2.245).into(), Kwargs::new(Arc::new(map))).unwrap(),
+            round((2.245).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
             (2.25).into()
         );
     }
@@ -595,7 +624,7 @@ mod tests {
                 map.insert("end".into(), s.into());
             }
             assert_eq!(
-                slice(v.clone(), Kwargs::new(Arc::new(map))).unwrap(),
+                slice(v.clone(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
                 Value::from(expected)
             );
         }

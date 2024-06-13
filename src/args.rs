@@ -174,6 +174,22 @@ impl Default for Kwargs {
     }
 }
 
+// TODO: find a good name for it
+#[derive(Debug, Clone)]
+pub struct Env {}
+
+impl Env {
+    pub fn new() -> Self {
+        Env {}
+    }
+
+    pub fn get_value(&self) {}
+
+    pub fn get_filter(&self) {}
+
+    pub fn get_test(&self) {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
