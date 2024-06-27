@@ -1,8 +1,10 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::args::Kwargs;
 use crate::tera::Tera;
 use crate::tests::utils::create_multi_templates_tera;
+use crate::vm::state::State;
 use crate::{Context, Value};
 
 #[derive(Debug, Serialize)]
@@ -120,6 +122,9 @@ fn rendering_ok() {
         let p = format!("{:?}", path.file_name().unwrap());
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
+        tera.register_filter("read_ctx", |x: &str, _: Kwargs, state: &State| {
+            state.get_from_path(x)
+        });
         let out = tera.render(&p, &get_context()).unwrap();
         insta::assert_display_snapshot!(&out);
     });

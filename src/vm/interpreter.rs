@@ -9,7 +9,7 @@ use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
-use crate::args::{Env, Kwargs};
+use crate::args::Kwargs;
 use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
@@ -242,20 +242,18 @@ impl<'tera> VirtualMachine<'tera> {
                     if let Some(f) = self.tera.filters.get(name.as_str()) {
                         let (kwargs, _) = state.stack.pop();
                         let (value, value_span) = state.stack.pop();
-                        let val = match f.call(
-                            &value,
-                            Kwargs::new(kwargs.into_map().unwrap()),
-                            Env::new(),
-                        ) {
-                            Ok(v) => v,
-                            // TODO: do we need to merge everything here?
-                            Err(err) => match err.kind {
-                                ErrorKind::InvalidArgument { .. } => {
-                                    rendering_error!(format!("{err}"), value_span)
-                                }
-                                _ => rendering_error!(format!("{err}"), span),
-                            },
-                        };
+                        let val =
+                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), &state) {
+                                Ok(v) => v,
+                                // TODO: do we need to merge everything here?
+                                Err(err) => match err.kind {
+                                    ErrorKind::InvalidArgument { .. } => {
+                                        rendering_error!(format!("{err}"), value_span)
+                                    }
+                                    _ => rendering_error!(format!("{err}"), span),
+                                },
+                            };
+
                         // TODO: Need to expand the span?
                         state
                             .stack

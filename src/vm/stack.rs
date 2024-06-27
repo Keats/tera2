@@ -2,7 +2,7 @@ use crate::utils::Span;
 use crate::Value;
 use std::borrow::Cow;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub(crate) struct Stack<'t> {
     values: Vec<(Value, Option<Cow<'t, Span>>)>,
 }

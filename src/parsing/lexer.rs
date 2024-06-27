@@ -133,7 +133,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::Comment(start, end) => write!(f, "COMMENT({start}, {end})"),
             Token::Ident(i) => write!(f, "IDENT({i})"),
             Token::Str(s) => write!(f, "STRING({s:?})"),
-            Token::String(s)=> write!(f, "STRING({s:?})"),
+            Token::String(s) => write!(f, "STRING({s:?})"),
             Token::Integer(i) => write!(f, "INTEGER({i:?})"),
             Token::Float(v) => write!(f, "FLOAT({v:?})"),
             Token::Bool(v) => write!(f, "BOOL({v:?})"),
@@ -349,29 +349,28 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                 while let Some(c) = char_iter.next() {
                     if c == '\\' {
                         match char_iter.next() {
-                            None => syntax_error!("unexpected end of string", make_span!(start_loc)),
+                            None => {
+                                syntax_error!("unexpected end of string", make_span!(start_loc))
+                            }
                             Some(c2) => match c2 {
                                 '"' | '\'' | '/' | '\\' => out.push(c2),
                                 'n' => out.push('\n'),
                                 't' => out.push('\t'),
                                 'r' => out.push('\r'),
-                                _ => syntax_error!("unexpected escape character", make_span!(start_loc))
-                            }
+                                _ => syntax_error!(
+                                    "unexpected escape character",
+                                    make_span!(start_loc)
+                                ),
+                            },
                         }
                     } else {
                         out.push(c);
                     }
                 }
 
-                return Some(Ok((
-                    Token::String(out),
-                    make_span!(start_loc),
-                )));
+                return Some(Ok((Token::String(out), make_span!(start_loc))));
             } else {
-                return Some(Ok((
-                    Token::Str(str_content),
-                    make_span!(start_loc),
-                )));
+                return Some(Ok((Token::Str(str_content), make_span!(start_loc))));
             }
         }};
     }

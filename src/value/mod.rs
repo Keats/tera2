@@ -359,6 +359,10 @@ impl Value {
 
     /// Returns the Value at the given path, or Undefined if there's nothing there.
     pub fn get_from_path(&self, path: &str) -> Value {
+        if self == &Value::Undefined || self == &Value::Null {
+            return self.clone();
+        }
+
         let mut res = self.clone();
 
         for elem in path.split(".") {

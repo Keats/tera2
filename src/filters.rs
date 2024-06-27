@@ -2,15 +2,16 @@ use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use crate::args::{ArgFromValue, Env, Kwargs};
+use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::{FunctionResult, Key, Map};
+use crate::vm::state::State;
 use crate::{HashMap, Value};
 
 /// The filter function type definition
 pub trait Filter<Arg, Res>: Sync + Send + 'static {
     /// The filter function type definition
-    fn call(&self, value: Arg, kwargs: Kwargs, env: Env) -> Res;
+    fn call(&self, value: Arg, kwargs: Kwargs, state: &State) -> Res;
 
     /// Whether the current filter's output should be treated as safe, defaults to `false`
     /// Only needs to be defined if the filter returns a string
@@ -21,16 +22,16 @@ pub trait Filter<Arg, Res>: Sync + Send + 'static {
 
 impl<Func, Arg, Res> Filter<Arg, Res> for Func
 where
-    Func: Fn(Arg, Kwargs, Env) -> Res + Sync + Send + 'static,
+    Func: Fn(Arg, Kwargs, &State) -> Res + Sync + Send + 'static,
     Arg: for<'a> ArgFromValue<'a>,
     Res: FunctionResult,
 {
-    fn call(&self, value: Arg, kwargs: Kwargs, env: Env) -> Res {
-        (self)(value, kwargs, env)
+    fn call(&self, value: Arg, kwargs: Kwargs, state: &State) -> Res {
+        (self)(value, kwargs, state)
     }
 }
 
-type FilterFunc = dyn Fn(&Value, Kwargs, Env) -> TeraResult<Value> + Sync + Send + 'static;
+type FilterFunc = dyn Fn(&Value, Kwargs, &State) -> TeraResult<Value> + Sync + Send + 'static;
 
 #[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
@@ -42,23 +43,23 @@ impl StoredFilter {
         Arg: for<'a> ArgFromValue<'a>,
         Res: FunctionResult,
     {
-        let closure = move |arg: &Value, kwargs, env| -> TeraResult<Value> {
-            f.call(Arg::from_value(arg)?, kwargs, env).into_result()
+        let closure = move |arg: &Value, kwargs, state: &State| -> TeraResult<Value> {
+            f.call(Arg::from_value(arg)?, kwargs, state).into_result()
         };
 
         StoredFilter(Arc::new(closure))
     }
 
-    pub fn call(&self, arg: &Value, kwargs: Kwargs, env: Env) -> TeraResult<Value> {
-        (self.0)(arg, kwargs, env)
+    pub fn call(&self, arg: &Value, kwargs: Kwargs, state: &State) -> TeraResult<Value> {
+        (self.0)(arg, kwargs, state)
     }
 }
 
-pub(crate) fn safe(val: &str, _: Kwargs, _: Env) -> Value {
+pub(crate) fn safe(val: &str, _: Kwargs, _: &State) -> Value {
     Value::safe_string(val)
 }
 
-pub(crate) fn default(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
 
     match val {
@@ -67,15 +68,15 @@ pub(crate) fn default(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn upper(val: &str, _: Kwargs, _: Env) -> String {
+pub(crate) fn upper(val: &str, _: Kwargs, _: &State) -> String {
     val.to_uppercase()
 }
 
-pub(crate) fn lower(val: &str, _: Kwargs, _: Env) -> String {
+pub(crate) fn lower(val: &str, _: Kwargs, _: &State) -> String {
     val.to_lowercase()
 }
 
-pub(crate) fn trim(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val
             .trim_start_matches(pat)
@@ -86,7 +87,7 @@ pub(crate) fn trim(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     }
 }
 
-pub(crate) fn trim_start(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn trim_start(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val.trim_start_matches(pat).to_string())
     } else {
@@ -94,7 +95,7 @@ pub(crate) fn trim_start(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String
     }
 }
 
-pub(crate) fn trim_end(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn trim_end(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val.trim_end_matches(pat).to_string())
     } else {
@@ -102,7 +103,7 @@ pub(crate) fn trim_end(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> 
     }
 }
 
-pub(crate) fn replace(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn replace(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let from = kwargs.must_get::<&str>("from")?;
     let to = kwargs.must_get::<&str>("to")?;
 
@@ -110,7 +111,7 @@ pub(crate) fn replace(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
 }
 
 /// Uppercase the first char and lowercase the rest.
-pub(crate) fn capitalize(val: &str, _: Kwargs, _: Env) -> String {
+pub(crate) fn capitalize(val: &str, _: Kwargs, _: &State) -> String {
     let mut chars = val.chars();
     match chars.next() {
         None => String::new(),
@@ -119,7 +120,7 @@ pub(crate) fn capitalize(val: &str, _: Kwargs, _: Env) -> String {
 }
 
 /// Uppercase the first letter of each word
-pub(crate) fn title(val: &str, _: Kwargs, _: Env) -> String {
+pub(crate) fn title(val: &str, _: Kwargs, _: &State) -> String {
     let mut res = String::with_capacity(val.len());
     let mut capitalize = true;
     for c in val.chars() {
@@ -141,7 +142,7 @@ pub(crate) fn title(val: &str, _: Kwargs, _: Env) -> String {
 
 /// Return a copy of the string with each line indented by 4 spaces.
 /// The first line and blank lines are not indented by default.
-pub(crate) fn indent(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn indent(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let width = kwargs.get::<usize>("width")?.unwrap_or(4);
     let indent_first_line = kwargs.get::<bool>("first")?.unwrap_or(false);
     let indent_blank_line = kwargs.get::<bool>("blank")?.unwrap_or(false);
@@ -169,12 +170,12 @@ pub(crate) fn indent(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<String> {
     Ok(res)
 }
 
-pub(crate) fn str(val: Value, _: Kwargs, _: Env) -> String {
+pub(crate) fn str(val: Value, _: Kwargs, _: &State) -> String {
     format!("{val}")
 }
 
 /// Converts a Value into an int. It defaults to a base of `10` but can be changed.
-pub(crate) fn int(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let base = kwargs.get::<u32>("base")?.unwrap_or(10);
 
     let handle_f64 = |v: f64| {
@@ -226,7 +227,7 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn float(val: Value, _: Kwargs, _: Env) -> TeraResult<f64> {
+pub(crate) fn float(val: Value, _: Kwargs, _: &State) -> TeraResult<f64> {
     match val {
         Value::String(s, _) => {
             let s = s.trim();
@@ -251,7 +252,7 @@ pub(crate) fn float(val: Value, _: Kwargs, _: Env) -> TeraResult<f64> {
     }
 }
 
-pub(crate) fn length(val: Value, _: Kwargs, _: Env) -> TeraResult<usize> {
+pub(crate) fn length(val: Value, _: Kwargs, _: &State) -> TeraResult<usize> {
     match val.len() {
         Some(v) => Ok(v),
         None => Err(Error::message(format!(
@@ -261,11 +262,11 @@ pub(crate) fn length(val: Value, _: Kwargs, _: Env) -> TeraResult<usize> {
     }
 }
 
-pub(crate) fn reverse(val: Value, _: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn reverse(val: Value, _: Kwargs, _: &State) -> TeraResult<Value> {
     val.reverse()
 }
 
-pub(crate) fn split(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn split(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let pat = kwargs.must_get::<&str>("pat")?;
     Ok(val
         .split(pat)
@@ -274,7 +275,7 @@ pub(crate) fn split(val: &str, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
         .into())
 }
 
-pub(crate) fn abs(val: Value, _: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn abs(val: Value, _: Kwargs, _: &State) -> TeraResult<Value> {
     match val {
         Value::U64(_) | Value::U128(_) => Ok(val),
         Value::F64(v) => Ok(v.abs().into()),
@@ -295,7 +296,7 @@ pub(crate) fn abs(val: Value, _: Kwargs, _: Env) -> TeraResult<Value> {
     }
 }
 
-pub(crate) fn round(val: f64, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn round(val: f64, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let method = kwargs.get::<&str>("method")?;
     let precision = kwargs.get::<i32>("precision")?.unwrap_or_default();
     let multiplier = if precision == 0 {
@@ -318,25 +319,25 @@ pub(crate) fn round(val: f64, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
 
 /// Returns the first element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
     Ok(val.first().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the last element of an array. Null if the array is empty
 /// and errors if the value is not an array
-pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
     Ok(val.last().cloned().unwrap_or(Value::Null))
 }
 
 /// Returns the nth element of an array. Null if there isn't an element at that index.
 /// and errors if the value is not an array
-pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Value> {
+pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
     Ok(val.into_iter().nth(n).unwrap_or(Value::Null))
 }
 
 /// Joins the elements
-pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<String> {
+pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let sep = kwargs.get::<&str>("sep")?.unwrap_or("");
     Ok(val
         .into_iter()
@@ -349,7 +350,7 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<String
 /// Use the `start` argument to define where to start (inclusive, default to `0`)
 /// and `end` argument to define where to stop (exclusive, default to the length of the array)
 /// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
+pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(Vec::new());
     }
@@ -377,7 +378,7 @@ pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<V
     Ok(val[start..end].to_vec())
 }
 
-pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: Env) -> Vec<Value> {
+pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
     if val.is_empty() {
         return val;
     }
@@ -398,7 +399,7 @@ pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: Env) -> Vec<Value> {
 /// Map retrieves an attribute from a list of objects.
 /// The 'attribute' argument specifies what to retrieve.
 /// If a value is undefined, it will error
-pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
+pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(val);
     }
@@ -421,7 +422,7 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Val
     Ok(res)
 }
 
-pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<Value>> {
+pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(val);
     }
@@ -450,7 +451,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Vec<
     Ok(res)
 }
 
-pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Map> {
+pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Map> {
     if val.is_empty() {
         return Ok(Map::new());
     }
@@ -486,78 +487,104 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: Env) -> TeraResult<Ma
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parsing::Chunk;
     use crate::value::Map;
+    use crate::Context;
 
     #[test]
     fn test_upper() {
-        assert_eq!(upper("hello", Kwargs::default(), Env::new()), "HELLO");
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
+        assert_eq!(upper("hello", Kwargs::default(), &state), "HELLO");
     }
 
     #[test]
     fn test_lower() {
-        assert_eq!(lower("HELLO", Kwargs::default(), Env::new()), "hello");
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
+        assert_eq!(lower("HELLO", Kwargs::default(), &state), "hello");
     }
 
     #[test]
     fn test_trim() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         assert_eq!(
-            trim("  hello  ", Kwargs::default(), Env::new()).unwrap(),
+            trim("  hello  ", Kwargs::default(), &state).unwrap(),
             "hello"
         );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            trim("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
             " hello "
         );
     }
 
     #[test]
     fn test_trim_start() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         assert_eq!(
-            trim_start("  hello  ", Kwargs::default(), Env::new()).unwrap(),
+            trim_start("  hello  ", Kwargs::default(), &state).unwrap(),
             "hello  "
         );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim_start("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            trim_start("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
             " hello $"
         );
     }
 
     #[test]
     fn test_trim_end() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         assert_eq!(
-            trim_end("  hello  ", Kwargs::default(), Env::new()).unwrap(),
+            trim_end("  hello  ", Kwargs::default(), &state).unwrap(),
             "  hello"
         );
         let mut map = Map::new();
         map.insert("pat".into(), "$".into());
         assert_eq!(
-            trim_end("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            trim_end("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
             "$ hello "
         );
     }
 
     #[test]
     fn test_replace() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         let mut map = Map::new();
         map.insert("from".into(), "$".into());
         map.insert("to".into(), "€".into());
         assert_eq!(
-            replace("$ hello $", Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            replace("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
             "€ hello €"
         );
     }
 
     #[test]
     fn test_capitalize() {
-        assert_eq!(capitalize("HELLO", Kwargs::default(), Env::new()), "Hello");
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
+        assert_eq!(capitalize("HELLO", Kwargs::default(), &state), "Hello");
     }
 
     #[test]
     fn test_title() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         let tests = vec![
             ("foo bar", "Foo Bar"),
             ("foo\tbar", "Foo\tBar"),
@@ -577,30 +604,36 @@ mod tests {
             ("foo's bar", "Foo's Bar"),
         ];
         for (input, expected) in tests {
-            assert_eq!(title(input, Kwargs::default(), Env::new()), expected);
+            assert_eq!(title(input, Kwargs::default(), &state), expected);
         }
     }
 
     #[test]
     fn test_str() {
-        assert_eq!(str((2.1).into(), Kwargs::default(), Env::new()), "2.1");
-        assert_eq!(str(2.into(), Kwargs::default(), Env::new()), "2");
-        assert_eq!(str(true.into(), Kwargs::default(), Env::new()), "true");
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
+        assert_eq!(str((2.1).into(), Kwargs::default(), &state), "2.1");
+        assert_eq!(str(2.into(), Kwargs::default(), &state), "2");
+        assert_eq!(str(true.into(), Kwargs::default(), &state), "true");
         assert_eq!(
-            str(vec![1, 2, 3].into(), Kwargs::default(), Env::new()),
+            str(vec![1, 2, 3].into(), Kwargs::default(), &state),
             "[1, 2, 3]"
         );
         let mut map = Map::new();
         map.insert("hello".into(), "world".into());
         map.insert("other".into(), 2.into());
         assert_eq!(
-            str(map.into(), Kwargs::default(), Env::new()),
+            str(map.into(), Kwargs::default(), &state),
             "{hello: 'world', other: 2}"
         );
     }
 
     #[test]
     fn test_int() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         // String to int
         let tests: Vec<(&str, i64)> = vec![
             ("0", 0),
@@ -610,7 +643,7 @@ mod tests {
         ];
         for (input, expected) in tests {
             assert_eq!(
-                int(input.into(), Kwargs::default(), Env::new()).unwrap(),
+                int(input.into(), Kwargs::default(), &state).unwrap(),
                 expected.into()
             );
         }
@@ -618,97 +651,106 @@ mod tests {
         let mut map = Map::new();
         map.insert("base".into(), 2.into());
         assert_eq!(
-            int("0b1010".into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            int("0b1010".into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             10.into()
         );
 
         // We don't do anything in that case
         assert_eq!(
-            int((-5 as i128).into(), Kwargs::default(), Env::new()).unwrap(),
+            int((-5 as i128).into(), Kwargs::default(), &state).unwrap(),
             (-5 as i128).into()
         );
 
         // Can't convert without truncating
-        assert!(int(1.12.into(), Kwargs::default(), Env::new()).is_err());
+        assert!(int(1.12.into(), Kwargs::default(), &state).is_err());
 
         // Doesn't make sense
-        assert!(int("hello".into(), Kwargs::default(), Env::new()).is_err());
-        assert!(int(vec![1, 2].into(), Kwargs::default(), Env::new()).is_err());
+        assert!(int("hello".into(), Kwargs::default(), &state).is_err());
+        assert!(int(vec![1, 2].into(), Kwargs::default(), &state).is_err());
     }
 
     #[test]
     fn test_float() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         assert_eq!(
-            float("1".into(), Kwargs::default(), Env::new()).unwrap(),
+            float("1".into(), Kwargs::default(), &state).unwrap(),
             1.0.into()
         );
         assert_eq!(
-            float("3.14".into(), Kwargs::default(), Env::new()).unwrap(),
+            float("3.14".into(), Kwargs::default(), &state).unwrap(),
             3.14.into()
         );
         assert_eq!(
-            float(1.into(), Kwargs::default(), Env::new()).unwrap(),
+            float(1.into(), Kwargs::default(), &state).unwrap(),
             1.0.into()
         );
         // noop
         assert_eq!(
-            float(1.12.into(), Kwargs::default(), Env::new()).unwrap(),
+            float(1.12.into(), Kwargs::default(), &state).unwrap(),
             1.12.into()
         );
         // Doesn't make sense
-        assert!(float("hello".into(), Kwargs::default(), Env::new()).is_err());
-        assert!(float(vec![1, 2].into(), Kwargs::default(), Env::new()).is_err());
+        assert!(float("hello".into(), Kwargs::default(), &state).is_err());
+        assert!(float(vec![1, 2].into(), Kwargs::default(), &state).is_err());
     }
 
     #[test]
     fn test_abs() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
+        assert_eq!(abs(1.into(), Kwargs::default(), &state).unwrap(), 1.into());
         assert_eq!(
-            abs(1.into(), Kwargs::default(), Env::new()).unwrap(),
+            abs((-1i64).into(), Kwargs::default(), &state).unwrap(),
             1.into()
         );
         assert_eq!(
-            abs((-1i64).into(), Kwargs::default(), Env::new()).unwrap(),
-            1.into()
-        );
-        assert_eq!(
-            abs((-1.0).into(), Kwargs::default(), Env::new()).unwrap(),
+            abs((-1.0).into(), Kwargs::default(), &state).unwrap(),
             (1.0).into()
         );
-        assert!(abs(i128::MIN.into(), Kwargs::default(), Env::new()).is_err());
-        assert!(abs("hello".into(), Kwargs::default(), Env::new()).is_err());
+        assert!(abs(i128::MIN.into(), Kwargs::default(), &state).is_err());
+        assert!(abs("hello".into(), Kwargs::default(), &state).is_err());
     }
 
     #[test]
     fn test_round() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         assert_eq!(
-            round((2.1).into(), Kwargs::default(), Env::new()).unwrap(),
+            round((2.1).into(), Kwargs::default(), &state).unwrap(),
             2.into()
         );
 
         let mut map = Map::new();
         map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round((2.1).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            round((2.1).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             3.into()
         );
 
         let mut map = Map::new();
         map.insert("method".into(), "floor".into());
         assert_eq!(
-            round((2.9).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            round((2.9).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             2.into()
         );
 
         let mut map = Map::new();
         map.insert("precision".into(), 2.into());
         assert_eq!(
-            round((2.245).into(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+            round((2.245).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             (2.25).into()
         );
     }
 
     #[test]
     fn test_slice() {
+        let ctx = Context::new();
+        let chunk = Chunk::new("dummy");
+        let state = State::new(&ctx, &chunk);
         let v: Vec<Value> = vec![1, 2, 3, 4, 5].into_iter().map(Into::into).collect();
 
         let inputs = vec![
@@ -730,7 +772,7 @@ mod tests {
                 map.insert("end".into(), s.into());
             }
             assert_eq!(
-                slice(v.clone(), Kwargs::new(Arc::new(map)), Env::new()).unwrap(),
+                slice(v.clone(), Kwargs::new(Arc::new(map)), &state).unwrap(),
                 expected.into_iter().map(|x| x.into()).collect::<Vec<_>>()
             );
         }
