@@ -72,6 +72,13 @@ pub enum ErrorKind {
     },
     /// A template was missing
     TemplateNotFound(String),
+    /// A filter/test main value was not the expected type
+    InvalidArgument {
+        expected_type: String,
+        actual_type: String,
+    },
+    /// A function/test/filter was expecting an argument but it wasn't found
+    MissingArgument { arg_name: String },
     /// An IO error occurred
     Io(std::io::ErrorKind),
     /// UTF-8 conversion error when converting output to UTF-8
@@ -116,6 +123,8 @@ impl fmt::Display for ErrorKind {
                 f,
                 "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
+            ErrorKind::InvalidArgument {expected_type, actual_type} => write!(f, "Invalid type for the value, expected `{expected_type}` but got `{actual_type}`"),
+            ErrorKind::MissingArgument {arg_name} => write!(f, "Missing keyword argument `{arg_name}`"),
             ErrorKind::Io(ref io_error) => {
                 write!(f, "Io error while writing rendered value to output: {:?}", io_error)
             }
@@ -150,9 +159,9 @@ impl Error {
         }
     }
 
-    pub(crate) fn message(message: String) -> Self {
+    pub(crate) fn message(message: impl ToString) -> Self {
         Self {
-            kind: ErrorKind::Msg(message),
+            kind: ErrorKind::Msg(message.to_string()),
             source: None,
         }
     }
@@ -225,6 +234,28 @@ impl Error {
     pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
         Self {
             kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
+    }
+
+    pub(crate) fn invalid_arg_type(
+        expected_type: impl ToString,
+        actual_type: impl ToString,
+    ) -> Self {
+        Self {
+            kind: ErrorKind::InvalidArgument {
+                expected_type: expected_type.to_string(),
+                actual_type: actual_type.to_string(),
+            },
+            source: None,
+        }
+    }
+
+    pub(crate) fn missing_arg(arg_name: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::MissingArgument {
+                arg_name: arg_name.to_string(),
+            },
             source: None,
         }
     }

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
+mod de;
 mod key;
 pub(crate) mod number;
 mod ser;
@@ -48,104 +49,6 @@ pub enum Value {
     // TODO: string interning?
     String(Arc<str>, StringKind),
     Map(Arc<Map>),
-}
-
-impl Value {
-    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
-        match self {
-            Value::Null | Value::Undefined => Ok(()),
-            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
-            Value::Bytes(v) => f.write_all(v),
-            Value::String(v, kind) => {
-                if matches!(kind, StringKind::Safe) {
-                    f.write_all(v.as_bytes())
-                } else {
-                    f.write_all(escape_html(v).as_bytes())
-                }
-            }
-            Value::Array(v) => {
-                let mut it = v.iter();
-                f.write_all(b"[")?;
-                // First value
-                if let Some(elem) = it.next() {
-                    elem.format(f)?;
-                }
-                // Every other value
-                for elem in it {
-                    f.write_all(b", ")?;
-                    elem.format(f)?;
-                }
-                f.write_all(b"]")
-            }
-            Value::Map(v) => {
-                let mut key_val: Box<_> = v.iter().collect();
-                // Keys are sorted to have deterministic output
-                // TODO: Consider using sort_unstable_by_key
-                key_val.sort_by_key(|elem| elem.0);
-                let mut it = key_val.iter();
-                f.write_all(b"{")?;
-                // First value
-                if let Some((key, value)) = it.next() {
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    value.format(f)?;
-                }
-                // Every other value
-                for (key, value) in it {
-                    f.write_all(b", ")?;
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    value.format(f)?;
-                }
-                f.write_all(b"}")
-            }
-            Value::F64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = ryu::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::U64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::I64(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::U128(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-            Value::I128(v) => {
-                #[cfg(feature = "no-fmt")]
-                {
-                    let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no-fmt"))]
-                write!(f, "{v}")
-            }
-        }
-    }
 }
 
 impl fmt::Display for Value {
@@ -255,8 +158,132 @@ impl Hash for Value {
 }
 
 impl Value {
+    pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
+        match self {
+            Value::Null | Value::Undefined => Ok(()),
+            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            Value::Bytes(v) => f.write_all(v),
+            Value::String(v, kind) => {
+                if matches!(kind, StringKind::Safe) {
+                    f.write_all(v.as_bytes())
+                } else {
+                    f.write_all(escape_html(v).as_bytes())
+                }
+            }
+            Value::Array(v) => {
+                let mut it = v.iter();
+                f.write_all(b"[")?;
+                // First value
+                if let Some(elem) = it.next() {
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                    elem.format(f)?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                }
+                // Every other value
+                for elem in it {
+                    f.write_all(b", ")?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                    elem.format(f)?;
+                    if elem.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                }
+                f.write_all(b"]")
+            }
+            Value::Map(v) => {
+                let mut key_val: Box<_> = v.iter().collect();
+                // Keys are sorted to have deterministic output
+                // TODO: Consider using sort_unstable_by_key
+                key_val.sort_by_key(|elem| elem.0);
+                let mut it = key_val.iter();
+                f.write_all(b"{")?;
+                // First value
+                if let Some((key, value)) = it.next() {
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                    value.format(f)?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                }
+                // Every other value
+                for (key, value) in it {
+                    f.write_all(b", ")?;
+                    key.format(f)?;
+                    f.write_all(b": ")?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                    value.format(f)?;
+                    if value.as_str().is_some() {
+                        f.write_all(b"'")?;
+                    }
+                }
+                f.write_all(b"}")
+            }
+            Value::F64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = ryu::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::U64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::I64(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::U128(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+            Value::I128(v) => {
+                #[cfg(feature = "no-fmt")]
+                {
+                    let mut buf = itoa::Buffer::new();
+                    f.write_all(buf.format(*v).as_bytes())
+                }
+                #[cfg(not(feature = "no-fmt"))]
+                write!(f, "{v}")
+            }
+        }
+    }
+
     pub fn from_serializable<T: Serialize + ?Sized>(value: &T) -> Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
+    }
+
+    pub fn safe_string(val: &str) -> Value {
+        Value::String(Arc::from(val), StringKind::Safe)
     }
 
     fn as_i128(&self) -> Option<i128> {
@@ -282,7 +309,9 @@ impl Value {
         }
     }
 
-    fn as_number(&self) -> Option<Number> {
+    pub(crate) fn as_number(&self) -> Option<Number> {
+        // TODO: this might be problematic to convert u128 to i128
+        // We should probably expand the Number Enum
         match self {
             Value::U64(v) => Some(Number::Integer(*v as i128)),
             Value::I64(v) => Some(Number::Integer(*v as i128)),
@@ -300,7 +329,7 @@ impl Value {
         )
     }
 
-    fn as_str(&self) -> Option<&str> {
+    pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(s, _) => Some(s),
             _ => None,
@@ -314,11 +343,54 @@ impl Value {
         }
     }
 
+    pub fn as_vec(&self) -> Option<&Vec<Value>> {
+        match self {
+            Value::Array(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn into_map(self) -> Option<Arc<Map>> {
         match self {
             Value::Map(s) => Some(s),
             _ => None,
         }
+    }
+
+    /// Returns the Value at the given path, or Undefined if there's nothing there.
+    pub fn get_from_path(&self, path: &str) -> Value {
+        if self == &Value::Undefined || self == &Value::Null {
+            return self.clone();
+        }
+
+        let mut res = self.clone();
+
+        for elem in path.split(".") {
+            match elem.parse::<usize>() {
+                Ok(idx) => match res {
+                    Value::Array(arr) => {
+                        if let Some(v) = arr.get(idx) {
+                            res = v.clone();
+                        } else {
+                            return Value::Undefined;
+                        }
+                    }
+                    _ => return Value::Undefined,
+                },
+                Err(_) => match res {
+                    Value::Map(map) => {
+                        if let Some(v) = map.get(&Key::Str(elem)) {
+                            res = v.clone();
+                        } else {
+                            return Value::Undefined;
+                        }
+                    }
+                    _ => return Value::Undefined,
+                },
+            }
+        }
+
+        res
     }
 
     pub fn is_truthy(&self) -> bool {
@@ -338,15 +410,42 @@ impl Value {
         }
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn len(&self) -> Option<usize> {
         match self {
-            Value::Array(v) => v.is_empty(),
-            Value::Bytes(v) => v.is_empty(),
-            Value::String(v, _) => v.is_empty(),
-            Value::Map(v) => v.is_empty(),
-            _ => false,
+            Value::Map(v) => Some(v.len()),
+            Value::Array(v) => Some(v.len()),
+            Value::Bytes(v) => Some(v.len()),
+            Value::String(v, _) => Some(v.chars().count()),
+            _ => None,
         }
     }
+
+    pub fn reverse(&self) -> TeraResult<Value> {
+        match self {
+            Value::Array(v) => {
+                let mut rev = (**v).clone();
+                rev.reverse();
+                Ok(Self::from(rev))
+            }
+            Value::Bytes(v) => Ok(Self::from(v.iter().rev().copied().collect::<Vec<_>>())),
+            Value::String(v, _) => Ok(Self::from(String::from_iter(v.chars().rev()))),
+            _ => Err(Error::message(format!(
+                "Value of type {} cannot be reversed",
+                self.name()
+            ))),
+        }
+    }
+
+    // TODO: do we need that?
+    // pub(crate) fn is_empty(&self) -> bool {
+    //     match self {
+    //         Value::Array(v) => v.is_empty(),
+    //         Value::Bytes(v) => v.is_empty(),
+    //         Value::String(v, _) => v.is_empty(),
+    //         Value::Map(v) => v.is_empty(),
+    //         _ => false,
+    //     }
+    // }
 
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         matches!(
@@ -489,6 +588,18 @@ impl From<String> for Value {
     }
 }
 
+impl From<u8> for Value {
+    fn from(value: u8) -> Self {
+        Value::U64(value as u64)
+    }
+}
+
+impl From<i8> for Value {
+    fn from(value: i8) -> Self {
+        Value::I64(value as i64)
+    }
+}
+
 impl From<u32> for Value {
     fn from(value: u32) -> Self {
         Value::U64(value as u64)
@@ -498,6 +609,12 @@ impl From<u32> for Value {
 impl From<u64> for Value {
     fn from(value: u64) -> Self {
         Value::U64(value)
+    }
+}
+
+impl From<usize> for Value {
+    fn from(value: usize) -> Self {
+        Value::U64(value as u64)
     }
 }
 
@@ -516,6 +633,12 @@ impl From<i32> for Value {
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
         Value::I64(value)
+    }
+}
+
+impl From<isize> for Value {
+    fn from(value: isize) -> Self {
+        Value::I64(value as i64)
     }
 }
 
@@ -540,6 +663,12 @@ impl From<Key<'static>> for Value {
             Key::String(s) => Value::String(s, StringKind::Normal),
             Key::Str(s) => Value::String(Arc::from(s), StringKind::Normal),
         }
+    }
+}
+
+impl From<&[Value]> for Value {
+    fn from(value: &[Value]) -> Self {
+        Value::Array(Arc::new(value.to_vec()))
     }
 }
 
@@ -583,5 +712,22 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<IndexMap<K, T>> for Value {
             map.insert(key.into(), value.into());
         }
         Value::Map(Arc::new(map))
+    }
+}
+
+// TODO: move somewhere else
+pub trait FunctionResult {
+    fn into_result(self) -> TeraResult<Value>;
+}
+
+impl<I: Into<Value>> FunctionResult for TeraResult<I> {
+    fn into_result(self) -> TeraResult<Value> {
+        self.map(Into::into)
+    }
+}
+
+impl<I: Into<Value>> FunctionResult for I {
+    fn into_result(self) -> TeraResult<Value> {
+        Ok(self.into())
     }
 }

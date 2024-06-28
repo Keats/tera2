@@ -1,0 +1,10 @@
+---
+source: src/tests/rendering.rs
+expression: "&err"
+input_file: src/tests/rendering_inputs/errors/filter_wrong_arg_type.txt
+---
+ Rendering error --> ["filter_wrong_arg_type.txt":1:3]
+  |
+1 | {{ [1] | upper }}
+  |    ^---
+  = Invalid type for the value, expected `&str` but got `array`

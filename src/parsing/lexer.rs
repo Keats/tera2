@@ -76,7 +76,9 @@ pub enum Token<'a> {
     Comment(bool, bool),
     Ident(&'a str),
 
-    String(&'a str),
+    // a string that has been unescaped
+    String(String),
+    Str(&'a str),
     Integer(i64),
     Float(f64),
     Bool(bool),
@@ -130,6 +132,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::TagEnd(ws) => write!(f, "TAG_END({ws})"),
             Token::Comment(start, end) => write!(f, "COMMENT({start}, {end})"),
             Token::Ident(i) => write!(f, "IDENT({i})"),
+            Token::Str(s) => write!(f, "STRING({s:?})"),
             Token::String(s) => write!(f, "STRING({s:?})"),
             Token::Integer(i) => write!(f, "INTEGER({i:?})"),
             Token::Float(v) => write!(f, "FLOAT({v:?})"),
@@ -177,7 +180,7 @@ impl<'a> fmt::Display for Token<'a> {
             Token::TagEnd(_) => write!(f, "`%}}`"),
             Token::Comment(_, _) => write!(f, "comment`"),
             Token::Ident(_) => write!(f, "identifier"),
-            Token::String(_) => write!(f, "string"),
+            Token::String(_) | Token::Str(_) => write!(f, "string"),
             Token::Integer(_) => write!(f, "integer"),
             Token::Float(_) => write!(f, "float"),
             Token::Bool(_) => write!(f, "bool"),
@@ -316,11 +319,17 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
     macro_rules! lex_string {
         ($delim:expr) => {{
             let start_loc = loc!();
+            let mut has_escapes = false;
             let str_len = rest
                 .as_bytes()
                 .iter()
                 .skip(1)
-                .take_while(|&&c| c != $delim)
+                .take_while(|&&c| {
+                    if c == b'\\' {
+                        has_escapes = true;
+                    }
+                    c != $delim
+                })
                 .count();
             if rest.as_bytes().get(str_len + 1) != Some(&$delim) {
                 syntax_error!(
@@ -332,10 +341,37 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                 )
             }
             let s = advance!(str_len + 2);
-            return Some(Ok((
-                Token::String(&s[1..s.len() - 1]),
-                make_span!(start_loc),
-            )));
+            let str_content = &s[1..s.len() - 1];
+            if has_escapes {
+                // Basic unescaping
+                let mut out = String::with_capacity(str_content.len());
+                let mut char_iter = str_content.chars();
+                while let Some(c) = char_iter.next() {
+                    if c == '\\' {
+                        match char_iter.next() {
+                            None => {
+                                syntax_error!("unexpected end of string", make_span!(start_loc))
+                            }
+                            Some(c2) => match c2 {
+                                '"' | '\'' | '/' | '\\' => out.push(c2),
+                                'n' => out.push('\n'),
+                                't' => out.push('\t'),
+                                'r' => out.push('\r'),
+                                _ => syntax_error!(
+                                    "unexpected escape character",
+                                    make_span!(start_loc)
+                                ),
+                            },
+                        }
+                    } else {
+                        out.push(c);
+                    }
+                }
+
+                return Some(Ok((Token::String(out), make_span!(start_loc))));
+            } else {
+                return Some(Ok((Token::Str(str_content), make_span!(start_loc))));
+            }
         }};
     }
 

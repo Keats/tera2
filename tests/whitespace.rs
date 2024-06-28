@@ -36,7 +36,6 @@ use tera::{Context, Tera};
 //     }
 // }
 
-
 // https://github.com/Keats/tera/issues/475
 // #[test]
 // fn works_with_filter_section() {

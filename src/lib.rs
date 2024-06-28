@@ -1,12 +1,14 @@
+mod args;
 mod context;
 mod errors;
+mod filters;
 mod parsing;
 mod reporting;
 mod template;
 mod tera;
 mod utils;
 pub mod value;
-mod vm;
+pub(crate) mod vm;
 
 pub use crate::tera::{EscapeFn, Tera};
 pub use context::Context;

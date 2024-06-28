@@ -1,0 +1,45 @@
+{{ "<html>" }}
+{{ "<html>" | safe}}
+{{ name | replace(from="o", to=to) }}
+{{ name | replace(from="o", to=to) | safe }}
+{{ existing | default(value="should not print") }}
+{{ undefined_val | default(value=1) }}
+{{ undefined_val | default(value="default val") | capitalize }}
+{{ product.undefined_field | default(value="default val") | capitalize }}
+{{ [1, 2, 3] | length }}
+{{ "abcdefghdijklm" | split(pat="d") }}
+{{ 2.8 * 2 | round }}
+{{ " html " | upper | trim }}
+{{ malicious | safe }}
+{{ malicious | upper }}
+{{ malicious | upper | safe }}
+{{ malicious | safe | upper }}
+{{ malicious | safe | upper | safe }}
+{{ reviews | length }}
+{{ data | length }}
+{{ (1.9 + age) | round - 1 }}
+{{ -1.2 | abs + 1 }}
+{{ reviews | length > 1 }}
+{{ reviews | length == 2 }}
+{{ reviews | length == 2 | str | capitalize }}
+{{ [1, 2, 3] | reverse }}
+{{ [1, 2, 3] | first }}
+{{ [1, 2, 3] | last }}
+{{ [1, 2, 3] | nth(n=1) }}
+{{ [1, 2, 3] | join(sep=", ") }}
+{{ [1, 2, 3] | slice(start=1) }}
+{{ [1, 2, 3] | slice(end=1) }}
+{{ [1, 2, 3] | slice(start=-1) }}
+{{ [1, 2, 3] | slice(start=0, end=2) }}
+{{ [1, 2, 3, 2, 3, 4] | unique }}
+{{ reviews | map(attribute="title") }}
+{{ year_data | map(attribute="year") }}
+{{ vectors | filter(attribute="0", value=0) }}
+{{ reviews | filter(attribute="title", value="My review") }}
+{{ year_data | group_by(attribute="year") }}
+indent1:{{ "one\ntwo\nthree" | indent }}
+indent2:{{ "one\ntwo\nthree" | indent(first=true, width=2) }}
+indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
+{{ "name" | read_ctx }}
+{{ "vectors.1.2" | read_ctx }}
+{{ "objects.0.label" | read_ctx }}

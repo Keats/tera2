@@ -1,6 +1,7 @@
 {{ 'hello' }}
 {{ "hello" }}
 {{ `hello` }}
+{{ "one\ntwo\nthree" }}
 {{ 1 }}
 {{ 1.0 }}
 {{ [1, 2, 3] }}

@@ -1,9 +1,11 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::args::Kwargs;
 use crate::tera::Tera;
-use crate::{Context, Value};
 use crate::tests::utils::create_multi_templates_tera;
+use crate::vm::state::State;
+use crate::{Context, Value};
 
 #[derive(Debug, Serialize)]
 pub struct Product {
@@ -36,6 +38,12 @@ pub struct NestedObject {
     pub label: String,
     pub parent: Option<Box<NestedObject>>,
     pub numbers: Vec<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct YearData {
+    id: usize,
+    year: Option<usize>,
 }
 
 fn get_context() -> Context {
@@ -71,6 +79,38 @@ fn get_context() -> Context {
     data.insert("weights".to_string(), vec![50.6, 70.1].into());
     context.insert("data", &data);
     context.insert("reviews", &vec![Review::new(), Review::new()]);
+    context.insert("to", &"&");
+    context.insert("malicious", &"<html>");
+    context.insert(
+        "year_data",
+        &vec![
+            YearData {
+                id: 1,
+                year: Some(2015),
+            },
+            YearData {
+                id: 2,
+                year: Some(2015),
+            },
+            YearData {
+                id: 3,
+                year: Some(2016),
+            },
+            YearData {
+                id: 4,
+                year: Some(2017),
+            },
+            YearData {
+                id: 5,
+                year: Some(2018),
+            },
+            YearData { id: 6, year: None },
+            YearData {
+                id: 7,
+                year: Some(2018),
+            },
+        ],
+    );
     context
 }
 
@@ -82,6 +122,9 @@ fn rendering_ok() {
         let p = format!("{:?}", path.file_name().unwrap());
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
+        tera.register_filter("read_ctx", |x: &str, _: Kwargs, state: &State| {
+            state.get_from_path(x)
+        });
         let out = tera.render(&p, &get_context()).unwrap();
         insta::assert_display_snapshot!(&out);
     });
@@ -108,7 +151,6 @@ fn rendering_macros_ok() {
         insta::assert_display_snapshot!(&out);
     });
 }
-
 
 #[test]
 fn rendering_errors() {

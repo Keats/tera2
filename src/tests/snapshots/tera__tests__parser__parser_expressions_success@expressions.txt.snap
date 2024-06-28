@@ -67,6 +67,9 @@ get_url{}
 (| (~ a b) upper{})
 (| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})
 (| (== status 'needs_restart') ternary{falsy='continue', truthy='restart'})
+(| 'one
+two
+three' indent{})
 1
 (/ (* 2 3) 10)
 (> (+ (+ 2 1) (/ (* a 10) (+ c 1))) 10)

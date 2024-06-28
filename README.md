@@ -83,4 +83,10 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 
 - `{{ falsy or "hello" }}` prints "hello" instead of "true"
 - `{% if not_existing.field %}` errors if `not_existing` is undefined, we only allow one level of undefinedness (hello undefined is not an object)
-- include ignore missing has been removed
+- `include [...] ignore missing` has been removed
+- trim filters have been merged in trim/trim_start/trim_end with an optional `pat` argument for start/end rather than separate filters
+- `int` and `float` filter do not have a default anymore
+- `round` filter does not take a `common` method anymore, it's the default and should not be filled if needed
+- `indent` filter now takes a `width` param rather than `prefix`
+- `map`, `group_by` and `filter` filter will error if the attribute ends up being undefined on one of the value
+- `as_str` has been renamed to `str`

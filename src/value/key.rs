@@ -121,3 +121,15 @@ impl<'a> Serialize for Key<'a> {
         }
     }
 }
+
+impl From<&'static str> for Key<'static> {
+    fn from(value: &'static str) -> Self {
+        Key::Str(value)
+    }
+}
+
+impl From<String> for Key<'static> {
+    fn from(value: String) -> Self {
+        Key::String(Arc::from(value))
+    }
+}

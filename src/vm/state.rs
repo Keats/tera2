@@ -87,6 +87,15 @@ impl<'t> State<'t> {
         }
     }
 
+    pub fn get_from_path(&self, path: &str) -> Value {
+        if let Some((start, rest)) = path.split_once('.') {
+            let base_value = self.get(start);
+            base_value.get_from_path(rest)
+        } else {
+            self.get(path)
+        }
+    }
+
     pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
         self.stack
             .push_borrowed(self.get(name), span.as_ref().unwrap());
