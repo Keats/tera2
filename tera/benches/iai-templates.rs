@@ -174,15 +174,15 @@ fn realistic_setup() -> (Tera, Context, &'static str) {
     tera.add_raw_templates(vec![
         (
             "index.html",
-            std::fs::read_to_string("benches/realistic/index.html").unwrap(),
+            std::fs::read_to_string("realistic/index.html").unwrap(),
         ),
         (
             "macros.html",
-            std::fs::read_to_string("benches/realistic/macros.html").unwrap(),
+            std::fs::read_to_string("realistic/macros.html").unwrap(),
         ),
         (
             RENDER_TARGET,
-            std::fs::read_to_string("benches/realistic/page.html").unwrap(),
+            std::fs::read_to_string("realistic/page.html").unwrap(),
         ),
     ])
     .unwrap();

@@ -13,11 +13,11 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 
 [dependencies.tera]
-path = ".."
+path = "../.."
 
 # Prevent this from interfering with workspaces
 [workspace]
-members = ["."]
+members = [""]
 
 [[bin]]
 name = "expression"

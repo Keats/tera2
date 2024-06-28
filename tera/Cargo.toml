@@ -1,0 +1,67 @@
+[package]
+name = "tera"
+version = "2.0.0"
+edition = "2021"
+
+[dependencies]
+serde = "1"
+
+# Optional deps
+indexmap = { version = "2", optional = true }
+unic-segment = { version = "0.9", optional = true }
+
+# Crates for speedup
+hashbrown = { version = "0.14", optional = true }
+itoa = { version = "1.0.9", optional = true }
+ryu = { version = "1.0.15", optional = true }
+pulldown-cmark-escape = { version = "0.10", optional = true}
+
+[features]
+default = []
+# Use hashbrown with ahash hashing to improve performance
+ahash = ["hashbrown", "hashbrown/serde"]
+# Keep order of insertion for Value
+preserve_order = ["dep:indexmap"]
+# If we want Tera to work with graphemes clusters rather than utf-8 characters when iterating on strings
+unicode = ["dep:unic-segment"]
+# Use itoa/ryu to format numbers (instead of std::fmt)
+no_fmt = ["dep:itoa", "dep:ryu"]
+# Use a faster HTML escape than the default one
+fast_escape = ["dep:pulldown-cmark-escape"]
+# Improve performance by adding extra dependencies
+fast = ["no_fmt", "fast_escape"]
+
+[dev-dependencies]
+criterion = "0.5"
+iai-callgrind = "0.8.0"
+insta = { version = "1", features = ["glob"] }
+serde_derive = "1.0.156"
+
+[lib]
+doctest = false
+
+[[bench]]
+name = "value"
+harness = false
+
+[[bench]]
+name = "escape"
+harness = false
+
+[[bench]]
+name = "templates"
+harness = false
+
+# you can enable the benches below on Linux provided you have everything installed.
+# see https://github.com/iai-callgrind/iai-callgrind for details
+#[[bench]]
+#name = "iai-value"
+#harness = false
+#
+#[[bench]]
+#name = "iai-escape"
+#harness = false
+#
+#[[bench]]
+#name = "iai-templates"
+#harness = false
