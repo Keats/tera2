@@ -2,6 +2,7 @@ mod args;
 mod context;
 mod errors;
 mod filters;
+mod tests;
 mod parsing;
 mod reporting;
 mod template;
@@ -22,4 +23,4 @@ pub(crate) use hashbrown::{HashMap, HashSet};
 pub(crate) use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
-mod tests;
+mod snapshot_tests;

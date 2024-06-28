@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: "&nodes"
+input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/macro_import_with_extends.txt
+---
+[]

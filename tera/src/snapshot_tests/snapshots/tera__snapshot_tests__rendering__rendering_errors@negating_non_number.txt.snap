@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/rendering_inputs/errors/negating_non_number.txt
+---
+ Rendering error --> ["negating_non_number.txt":1:5]
+  |
+1 | {{ - vectors }}
+  |      ^---
+  = Only numbers can be negated. This is a `array`

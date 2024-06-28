@@ -2,7 +2,7 @@
 //! eg a template inheriting from a template that isn't there
 use crate::tera::Tera;
 
-use crate::tests::utils::split_multi_templates;
+use crate::snapshot_tests::utils::split_multi_templates;
 
 #[test]
 fn build_errors() {

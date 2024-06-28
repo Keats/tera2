@@ -1,0 +1,22 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: Expressions(expr_nodes)
+input_file: tera/src/snapshot_tests/parser_inputs/success/expr/idents.txt
+---
+hello
+hello_
+hello_1
+HELLO
+_1
+hey.ho
+h
+ho
+hey.ho.hu
+h.u
+hey.ho.hu
+hey[0]
+hey[a[0]]
+hey['ho']['hu']
+hey['ho']['hu']['hi']
+h['u'].x[0]
+h['u'].x[0].ah

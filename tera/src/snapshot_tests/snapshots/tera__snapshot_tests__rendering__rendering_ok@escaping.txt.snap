@@ -1,0 +1,9 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/escaping.txt
+---
+&lt;p&gt;I should be escaped by default&lt;/p&gt;
+true
+true
+true

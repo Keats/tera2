@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/macros/load_from_macro_files.txt
+---
+Emma was an amazing person! Don't you think?

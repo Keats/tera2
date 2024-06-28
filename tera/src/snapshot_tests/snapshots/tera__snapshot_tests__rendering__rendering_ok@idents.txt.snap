@@ -1,0 +1,16 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/idents.txt
+---
+Bob
+36
+Moto G
+Tchoupi
+Fanny
+[50.6, 70.1]
+{names: ['Tchoupi', 'Pilou', 'Fanny'], weights: [50.6, 70.1]}
+1
+2
+['Bob', 18, 10, 'hello']
+{hello: 'Bob'}

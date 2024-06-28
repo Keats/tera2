@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/macro_def_in_other_tag.txt
+---
+ Syntax error --> [macro_def_in_other_tag.txt:2:3]
+  |
+2 | {% macro popup() -%} hello {%- endmacro %}
+  |    ^---
+  = Macro definitions cannot be written in another tag.

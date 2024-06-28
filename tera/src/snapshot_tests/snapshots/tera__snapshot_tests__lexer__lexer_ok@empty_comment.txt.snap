@@ -1,0 +1,8 @@
+---
+source: tera/src/snapshot_tests/lexer.rs
+expression: "&tokens"
+input_file: tera/src/snapshot_tests/lexer_inputs/success/empty_comment.txt
+---
+[
+    CONTENT(""),
+]
