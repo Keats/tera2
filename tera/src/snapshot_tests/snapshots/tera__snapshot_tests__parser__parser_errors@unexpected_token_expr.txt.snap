@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_token_expr.t
   |
 1 | {{ a is upper(,) }}
   |               ^---
-  = Found `,` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`
+  = Found `,` but expected identifier.

@@ -1,0 +1,28 @@
+str(ok): {{ '1' is string }}
+str(err): {{ 1 is string }}
+number(ok): {{ 1 is number }}
+number(ok): {{ 1.2 is number }}
+number(err): {{ true is number }}
+int(ok): {{ 1 is integer }}
+int(err): {{ 1.2 is integer }}
+float(ok): {{ 1.2 is float }}
+float(err): {{ 1 is float }}
+array(ok): {{ [] is array }}
+array(err): {{ 1 is array }}
+map(ok): {{ {} is map }}
+map(err): {{ 1 is map }}
+odd(ok): {{ 1 is odd }}
+odd(err): {{ 2 is odd }}
+even(ok): {{ 2 is even }}
+even(err): {{ 1 is even }}
+divisible_by(ok): {{ 2 is divisible_by(divisor=2) }}
+divisible_by(err): {{ 1 is divisible_by(divisor=2) }}
+divisible_by(err): {{ 10 is divisible_by(divisor=0) }}
+starting_with(ok): {{ 'hello world' is starting_with(pat="hello") }}
+starting_with(err): {{ 'hello world' is starting_with(pat="world") }}
+ending_with(ok): {{ 'hello world' is ending_with(pat="world") }}
+ending_with(err): {{ 'hello world' is ending_with(pat="hello") }}
+containing(ok): {{ 'hello world' is containing(pat="ll") }}
+containing(ok): {{ [1, 2] is containing(pat=1) }}
+containing(ok): {{ {"a": 1} is containing(pat="a") }}
+containing(err): {{ 'hello world' is containing(pat="x") }}

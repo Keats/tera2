@@ -59,7 +59,7 @@
 {{ a is not defined }}
 {{ a + 1 is odd }}
 {{ a + 1 is not odd }}
-{{ a is ending_with('s') }}
+{{ a is ending_with(pat='s') }}
 
 // function calls
 {{ get_url(path=page.path, in_content=true) }}
@@ -95,8 +95,8 @@
 {{ not id and not true and not 1 + c }}
 {{ a not in b }}
 {{ not admin | default(val=true) }}
-{{ a is defined and b is not defined(1, 2) }}
-{{ a is defined and not b is defined(1, 2) }}
+{{ a is containing(pat='a') and b is not containing(pat='b') }}
+{{ a is containing(pat='a') and not b is containing(pat='b') }}
 
 // Things not working in Tera v1
 // https://github.com/Keats/tera/issues/478
@@ -104,7 +104,7 @@
 {{ (a > b) and (a > c) }}
 {{ (person in groupA) and person in groupB }}
 {{ (query.tags ~ ' ' ~ tags) | trim }}
-{{ a and a is containing('a') or b and b is containing('b') }}
+{{ a and a is containing(pat='a') or b and b is containing(pat='b') }}
 
 // Macro calls
 {{ macros::input(label='Name', type='text') }}

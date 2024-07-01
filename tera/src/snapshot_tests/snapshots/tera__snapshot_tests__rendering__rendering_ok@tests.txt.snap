@@ -1,0 +1,33 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/tests.txt
+---
+str(ok): true
+str(err): false
+number(ok): true
+number(ok): true
+number(err): false
+int(ok): true
+int(err): false
+float(ok): true
+float(err): false
+array(ok): true
+array(err): false
+map(ok): true
+map(err): false
+odd(ok): true
+odd(err): false
+even(ok): true
+even(err): false
+divisible_by(ok): true
+divisible_by(err): false
+divisible_by(err): false
+starting_with(ok): true
+starting_with(err): false
+ending_with(ok): true
+ending_with(err): false
+containing(ok): true
+containing(ok): true
+containing(ok): true
+containing(err): false

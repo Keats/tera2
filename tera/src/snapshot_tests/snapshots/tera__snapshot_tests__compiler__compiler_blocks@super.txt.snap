@@ -1,6 +1,5 @@
 ---
 source: tera/src/snapshot_tests/compiler.rs
-assertion_line: 35
 expression: s
 input_file: tera/src/snapshot_tests/compiler_inputs/blocks/super.txt
 ---

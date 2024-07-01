@@ -339,7 +339,7 @@ impl Array {
 pub struct Test {
     pub expr: Expression,
     pub name: String,
-    pub args: Vec<Expression>,
+    pub kwargs: HashMap<String, Expression>,
 }
 
 impl fmt::Display for Test {
@@ -348,13 +348,13 @@ impl fmt::Display for Test {
         write!(f, " {}", self.name)?;
         write!(f, "{{",)?;
 
-        if !self.args.is_empty() {
-            for (i, s) in self.args.iter().enumerate() {
-                if i == self.args.len() - 1 {
-                    write!(f, "{s}")?
-                } else {
-                    write!(f, "{s}, ")?
-                }
+        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
+        keys.sort();
+        for (i, k) in keys.iter().enumerate() {
+            if i == self.kwargs.len() - 1 {
+                write!(f, "{}={}", k, self.kwargs[*k])?
+            } else {
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
             }
         }
 

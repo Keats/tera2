@@ -49,7 +49,7 @@ hello.data[var].hey
 (not (is a defined{}))
 (is (+ a 1) odd{})
 (not (is (+ a 1) odd{}))
-(is a ending_with{'s'})
+(is a ending_with{pat='s'})
 get_url{in_content=true, path=page.path}
 get_url{}
 (| a round{})
@@ -79,13 +79,13 @@ three' indent{})
 (not (and (not (and (not id) true)) (+ 1 c)))
 (not (in a b))
 (not (| admin default{val=true}))
-(and (is a defined{}) (not (is b defined{1, 2})))
-(not (and (is a defined{}) (is b defined{1, 2})))
+(and (is a containing{pat='a'}) (not (is b containing{pat='b'})))
+(not (and (is a containing{pat='a'}) (is b containing{pat='b'})))
 (and (> a b) (> a c))
 (and (> a b) (> a c))
 (and (in person groupA) (in person groupB))
 (| (~ (~ query.tags ' ') tags) trim{})
-(and (or (and a (is a containing{'a'})) b) (is b containing{'b'}))
+(and (or (and a (is a containing{pat='a'})) b) (is b containing{pat='b'}))
 macros::input{label='Name', type='text'}
 (| macros::input{} safe{})
 macros::input{n=(- a 1)}

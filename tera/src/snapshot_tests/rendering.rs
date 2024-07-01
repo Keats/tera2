@@ -2,8 +2,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 
 use crate::args::Kwargs;
-use crate::tera::Tera;
 use crate::snapshot_tests::utils::create_multi_templates_tera;
+use crate::tera::Tera;
 use crate::vm::state::State;
 use crate::{Context, Value};
 

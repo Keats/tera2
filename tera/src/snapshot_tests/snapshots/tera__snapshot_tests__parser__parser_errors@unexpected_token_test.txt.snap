@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_token_test.txt
 ---
- Syntax error --> [unexpected_token_test.txt:1:15]
+ Syntax error --> [unexpected_token_test.txt:1:16]
   |
 1 | {{ a is upper(b=,) }}
-  |                ^---
-  = Found `=` but expected `)` or `,`.
+  |                 ^---
+  = Found `,` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`

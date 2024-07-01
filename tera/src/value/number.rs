@@ -1,11 +1,23 @@
 use crate::errors::{Error, TeraResult};
 use crate::value::Value;
+use std::fmt;
+use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 
 /// Simpler representation of numbers so operations are simpler to handle
-pub(crate) enum Number {
+#[derive(Debug, Copy, Clone)]
+pub enum Number {
     Integer(i128),
     Float(f64),
+}
+
+impl fmt::Display for Number {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Number::Integer(v) => write!(f, "{v}"),
+            Number::Float(v) => write!(f, "{v}"),
+        }
+    }
 }
 
 impl Hash for Number {
@@ -22,6 +34,10 @@ impl Number {
         matches!(self, Number::Float(..))
     }
 
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Number::Integer(..))
+    }
+
     pub fn into_float(self) -> Self {
         match self {
             Number::Float(f) => Number::Float(f),
@@ -36,7 +52,20 @@ impl Number {
         }
     }
 
-    pub fn is_zero(&self) -> bool {
+    pub fn as_integer(&self) -> Option<i128> {
+        match self {
+            Number::Float(f) => {
+                if f.fract() == 0.0 {
+                    Some((*f) as i128)
+                } else {
+                    None
+                }
+            }
+            Number::Integer(f) => Some(*f),
+        }
+    }
+
+    pub(crate) fn is_zero(&self) -> bool {
         match self {
             Number::Float(f) => f.is_finite() && f == &0.0,
             Number::Integer(f) => f == &0i128,
