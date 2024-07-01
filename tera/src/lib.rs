@@ -7,6 +7,7 @@ mod reporting;
 mod template;
 mod tera;
 mod tests;
+mod functions;
 mod utils;
 pub mod value;
 pub(crate) mod vm;

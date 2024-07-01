@@ -6,6 +6,7 @@ use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context, HashMap};
+use crate::functions::{Function, StoredFunction};
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -26,6 +27,7 @@ pub struct Tera {
     global_context: Context,
     pub(crate) filters: HashMap<&'static str, StoredFilter>,
     pub(crate) tests: HashMap<&'static str, StoredTest>,
+    pub(crate) functions: HashMap<&'static str, StoredFunction>,
 }
 
 impl Tera {
@@ -131,6 +133,17 @@ impl Tera {
         self.tests.insert(name, StoredTest::new(test));
     }
 
+    /// Register a function with Tera.
+    ///
+    /// If a function with that name already exists, it will be overwritten
+    pub fn register_function<Func, Res>(&mut self, name: &'static str, func: Func)
+        where
+            Func: Function<Res>,
+            Res: FunctionResult,
+    {
+        self.functions.insert(name, StoredFunction::new(func));
+    }
+
     fn register_builtin_filters(&mut self) {
         self.register_filter("safe", crate::filters::safe);
         self.register_filter("default", crate::filters::default);
@@ -177,6 +190,11 @@ impl Tera {
         self.register_test("starting_with", crate::tests::is_starting_with);
         self.register_test("ending_with", crate::tests::is_ending_with);
         self.register_test("containing", crate::tests::is_containing);
+    }
+
+    fn register_builtin_functions(&mut self) {
+        self.register_function("range", crate::functions::range);
+        self.register_function("throw", crate::functions::throw);
     }
 
     /// Optimizes the templates when possible and doing some light
@@ -452,9 +470,11 @@ impl Default for Tera {
             global_context: Context::new(),
             filters: HashMap::new(),
             tests: HashMap::new(),
+            functions: HashMap::new(),
         };
         tera.register_builtin_filters();
         tera.register_builtin_tests();
+        tera.register_builtin_functions();
         tera
     }
 }

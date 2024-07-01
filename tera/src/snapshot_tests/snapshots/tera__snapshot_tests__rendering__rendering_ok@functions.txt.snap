@@ -1,0 +1,7 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/functions.txt
+---
+[0, 1]
+[-10, -8, -6, -4, -2]
