@@ -90,3 +90,5 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `indent` filter now takes a `width` param rather than `prefix`
 - `map`, `group_by` and `filter` filter will error if the attribute ends up being undefined on one of the value
 - `as_str` has been renamed to `str`
+- `object` test has been renamed `map`
+- filters now always take kwargs

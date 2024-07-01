@@ -1,0 +1,18 @@
+---
+source: tera/src/snapshot_tests/compiler.rs
+expression: s
+input_file: tera/src/snapshot_tests/compiler_inputs/blocks/nested.txt
+---
+=== nested.txt ===
+0000 RenderBlock("hello")
+
+
+>> Block: hello
+=== nested.txt ===
+0000 WriteText("body")
+0001 RenderBlock("inside_hello")
+---
+>> Block: inside_hello
+=== nested.txt ===
+0000 WriteText("more")
+---

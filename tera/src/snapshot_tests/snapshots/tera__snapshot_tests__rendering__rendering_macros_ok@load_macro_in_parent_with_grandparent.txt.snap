@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/macros/load_macro_in_parent_with_grandparent.txt
+---
+1 - Hey

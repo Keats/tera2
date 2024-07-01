@@ -245,7 +245,6 @@ impl<'tera> VirtualMachine<'tera> {
                         let val =
                             match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), &state) {
                                 Ok(v) => v,
-                                // TODO: do we need to merge everything here?
                                 Err(err) => match err.kind {
                                     ErrorKind::InvalidArgument { .. } => {
                                         rendering_error!(format!("{err}"), value_span)
@@ -254,7 +253,6 @@ impl<'tera> VirtualMachine<'tera> {
                                 },
                             };
 
-                        // TODO: Need to expand the span?
                         state
                             .stack
                             .push(val, span.as_ref().map(|c| Cow::Owned(c.clone())));
@@ -263,7 +261,29 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("This filter is not registered in Tera"), span)
                     }
                 }
-                Instruction::RunTest(_) => {}
+                Instruction::RunTest(name) => {
+                    if let Some(f) = self.tera.tests.get(name.as_str()) {
+                        let (kwargs, _) = state.stack.pop();
+                        let (value, value_span) = state.stack.pop();
+                        let val =
+                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), &state) {
+                                Ok(v) => v,
+                                Err(err) => match err.kind {
+                                    ErrorKind::InvalidArgument { .. } => {
+                                        rendering_error!(format!("{err}"), value_span)
+                                    }
+                                    _ => rendering_error!(format!("{err}"), span),
+                                },
+                            };
+
+                        state
+                            .stack
+                            .push(val.into(), span.as_ref().map(|c| Cow::Owned(c.clone())));
+                    } else {
+                        // TODO: we _should_ be able to track that at compile time
+                        rendering_error!(format!("This test is not registered in Tera"), span)
+                    }
+                }
                 Instruction::RenderMacro(idx) => {
                     let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
                     let mut context = Context::new();

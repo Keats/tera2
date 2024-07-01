@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/extends_in_body.txt
+---
+ Syntax error --> [extends_in_body.txt:1:24]
+  |
+1 | {% if true %}{% extends "a" %}{% endif %}
+  |                         ^---
+  = `extends` cannot be nested in other tags.

@@ -1,0 +1,19 @@
+---
+source: tera/src/snapshot_tests/compiler.rs
+expression: compiler.chunk
+input_file: tera/src/snapshot_tests/compiler_inputs/success/block_set.txt
+---
+=== block_set.txt ===
+0000 Capture
+0001 WriteText("\nHello ")
+0002 LoadName("world")
+0003 WriteTop
+0004 WriteText("\n")
+0005 EndCapture
+0006 BuildMap(0)
+0007 ApplyFilter("upper")
+0008 LoadConst(String("lang", Normal))
+0009 LoadConst(String("fr", Normal))
+0010 BuildMap(1)
+0011 ApplyFilter("trans")
+0012 Set("hero")

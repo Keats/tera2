@@ -1,0 +1,15 @@
+---
+source: tera/src/snapshot_tests/lexer.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/lexer_inputs/errors/unclosed_comment.txt
+---
+Error {
+    kind: SyntaxError(
+        ReportError {
+            message: "Closing comment tag `#}` not found",
+            span:  @ 1:0-1:2 (0..2),
+            report: "",
+        },
+    ),
+    source: None,
+}

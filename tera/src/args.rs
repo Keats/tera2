@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
+use crate::value::number::Number;
 use crate::value::{Key, Map};
 use crate::Value;
 
@@ -109,6 +110,16 @@ impl<'k> ArgFromValue<'k> for Value {
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
         Ok(value.clone())
+    }
+}
+
+impl<'k> ArgFromValue<'k> for Number {
+    type Output = Number;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        value
+            .as_number()
+            .ok_or_else(|| Error::invalid_arg_type("Number", value.name()))
     }
 }
 

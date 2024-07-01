@@ -6,6 +6,7 @@ mod parsing;
 mod reporting;
 mod template;
 mod tera;
+mod tests;
 mod utils;
 pub mod value;
 pub(crate) mod vm;
@@ -22,4 +23,4 @@ pub(crate) use hashbrown::{HashMap, HashSet};
 pub(crate) use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
-mod tests;
+mod snapshot_tests;

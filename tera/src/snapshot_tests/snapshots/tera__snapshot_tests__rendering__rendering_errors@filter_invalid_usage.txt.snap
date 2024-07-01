@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/rendering_inputs/errors/filter_invalid_usage.txt
+---
+ Rendering error --> ["filter_invalid_usage.txt":1:7]
+  |
+1 | {{ 1 | round(method="nope") }}
+  |        ^---
+  = Invalid argument for `method`: nope. Only `ceil` and `floor` are allowed. Do not fill this parameter if you want a classic round.

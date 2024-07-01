@@ -334,56 +334,19 @@ impl<'a> Parser<'a> {
 
     fn parse_test(&mut self, expr: Expression) -> TeraResult<Expression> {
         let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-        let mut args = Vec::new();
+        let mut kwargs = HashMap::new();
 
         // We have potentially args to handle
         if matches!(self.next, Some(Ok((Token::LeftParen, _)))) {
-            self.next_or_error()?;
-
-            if !matches!(self.next, Some(Ok((Token::RightParen, _)))) {
-                loop {
-                    args.push(self.parse_expression(0)?);
-
-                    // after an arg we have either a `,` or a `)`
-                    match self.next {
-                        Some(Ok((Token::RightParen, _))) => {
-                            break;
-                        }
-                        Some(Ok((Token::Comma, _))) => {
-                            self.next_or_error()?;
-
-                            // trailing comma
-                            if let Some(Ok((Token::RightParen, _))) = self.next {
-                                break;
-                            }
-                        }
-                        Some(Ok((ref token, ref span))) => {
-                            return Err(Error::syntax_error(
-                                format!("Found {token} but expected `)` or `,`."),
-                                span,
-                            ));
-                        }
-                        Some(Err(ref e)) => {
-                            return Err(Error {
-                                kind: e.kind.clone(),
-                                source: None,
-                            });
-                        }
-                        None => return Err(self.eoi()),
-                    };
-                }
-            }
-
-            expect_token!(self, Token::RightParen, ")")?;
+            kwargs = self.parse_kwargs()?;
         }
-
         span.expand(&self.current_span);
 
         Ok(Expression::Test(Spanned::new(
             Test {
                 expr,
                 name: name.to_string(),
-                args,
+                kwargs,
             },
             span,
         )))

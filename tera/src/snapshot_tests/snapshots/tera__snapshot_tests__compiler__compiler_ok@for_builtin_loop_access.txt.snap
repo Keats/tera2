@@ -1,0 +1,17 @@
+---
+source: tera/src/snapshot_tests/compiler.rs
+expression: compiler.chunk
+input_file: tera/src/snapshot_tests/compiler_inputs/success/for_builtin_loop_access.txt
+---
+=== for_builtin_loop_access.txt ===
+0000 LoadName("my_array")
+0001 StartIterate(false)
+0002 StoreLocal("v")
+0003 Iterate(10)
+0004 LoadName("__tera_loop_index")
+0005 WriteTop
+0006 WriteText(" ")
+0007 LoadName("v")
+0008 WriteTop
+0009 Jump(3)
+0010 PopLoop

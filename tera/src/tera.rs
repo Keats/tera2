@@ -2,6 +2,7 @@ use crate::args::ArgFromValue;
 use crate::errors::{Error, TeraResult};
 use crate::filters::{Filter, StoredFilter};
 use crate::template::{find_parents, Template};
+use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context, HashMap};
@@ -24,6 +25,7 @@ pub struct Tera {
     escape_fn: EscapeFn,
     global_context: Context,
     pub(crate) filters: HashMap<&'static str, StoredFilter>,
+    pub(crate) tests: HashMap<&'static str, StoredTest>,
 }
 
 impl Tera {
@@ -113,6 +115,22 @@ impl Tera {
         self.filters.insert(name, StoredFilter::new(filter));
     }
 
+    /// Register a test with Tera.
+    ///
+    /// If a test with that name already exists, it will be overwritten
+    ///
+    /// ```no_compile
+    /// tera.register_test("odd", |x: usize| x % 2 == 0);
+    /// ```
+    pub fn register_test<Func, Arg, Res>(&mut self, name: &'static str, test: Func)
+    where
+        Func: Test<Arg, Res> + for<'a> Test<<Arg as ArgFromValue<'a>>::Output, Res>,
+        Arg: for<'a> ArgFromValue<'a>,
+        Res: TestResult,
+    {
+        self.tests.insert(name, StoredTest::new(test));
+    }
+
     fn register_builtin_filters(&mut self) {
         self.register_filter("safe", crate::filters::safe);
         self.register_filter("default", crate::filters::default);
@@ -142,6 +160,23 @@ impl Tera {
         self.register_filter("map", crate::filters::map);
         self.register_filter("filter", crate::filters::filter);
         self.register_filter("group_by", crate::filters::group_by);
+    }
+
+    fn register_builtin_tests(&mut self) {
+        self.register_test("string", crate::tests::is_string);
+        self.register_test("number", crate::tests::is_number);
+        self.register_test("map", crate::tests::is_map);
+        self.register_test("array", crate::tests::is_array);
+        self.register_test("integer", crate::tests::is_integer);
+        self.register_test("float", crate::tests::is_float);
+        self.register_test("null", crate::tests::is_null);
+        self.register_test("undefined", crate::tests::is_undefined);
+        self.register_test("odd", crate::tests::is_odd);
+        self.register_test("even", crate::tests::is_even);
+        self.register_test("divisible_by", crate::tests::is_divisible_by);
+        self.register_test("starting_with", crate::tests::is_starting_with);
+        self.register_test("ending_with", crate::tests::is_ending_with);
+        self.register_test("containing", crate::tests::is_containing);
     }
 
     /// Optimizes the templates when possible and doing some light
@@ -416,8 +451,10 @@ impl Default for Tera {
             escape_fn: escape_html,
             global_context: Context::new(),
             filters: HashMap::new(),
+            tests: HashMap::new(),
         };
         tera.register_builtin_filters();
+        tera.register_builtin_tests();
         tera
     }
 }

@@ -1,0 +1,32 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: "&res_nodes"
+input_file: tera/src/snapshot_tests/parser_inputs/success/tags/blocks.txt
+---
+[
+    Block {
+        name: "start",
+        body: [
+            "Hello ",
+            Var {
+                name: "world",
+            } @ 2:8-2:13 (27..32),
+            "!\n  ",
+            Block {
+                name: "nested",
+                body: [
+                    "\n    Even nested!\n  ",
+                ],
+            },
+        ],
+    },
+    Block {
+        name: "second",
+        body: [
+            FunctionCall {
+                name: "super",
+                kwargs: {},
+            } @ 8:31-8:38 (139..146),
+        ],
+    },
+]

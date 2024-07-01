@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/rendering_inputs/errors/invalid_map_key_access.txt
+---
+ Rendering error --> ["invalid_map_key_access.txt":1:11]
+  |
+1 | {{ product[weights] }}
+  |            ^---
+  = `undefined` cannot be a key of a map/struct: only be integers, bool or strings are allowed

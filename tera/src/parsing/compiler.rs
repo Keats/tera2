@@ -108,11 +108,7 @@ impl<'s> Compiler<'s> {
             Expression::Test(e) => {
                 let (test, span) = e.into_parts();
                 self.compile_expr(test.expr);
-                let num_args = test.args.len();
-                for arg in test.args {
-                    self.compile_expr(arg);
-                }
-                self.chunk.add(Instruction::BuildList(num_args), None);
+                self.compile_kwargs(test.kwargs);
                 self.chunk.add(Instruction::RunTest(test.name), Some(span));
             }
             Expression::Ternary(e) => {

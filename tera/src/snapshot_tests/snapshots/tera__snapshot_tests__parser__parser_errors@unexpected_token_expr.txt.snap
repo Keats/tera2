@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_token_expr.txt
+---
+ Syntax error --> [unexpected_token_expr.txt:1:14]
+  |
+1 | {{ a is upper(,) }}
+  |               ^---
+  = Found `,` but expected identifier.

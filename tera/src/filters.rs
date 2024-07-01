@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
+use crate::value::number::Number;
 use crate::value::{FunctionResult, Key, Map};
 use crate::vm::state::State;
 use crate::{HashMap, Value};
@@ -149,7 +150,6 @@ pub(crate) fn indent(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String>
 
     let indent = " ".repeat(width);
     let mut res = String::with_capacity(val.len() * 2);
-    println!("{val:?}");
 
     let mut first_line = true;
     for line in val.lines() {
@@ -179,8 +179,8 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let base = kwargs.get::<u32>("base")?.unwrap_or(10);
 
     let handle_f64 = |v: f64| {
-        if v.fract() == 0.0 {
-            Ok((v as i128).into())
+        if let Some(i) = Number::Float(v).as_integer() {
+            Ok(i.into())
         } else {
             Err(Error::message(format!(
                 "The float {v} would have to be truncated to convert to an int"

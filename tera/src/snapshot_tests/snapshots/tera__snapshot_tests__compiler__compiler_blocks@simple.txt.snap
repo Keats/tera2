@@ -1,0 +1,20 @@
+---
+source: tera/src/snapshot_tests/compiler.rs
+expression: s
+input_file: tera/src/snapshot_tests/compiler_inputs/blocks/simple.txt
+---
+=== simple.txt ===
+0000 RenderBlock("hello")
+0001 WriteText("\n")
+0002 RenderBlock("other")
+0003 WriteText("\n")
+
+
+>> Block: hello
+=== simple.txt ===
+0000 WriteText("body")
+---
+>> Block: other
+=== simple.txt ===
+0000 WriteText("more")
+---
