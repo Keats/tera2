@@ -123,11 +123,7 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        // TODO later: tests/filters/fns
-        // println!("{:?}", self.template.macro_calls_def);
-        // println!("{:?}", state.chunk);
         while let Some((instr, span)) = state.chunk.get(ip) {
-            // println!("{}. {}' {:?}", state.chunk.name, ip, instr);
             match instr {
                 Instruction::LoadConst(v) => {
                     state.stack.push_borrowed(v.clone(), span.as_ref().unwrap())
@@ -265,7 +261,6 @@ impl<'tera> VirtualMachine<'tera> {
                                     _ => rendering_error!(format!("{err}"), span),
                                 },
                             };
-
                         state
                             .stack
                             .push(val, span.as_ref().map(|c| Cow::Owned(c.clone())));
@@ -329,7 +324,7 @@ impl<'tera> VirtualMachine<'tera> {
                     )?;
                     state
                         .stack
-                        .push_borrowed(Value::from(val), span.as_ref().unwrap());
+                        .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;

@@ -54,6 +54,7 @@ fn get_context() -> Context {
     context.insert("one", &1);
     context.insert("product", &Product::new());
     context.insert("vectors", &vec![vec![0, 3, 6], vec![1, 4, 7]]);
+    context.insert("numbers", &vec![1, 2, 3]);
     context.insert("empty", &Vec::<usize>::new());
     let parent = NestedObject {
         label: "Parent".to_string(),

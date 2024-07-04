@@ -386,6 +386,7 @@ impl<'s> Compiler<'s> {
                 self.compile_kwargs(f.kwargs);
                 self.chunk
                     .add(Instruction::ApplyFilter(f.name.into_parts().0), None);
+                self.chunk.add(Instruction::WriteTop, None);
             }
         }
     }

@@ -1,0 +1,6 @@
+{% set var = 2 -%} {{var}}
+  {% set var = 2 -%} {{var}}
+ {% raw -%} {{2}} {% endraw %}
+{% filter upper -%} hey {%- endfilter %}
+  {{- "hello" }}
+{#- "hello" -#}

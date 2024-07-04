@@ -1,0 +1,4 @@
+$$ top
+{% filter upper %}hello {% block main %}top{% endblock main %}{% endfilter %}
+$$ bottom
+{% extends 'top' %}{% block main %}bottom{% endblock %}

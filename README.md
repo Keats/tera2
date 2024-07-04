@@ -42,10 +42,10 @@ TODO:
   - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [x] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
   - [ ] Finish VM
-- [ ] Design filters/functions/tests types
-- [ ] Implement basic builtin filters/functions/tests
-- [ ] Add filters/functions/tests to VM
-- [ ] Uncomment all tests using filters/functions/tests
+- [x] Design filters/functions/tests types
+- [x] Implement basic builtin filters/functions/tests
+- [x] Add filters/functions/tests to VM
+- [x] Uncomment all tests using filters/functions/tests
 - [x] Parsing errors should report with the source context like Rust errors with the right spans
 - [ ] Add more helpful errors when loading templates (eg a forloop with for key, key in value/missing includes etc)
 - [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola

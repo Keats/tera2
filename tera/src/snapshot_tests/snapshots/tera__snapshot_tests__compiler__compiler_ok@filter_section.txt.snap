@@ -14,3 +14,4 @@ input_file: tera/src/snapshot_tests/compiler_inputs/success/filter_section.txt
 0007 LoadConst(String("fr", Normal))
 0008 BuildMap(1)
 0009 ApplyFilter("capitalize")
+0010 WriteTop

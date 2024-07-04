@@ -1,8 +1,7 @@
 ---
-source: tests/basic.rs
+source: tera/tests/basic.rs
 expression: out
 ---
-
 <!DOCTYPE html>
 <html lang="en-gb">
 <head>
@@ -24,49 +23,49 @@ expression: out
 
         
 
-&lt;ul&gt;
+<ul>
 
-    &lt;li&gt;1. Hello world&lt;/li&gt;
+    <li>1. Hello world</li>
 
-    &lt;li&gt;2. Hello world&lt;/li&gt;
+    <li>2. Hello world</li>
 
-    &lt;li&gt;3. Hello world&lt;/li&gt;
+    <li>3. Hello world</li>
 
-    &lt;li&gt;4. Hello world&lt;/li&gt;
+    <li>4. Hello world</li>
 
-    &lt;li&gt;5. Hello world&lt;/li&gt;
+    <li>5. Hello world</li>
 
-    &lt;li&gt;6. Hello world&lt;/li&gt;
+    <li>6. Hello world</li>
 
-    &lt;li&gt;7. Hello world&lt;/li&gt;
+    <li>7. Hello world</li>
 
-    &lt;li&gt;8. Hello world&lt;/li&gt;
+    <li>8. Hello world</li>
 
-    &lt;li&gt;9. Hello world&lt;/li&gt;
+    <li>9. Hello world</li>
 
-    &lt;li&gt;10. Hello world&lt;/li&gt;
+    <li>10. Hello world</li>
 
-    &lt;li&gt;11. Hello world&lt;/li&gt;
+    <li>11. Hello world</li>
 
-    &lt;li&gt;12. Hello world&lt;/li&gt;
+    <li>12. Hello world</li>
 
-    &lt;li&gt;13. Hello world&lt;/li&gt;
+    <li>13. Hello world</li>
 
-    &lt;li&gt;14. Hello world&lt;/li&gt;
+    <li>14. Hello world</li>
 
-    &lt;li&gt;15. Hello world&lt;/li&gt;
+    <li>15. Hello world</li>
 
-    &lt;li&gt;16. Hello world&lt;/li&gt;
+    <li>16. Hello world</li>
 
-    &lt;li&gt;17. Hello world&lt;/li&gt;
+    <li>17. Hello world</li>
 
-    &lt;li&gt;18. Hello world&lt;/li&gt;
+    <li>18. Hello world</li>
 
-    &lt;li&gt;19. Hello world&lt;/li&gt;
+    <li>19. Hello world</li>
 
-    &lt;li&gt;20. Hello world&lt;/li&gt;
+    <li>20. Hello world</li>
 
-&lt;/ul&gt;
+</ul>
 
 
         

@@ -154,5 +154,5 @@ fn rendering_realistic_benchmark() {
     ctx.insert("items", &items);
     ctx.insert("show_ad", &true);
     let out = tera.render("page.html", &ctx).unwrap();
-    insta::assert_display_snapshot!(out);
+    insta::assert_snapshot!(out);
 }
