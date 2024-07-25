@@ -43,3 +43,5 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "name" | read_ctx }}
 {{ "vectors.1.2" | read_ctx }}
 {{ "objects.0.label" | read_ctx }}
+{{ data | get(key="names") }}
+{{ data | get(key="ages", default=[1]) }}

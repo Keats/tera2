@@ -123,6 +123,17 @@ impl<'k> ArgFromValue<'k> for Number {
     }
 }
 
+impl<'k> ArgFromValue<'k> for Map {
+    type Output = Map;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        value
+            .as_map()
+            .cloned()
+            .ok_or_else(|| Error::invalid_arg_type("Map", value.name()))
+    }
+}
+
 impl<'k, T: ArgFromValue<'k, Output = T>> ArgFromValue<'k> for Vec<T> {
     type Output = Vec<T>;
 
