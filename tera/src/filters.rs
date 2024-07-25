@@ -422,6 +422,22 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<
     Ok(res)
 }
 
+pub(crate) fn get(val: Map, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
+    let key = kwargs.must_get::<&str>("key")?;
+    let default = kwargs.get::<Value>("default")?;
+    if let Some(val_found) = val.get(&Key::Str(key)) {
+        Ok(val_found.clone())
+    } else {
+        if let Some(d) = default {
+            Ok(d)
+        } else {
+            return Err(Error::message(format!(
+                "Map does not a key {key} and no default values were defined"
+            )));
+        }
+    }
+}
+
 pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(val);
@@ -437,7 +453,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
             // TODO: should we error or not?
             Value::Undefined => {
                 return Err(Error::message(format!(
-                    "Value {v} does not an attribute after following path; {attribute}"
+                    "Value {v} does not an attribute after following path: {attribute}"
                 )));
             }
             x => {
