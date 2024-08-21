@@ -32,7 +32,7 @@ TODO:
 - [x] Add a Tera object that holds all the templates
 - [x] Do the equivalent of `build_inheritance_chains` from v1. Maybe create a new VerifiedTemplate or whatever?
 - [ ] Implement basic VM without filters/functions/tests
-  - [ ] Port all the corresponding tests from Tera v1 + some more
+  - [x] Port all the corresponding tests from Tera v1 + some more
   - [x] Ensure variables used in {{ }} are defined (vs if/tests where undefined are just falsy?)
   - [x] Fix bytecode generation when it's wrong
   - [x] Allow anything that can be converted to a key as a key for inline maps (eg add bool/integers)
@@ -41,14 +41,14 @@ TODO:
   - [ ] Improve perf till it's better than Tera v1
   - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
   - [x] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
-  - [ ] Finish VM
+  - [x] Finish VM
 - [x] Design filters/functions/tests types
 - [x] Implement basic builtin filters/functions/tests
 - [x] Add filters/functions/tests to VM
 - [x] Uncomment all tests using filters/functions/tests
 - [x] Parsing errors should report with the source context like Rust errors with the right spans
 - [ ] Add more helpful errors when loading templates (eg a forloop with for key, key in value/missing includes etc)
-- [ ] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
+- [x] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
 - [ ] Feature to load templates from a glob with optional dep
 - [x] MAYBE: add a way to add global context to the Tera struct that are passed on every render automatically
 - [ ] Shitload of tests
