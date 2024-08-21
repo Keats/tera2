@@ -8,7 +8,6 @@ use crate::value::{Key, Map};
 use crate::vm::state::State;
 use crate::{HashMap, Value};
 
-
 pub trait TestResult {
     fn into_result(self) -> TeraResult<bool>;
 }

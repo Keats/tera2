@@ -20,3 +20,5 @@ Hello
 {{ 2.1 / 0.5 }}
 {{ true and 10 }}
 {{ true and not 10 }}
+{{ ['up', 'down', 'left', 'right'][1] }}
+{{ {"hello": "world"}["hello"] }}

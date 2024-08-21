@@ -105,6 +105,8 @@
 {{ (person in groupA) and person in groupB }}
 {{ (query.tags ~ ' ' ~ tags) | trim }}
 {{ a and a is containing(pat='a') or b and b is containing(pat='b') }}
+{{ ['up', 'down', 'left', 'right'][1] }}
+{{ {"hello": "world"}["hello"] }}
 
 // Macro calls
 {{ macros::input(label='Name', type='text') }}

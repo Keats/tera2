@@ -1,9 +1,11 @@
 import dis
+import ast
 
 text = """
-"majeur" if age >= 18 else "mineur"
+[1,2,3][0]
 """
 
+print(ast.dump(ast.parse(text)))
 print(dis.dis(text))
 
 """
