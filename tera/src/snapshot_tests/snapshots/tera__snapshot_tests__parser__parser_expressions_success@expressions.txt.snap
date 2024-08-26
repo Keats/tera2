@@ -86,6 +86,8 @@ three' indent{})
 (and (in person groupA) (in person groupB))
 (| (~ (~ query.tags ' ') tags) trim{})
 (and (or (and a (is a containing{pat='a'})) b) (is b containing{pat='b'}))
+["up", "down", "left", "right"][1]
+{hello: 'world'}['hello']
 macros::input{label='Name', type='text'}
 (| macros::input{} safe{})
 macros::input{n=(- a 1)}

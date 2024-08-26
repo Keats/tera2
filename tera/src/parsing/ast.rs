@@ -4,7 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
-use crate::value::{Key, Value};
+use crate::value::{format_map, Key, Value};
 use crate::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,12 +90,11 @@ impl fmt::Display for BinaryOperator {
 pub enum Expression {
     /// A constant: string, number, boolean, array or null
     Const(Spanned<Value>),
-    /// An array that contains things not
+    /// An array that contains things that we need to look up in the context
     Array(Spanned<Array>),
-    /// A hashmap defined in the template
+    /// A hashmap defined in the template where we need to look up in the context
     Map(Spanned<Map>),
     /// A variable to look up in the context.
-    /// Note that
     Var(Spanned<Var>),
     /// The `.` getter, as in item.field
     GetAttr(Spanned<GetAttr>),
@@ -116,6 +115,14 @@ pub enum Expression {
 impl Expression {
     pub fn is_literal(&self) -> bool {
         matches!(self, Expression::Const(..))
+    }
+
+    pub fn is_array_or_map_literal(&self) -> bool {
+        match self {
+            Expression::Const(c) => c.as_map().is_some() || c.as_vec().is_some(),
+            Expression::Map(_) | Expression::Array(_) => true,
+            _ => false,
+        }
     }
 
     pub(crate) fn as_value(&self) -> Option<Value> {
@@ -202,6 +209,9 @@ impl fmt::Display for Expression {
                 Value::String(s, _) => write!(f, "'{}'", *s),
                 Value::I64(s) => write!(f, "{}", *s),
                 Value::F64(s) => write!(f, "{}", *s),
+                Value::U64(s) => write!(f, "{}", *s),
+                Value::U128(s) => write!(f, "{}", *s),
+                Value::I128(s) => write!(f, "{}", *s),
                 Value::Bool(s) => write!(f, "{}", *s),
                 Value::Array(s) => {
                     write!(f, "[")?;
@@ -217,7 +227,17 @@ impl fmt::Display for Expression {
                     write!(f, "]")
                 }
                 Value::Null => write!(f, "null"),
-                _ => unreachable!(),
+                Value::Undefined => write!(f, "undefined"),
+                Value::Bytes(_) => write!(f, "<bytes>"),
+                Value::Map(s) => {
+                    let mut buf: Vec<u8> = Vec::new();
+                    format_map(s, &mut buf).expect("failed to write map to vec");
+                    write!(
+                        f,
+                        "{}",
+                        std::str::from_utf8(&buf).expect("valid utf-8 in display")
+                    )
+                }
             },
             Map(i) => write!(f, "{}", **i),
             Array(i) => write!(f, "{}", **i),

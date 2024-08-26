@@ -27,6 +27,30 @@ pub type Map = HashMap<Key<'static>, Value>;
 #[cfg(feature = "preserve_order")]
 pub type Map = IndexMap<Key<'static>, Value>;
 
+#[inline]
+pub(crate) fn format_map(map: &Map, f: &mut impl std::io::Write) -> std::io::Result<()> {
+    let mut key_val: Box<_> = map.iter().collect();
+    // Keys are sorted to have deterministic output
+    // TODO: Consider using sort_unstable_by_key
+    key_val.sort_by_key(|elem| elem.0);
+    f.write_all(b"{")?;
+    for (idx, (key, value)) in key_val.iter().enumerate() {
+        if idx > 0 {
+            f.write_all(b", ")?;
+        }
+        key.format(f)?;
+        f.write_all(b": ")?;
+        if value.as_str().is_some() {
+            f.write_all(b"'")?;
+        }
+        value.format(f)?;
+        if value.as_str().is_some() {
+            f.write_all(b"'")?;
+        }
+    }
+    f.write_all(b"}")
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum StringKind {
     Normal,
@@ -173,19 +197,11 @@ impl Value {
             Value::Array(v) => {
                 let mut it = v.iter();
                 f.write_all(b"[")?;
-                // First value
-                if let Some(elem) = it.next() {
-                    if elem.as_str().is_some() {
-                        f.write_all(b"'")?;
+
+                for (idx, elem) in v.iter().enumerate() {
+                    if idx > 0 {
+                        f.write_all(b", ")?;
                     }
-                    elem.format(f)?;
-                    if elem.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                }
-                // Every other value
-                for elem in it {
-                    f.write_all(b", ")?;
                     if elem.as_str().is_some() {
                         f.write_all(b"'")?;
                     }
@@ -196,40 +212,7 @@ impl Value {
                 }
                 f.write_all(b"]")
             }
-            Value::Map(v) => {
-                let mut key_val: Box<_> = v.iter().collect();
-                // Keys are sorted to have deterministic output
-                // TODO: Consider using sort_unstable_by_key
-                key_val.sort_by_key(|elem| elem.0);
-                let mut it = key_val.iter();
-                f.write_all(b"{")?;
-                // First value
-                if let Some((key, value)) = it.next() {
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    if value.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                    value.format(f)?;
-                    if value.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                }
-                // Every other value
-                for (key, value) in it {
-                    f.write_all(b", ")?;
-                    key.format(f)?;
-                    f.write_all(b": ")?;
-                    if value.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                    value.format(f)?;
-                    if value.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                }
-                f.write_all(b"}")
-            }
+            Value::Map(v) => format_map(v, f),
             Value::F64(v) => {
                 #[cfg(feature = "no-fmt")]
                 {

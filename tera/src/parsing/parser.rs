@@ -179,6 +179,29 @@ impl<'a> Parser<'a> {
             .any(|b| *b == BodyContext::ForLoop)
     }
 
+    // Parse something in brackets [..] after an ident or a literal array/map
+    fn parse_subscript(&mut self, expr: Expression) -> TeraResult<Expression> {
+        expect_token!(self, Token::LeftBracket, "[")?;
+        self.num_left_brackets += 1;
+        if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
+            return Err(Error::syntax_error(
+                format!("Identifiers can only have up to {MAX_NUM_LEFT_BRACKETS} nested brackets."),
+                &self.current_span,
+            ));
+        }
+
+        let sub_expr = self.parse_expression(0)?;
+        let mut span = expr.span().clone();
+        span.expand(&self.current_span);
+
+        let expr = Expression::GetItem(Spanned::new(GetItem { expr, sub_expr }, span));
+
+        expect_token!(self, Token::RightBracket, "]")?;
+        self.num_left_brackets -= 1;
+
+        Ok(expr)
+    }
+
     /// Can be just an ident or a macro call/fn
     fn parse_ident(&mut self, ident: &str) -> TeraResult<Expression> {
         let mut start_span = self.current_span.clone();
@@ -226,26 +249,9 @@ impl<'a> Parser<'a> {
                         ));
                     }
                 }
+                // Subscript
                 Some(Ok((Token::LeftBracket, _))) => {
-                    expect_token!(self, Token::LeftBracket, "[")?;
-                    self.num_left_brackets += 1;
-                    if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
-                        return Err(Error::syntax_error(
-                            format!("Identifiers can only have up to {MAX_NUM_LEFT_BRACKETS} nested brackets."),
-                            &self.current_span,
-                        ));
-                    }
-
-                    let sub_expr = self.parse_expression(0)?;
-                    start_span.expand(&self.current_span);
-
-                    expr = Expression::GetItem(Spanned::new(
-                        GetItem { expr, sub_expr },
-                        start_span.clone(),
-                    ));
-
-                    expect_token!(self, Token::RightBracket, "]")?;
-                    self.num_left_brackets -= 1;
+                    expr = self.parse_subscript(expr)?;
                 }
                 // Function
                 Some(Ok((Token::LeftParen, _))) => {
@@ -542,6 +548,16 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
+                // A subscript. Should only be here after a literal array or map
+                Token::LeftBracket => {
+                    if !lhs.is_array_or_map_literal() {
+                        return Err(Error::syntax_error(
+                            format!("Subscript is only allowed after a map or array literal"),
+                            &self.current_span,
+                        ));
+                    }
+                    return self.parse_subscript(lhs);
+                }
                 // A ternary
                 Token::Ident("if") => {
                     self.next_or_error()?;
