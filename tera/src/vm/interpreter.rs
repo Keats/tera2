@@ -526,6 +526,15 @@ impl<'tera> VirtualMachine<'tera> {
 
     pub(crate) fn render(&mut self, context: &Context) -> TeraResult<String> {
         let mut output = Vec::with_capacity(self.template.size_hint());
+        self.render_to(context, &mut output)?;
+        Ok(String::from_utf8(output)?)
+    }
+
+    pub(crate) fn render_to(
+        &mut self,
+        context: &Context,
+        mut output: impl Write,
+    ) -> TeraResult<()> {
         // TODO(perf): can we optimize this at the bytecode level to avoid hashmap lookups?
         let chunk = if let Some(base_tpl_name) = self.template.parents.first() {
             let tpl = self.tera.get_template(base_tpl_name)?;
@@ -534,8 +543,6 @@ impl<'tera> VirtualMachine<'tera> {
             &self.template.chunk
         };
         let mut state = State::new(context, chunk);
-
-        self.interpret(&mut state, &mut output)?;
-        Ok(String::from_utf8(output)?)
+        self.interpret(&mut state, &mut output)
     }
 }

@@ -156,3 +156,15 @@ fn rendering_realistic_benchmark() {
     let out = tera.render("page.html", &ctx).unwrap();
     insta::assert_snapshot!(out);
 }
+
+#[test]
+fn can_render_to_write() {
+    let mut tera = Tera::default();
+    tera.add_raw_templates(vec![("hello", "Hello {{name}}")])
+        .unwrap();
+    let mut ctx = Context::new();
+    ctx.insert("name", &"Bob");
+    let mut out = Vec::new();
+    tera.render_to("hello", &ctx, &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "Hello Bob")
+}
