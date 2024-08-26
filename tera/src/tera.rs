@@ -7,6 +7,7 @@ use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context, HashMap};
+use std::io::Write;
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -391,6 +392,45 @@ impl Tera {
         let mut ctx = self.global_context.clone();
         ctx.extend(context.clone());
         vm.render(&ctx)
+    }
+
+    /// Renders a Tera template given a [`Context`] to something that implements [`Write`].
+    ///
+    /// The only difference from [`render()`](Self::render) is that this version doesn't convert
+    /// buffer to a String, allowing to render directly to anything that implements [`Write`]. For
+    /// example, this could be used to write directly to a [`File`](std::fs::File).
+    ///
+    /// Any I/O error will be reported in the result.
+    ///
+    /// # Examples
+    ///
+    /// Rendering into a `Vec<u8>`:
+    ///
+    /// ```
+    /// # use tera::{Context, Tera};
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template("index.html", "<p>{{ name }}</p>");
+    ///
+    /// // Rendering a template to an internal buffer
+    /// let mut buffer = Vec::new();
+    /// let mut context = Context::new();
+    /// context.insert("name", "John Wick");
+    /// tera.render_to("index.html", &context, &mut buffer).unwrap();
+    /// assert_eq!(buffer, b"<p>John Wick</p>");
+    /// ```
+    pub fn render_to(
+        &self,
+        template_name: &str,
+        context: &Context,
+        write: impl Write,
+    ) -> TeraResult<()> {
+        let template = self.get_template(template_name)?;
+        let mut vm = VirtualMachine::new(self, template);
+        // POC implementation of a global context
+        // TODO: Optimize this with removing .clones()
+        let mut ctx = self.global_context.clone();
+        ctx.extend(context.clone());
+        vm.render_to(&ctx, write)
     }
 
     /// Returns the global context, allowing modifications to it
