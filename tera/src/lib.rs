@@ -17,6 +17,8 @@ pub use context::Context;
 pub use parsing::parser::Parser;
 pub use utils::escape_html;
 pub use value::Value;
+pub use value::number::Number;
+pub use vm::state::State;
 
 #[cfg(ahash)]
 pub(crate) use hashbrown::{HashMap, HashSet};

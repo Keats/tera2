@@ -5,6 +5,7 @@ use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 
 /// Simpler representation of numbers so operations are simpler to handle
+/// Also can be used for custom filters/tests/fn when you want to ensure you get a number
 #[derive(Debug, Copy, Clone)]
 pub enum Number {
     Integer(i128),

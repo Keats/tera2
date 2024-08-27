@@ -503,31 +503,27 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parsing::Chunk;
     use crate::value::Map;
     use crate::Context;
 
     #[test]
     fn test_upper() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(upper("hello", Kwargs::default(), &state), "HELLO");
     }
 
     #[test]
     fn test_lower() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(lower("HELLO", Kwargs::default(), &state), "hello");
     }
 
     #[test]
     fn test_trim() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(
             trim("  hello  ", Kwargs::default(), &state).unwrap(),
             "hello"
@@ -543,8 +539,7 @@ mod tests {
     #[test]
     fn test_trim_start() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(
             trim_start("  hello  ", Kwargs::default(), &state).unwrap(),
             "hello  "
@@ -560,8 +555,7 @@ mod tests {
     #[test]
     fn test_trim_end() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(
             trim_end("  hello  ", Kwargs::default(), &state).unwrap(),
             "  hello"
@@ -577,8 +571,7 @@ mod tests {
     #[test]
     fn test_replace() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         let mut map = Map::new();
         map.insert("from".into(), "$".into());
         map.insert("to".into(), "€".into());
@@ -591,16 +584,14 @@ mod tests {
     #[test]
     fn test_capitalize() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(capitalize("HELLO", Kwargs::default(), &state), "Hello");
     }
 
     #[test]
     fn test_title() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         let tests = vec![
             ("foo bar", "Foo Bar"),
             ("foo\tbar", "Foo\tBar"),
@@ -627,8 +618,7 @@ mod tests {
     #[test]
     fn test_str() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(str((2.1).into(), Kwargs::default(), &state), "2.1");
         assert_eq!(str(2.into(), Kwargs::default(), &state), "2");
         assert_eq!(str(true.into(), Kwargs::default(), &state), "true");
@@ -648,8 +638,7 @@ mod tests {
     #[test]
     fn test_int() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         // String to int
         let tests: Vec<(&str, i64)> = vec![
             ("0", 0),
@@ -688,8 +677,7 @@ mod tests {
     #[test]
     fn test_float() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(
             float("1".into(), Kwargs::default(), &state).unwrap(),
             1.0.into()
@@ -715,8 +703,7 @@ mod tests {
     #[test]
     fn test_abs() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(abs(1.into(), Kwargs::default(), &state).unwrap(), 1.into());
         assert_eq!(
             abs((-1i64).into(), Kwargs::default(), &state).unwrap(),
@@ -733,8 +720,7 @@ mod tests {
     #[test]
     fn test_round() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         assert_eq!(
             round((2.1).into(), Kwargs::default(), &state).unwrap(),
             2.into()
@@ -765,8 +751,7 @@ mod tests {
     #[test]
     fn test_slice() {
         let ctx = Context::new();
-        let chunk = Chunk::new("dummy");
-        let state = State::new(&ctx, &chunk);
+        let state = State::new(&ctx);
         let v: Vec<Value> = vec![1, 2, 3, 4, 5].into_iter().map(Into::into).collect();
 
         let inputs = vec![

@@ -127,7 +127,7 @@ fn rendering_ok() {
             state.get_from_path(x)
         });
         let out = tera.render(&p, &get_context()).unwrap();
-        insta::assert_display_snapshot!(&out);
+        insta::assert_snapshot!(&out);
     });
 }
 
@@ -138,7 +138,7 @@ fn rendering_inheritance_ok() {
         let contents = std::fs::read_to_string(path).unwrap();
         let (tera, tpl_name) = create_multi_templates_tera(&contents);
         let out = tera.render(&tpl_name, &get_context()).unwrap();
-        insta::assert_display_snapshot!(&out);
+        insta::assert_snapshot!(&out);
     });
 }
 
@@ -149,7 +149,7 @@ fn rendering_macros_ok() {
         let contents = std::fs::read_to_string(path).unwrap();
         let (tera, tpl_name) = create_multi_templates_tera(&contents);
         let out = tera.render(&tpl_name, &get_context()).unwrap();
-        insta::assert_display_snapshot!(&out);
+        insta::assert_snapshot!(&out);
     });
 }
 
@@ -162,7 +162,7 @@ fn rendering_errors() {
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
         let err = tera.render(&p, &get_context()).unwrap_err();
-        insta::assert_display_snapshot!(&err);
+        insta::assert_snapshot!(&err);
     });
 }
 
@@ -178,5 +178,5 @@ fn can_iterate_on_graphemes() {
     context.insert("string", "a\r\nb🇺🇳🇮🇨");
     let out = tera.render("tpl", &context).unwrap();
 
-    insta::assert_display_snapshot!(&out);
+    insta::assert_snapshot!(&out);
 }

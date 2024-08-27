@@ -195,7 +195,6 @@ impl Value {
                 }
             }
             Value::Array(v) => {
-                let mut it = v.iter();
                 f.write_all(b"[")?;
 
                 for (idx, elem) in v.iter().enumerate() {

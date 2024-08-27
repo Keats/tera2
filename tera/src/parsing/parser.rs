@@ -101,7 +101,6 @@ pub struct ParserOutput {
 }
 
 pub struct Parser<'a> {
-    source: &'a str,
     lexer: Peekable<Box<dyn Iterator<Item = Result<(Token<'a>, Span), Error>> + 'a>>,
     // The next token/span tuple.
     next: Option<Result<(Token<'a>, Span), Error>>,
@@ -124,7 +123,6 @@ impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Self {
         let iter = Box::new(tokenize(source)) as Box<dyn Iterator<Item = _>>;
         Self {
-            source,
             lexer: iter.peekable(),
             next: None,
             current_span: Span::default(),

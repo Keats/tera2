@@ -218,5 +218,6 @@ mod tests {
 
         let data: Data = kwargs.deserialize().unwrap();
         assert_eq!(data.num, 1.1);
+        assert_eq!(data.hello, "world");
     }
 }

@@ -11,6 +11,6 @@ fn build_errors() {
         let tpls = split_multi_templates(&contents);
         let mut tera = Tera::default();
         let err = tera.add_raw_templates(tpls).unwrap_err();
-        insta::assert_display_snapshot!(&err);
+        insta::assert_snapshot!(&err);
     });
 }

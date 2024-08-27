@@ -4,7 +4,7 @@ use std::fmt;
 use crate::parsing::ast::{Expression, MacroDefinition, Node};
 use crate::parsing::parser::Parser;
 use crate::template::Template;
-use crate::utils::{Span, Spanned};
+use crate::utils::Spanned;
 use crate::value::Value;
 
 struct Expressions(pub Vec<Expression>);
@@ -32,7 +32,7 @@ fn parser_expressions_success() {
             }
         }
         if !expr_nodes.is_empty() {
-            insta::assert_display_snapshot!(Expressions(expr_nodes));
+            insta::assert_snapshot!(Expressions(expr_nodes));
         }
     });
 }
@@ -46,7 +46,7 @@ fn parser_errors() {
             &contents,
             None,
         );
-        insta::assert_display_snapshot!(res.unwrap_err());
+        insta::assert_snapshot!(res.unwrap_err());
     });
 }
 
@@ -67,7 +67,7 @@ fn parser_macros_success() {
             }
         }
         if !expr_nodes.is_empty() {
-            insta::assert_display_snapshot!(Expressions(expr_nodes));
+            insta::assert_snapshot!(Expressions(expr_nodes));
         }
     });
 }

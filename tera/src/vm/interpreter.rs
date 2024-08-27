@@ -123,7 +123,7 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        while let Some((instr, span)) = state.chunk.get(ip) {
+        while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
             match instr {
                 Instruction::LoadConst(v) => {
                     state.stack.push_borrowed(v.clone(), span.as_ref().unwrap())
@@ -224,7 +224,7 @@ impl<'tera> VirtualMachine<'tera> {
                         }
 
                         let block_chunk = blocks[level + 1];
-                        let old_chunk = std::mem::replace(&mut state.chunk, block_chunk);
+                        let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
                         state.blocks.insert(current_block_name, (blocks, level + 1));
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
@@ -332,7 +332,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
                     let block_chunk = block_lineage[0];
-                    let old_chunk = std::mem::replace(&mut state.chunk, block_chunk);
+                    let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
                     state.blocks.insert(block_name, (block_lineage, 0));
                     let old_block_name =
                         std::mem::replace(&mut state.current_block_name, Some(block_name));
@@ -498,7 +498,7 @@ impl<'tera> VirtualMachine<'tera> {
             template: tpl,
         };
 
-        let mut state = State::new(&context, &macro_def.chunk);
+        let mut state = State::new_with_chunk(&context, &macro_def.chunk);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 
@@ -518,7 +518,7 @@ impl<'tera> VirtualMachine<'tera> {
         };
 
         // We create a dummy state for variables to be written to, but we don't keep it around
-        let mut include_state = State::new(state.context, &tpl.chunk);
+        let mut include_state = State::new_with_chunk(state.context, &tpl.chunk);
         include_state.include_parent = Some(state);
         vm.interpret(&mut include_state, output)?;
         Ok(())
@@ -542,7 +542,7 @@ impl<'tera> VirtualMachine<'tera> {
         } else {
             &self.template.chunk
         };
-        let mut state = State::new(context, chunk);
+        let mut state = State::new_with_chunk(context, chunk);
         self.interpret(&mut state, &mut output)
     }
 }
