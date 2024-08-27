@@ -16,8 +16,8 @@ pub use crate::tera::{EscapeFn, Tera};
 pub use context::Context;
 pub use parsing::parser::Parser;
 pub use utils::escape_html;
-pub use value::Value;
 pub use value::number::Number;
+pub use value::Value;
 pub use vm::state::State;
 
 #[cfg(ahash)]

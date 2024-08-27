@@ -158,13 +158,13 @@ impl Serializer for ValueSerializer {
 
     fn serialize_tuple_variant(
         self,
-        name: &'static str,
+        _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
         Ok(SerializeTupleVariant {
-            name,
+            name: variant,
             fields: Vec::with_capacity(len),
         })
     }
