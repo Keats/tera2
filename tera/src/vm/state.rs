@@ -10,9 +10,10 @@ use std::collections::BTreeMap;
 /// We pass it around rather than put it on the VM to avoid multiple borrow issues
 /// when dealing with inheritance.
 #[derive(Debug)]
-pub(crate) struct State<'tera> {
+pub struct State<'tera> {
     pub(crate) stack: Stack<'tera>,
-    pub(crate) chunk: &'tera Chunk,
+    /// It can be None for things like tests as we don't expose Chunk outside of the crate
+    pub(crate) chunk: Option<&'tera Chunk>,
     pub(crate) for_loops: Vec<ForLoop>,
     /// Any variables with {% set %} outside a for loop or {% set_global %} will be stored here
     /// Locals set in a for loop are set in `for_loops`
@@ -29,13 +30,19 @@ pub(crate) struct State<'tera> {
 }
 
 impl<'t> State<'t> {
-    pub(crate) fn new(context: &'t Context, chunk: &'t Chunk) -> Self {
+    pub(crate) fn new_with_chunk(context: &'t Context, chunk: &'t Chunk) -> Self {
+        let mut s = Self::new(context);
+        s.chunk = Some(chunk);
+        s
+    }
+
+    pub fn new(context: &'t Context) -> Self {
         Self {
             stack: Stack::new(),
             for_loops: Vec::with_capacity(4),
             set_variables: BTreeMap::new(),
             context,
-            chunk,
+            chunk: None,
             capture_buffers: Vec::with_capacity(4),
             include_parent: None,
             blocks: BTreeMap::new(),
@@ -44,7 +51,7 @@ impl<'t> State<'t> {
     }
 
     pub(crate) fn current_tpl_name(&self) -> &str {
-        &self.chunk.name
+        &self.chunk.expect("to have a chunk").name
     }
 
     pub(crate) fn store_local(&mut self, name: &str, value: Value) {

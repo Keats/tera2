@@ -16,7 +16,7 @@ pub struct SomeStruct {
 #[test]
 fn handles_undefined_correctly() {
     let mut context = Context::new();
-    let mut existing = SomeStruct::default();
+    let existing = SomeStruct::default();
     context.insert("existing", &existing);
 
     let tests = vec![

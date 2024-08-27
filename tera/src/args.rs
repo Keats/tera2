@@ -151,7 +151,7 @@ impl<'k, T: ArgFromValue<'k, Output = T>> ArgFromValue<'k> for Vec<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Kwargs {
     values: Arc<Map>,
 }
@@ -163,7 +163,7 @@ impl Kwargs {
 
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
         T::deserialize(&Value::Map(self.values.clone()))
-            .or_else(|_| Err(Error::message("Failed to deserialize")))
+            .map_err(|_| Error::message("Failed to deserialize"))
     }
 
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>
@@ -184,14 +184,6 @@ impl Kwargs {
             Ok(v)
         } else {
             Err(Error::missing_arg(key))
-        }
-    }
-}
-
-impl Default for Kwargs {
-    fn default() -> Self {
-        Self {
-            values: Default::default(),
         }
     }
 }
@@ -218,5 +210,6 @@ mod tests {
 
         let data: Data = kwargs.deserialize().unwrap();
         assert_eq!(data.num, 1.1);
+        assert_eq!(data.hello, "world");
     }
 }

@@ -195,7 +195,6 @@ impl Value {
                 }
             }
             Value::Array(v) => {
-                let mut it = v.iter();
                 f.write_all(b"[")?;
 
                 for (idx, elem) in v.iter().enumerate() {
@@ -348,7 +347,7 @@ impl Value {
 
         let mut res = self.clone();
 
-        for elem in path.split(".") {
+        for elem in path.split('.') {
             match elem.parse::<usize>() {
                 Ok(idx) => match res {
                     Value::Array(arr) => {

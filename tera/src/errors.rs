@@ -173,13 +173,6 @@ impl Error {
         }
     }
 
-    pub(crate) fn rendering_error(message: String, span: &Span) -> Self {
-        Self {
-            kind: ErrorKind::RenderingError(ReportError::new(message, span)),
-            source: None,
-        }
-    }
-
     pub(crate) fn circular_extend(tpl: impl ToString, inheritance_chain: Vec<String>) -> Self {
         Self {
             kind: ErrorKind::CircularExtend {

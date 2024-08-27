@@ -1,8 +1,9 @@
 use crate::value::utils::DeserializationFailed;
 use crate::Value;
-use serde::de::{self, Visitor};
-use serde::forward_to_deserialize_any;
+use serde::de::{self, Unexpected, Visitor};
+use serde::{forward_to_deserialize_any, Deserializer};
 
+#[derive(Debug)]
 pub struct ValueDeserializer {
     value: Value,
 }
@@ -56,20 +57,118 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
 
     fn deserialize_enum<V>(
         self,
-        name: &'static str,
-        variants: &'static [&'static str],
+        _name: &'static str,
+        _variants: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        let (variant, params) = match self.value {
+            Value::Map(m) => {
+                if let Some((k, v)) = m.iter().next() {
+                    (k.as_value(), Some(v.clone()))
+                } else {
+                    return Err(de::Error::invalid_value(
+                        Unexpected::Map,
+                        &"map without an entry",
+                    ));
+                }
+            }
+            Value::String(_, _) => (self.value.clone(), None),
+            _ => {
+                return Err(de::Error::invalid_type(Unexpected::Other(self.value.name()), &"map or string"));
+            }
+        };
+        visitor.visit_enum(EnumDeserializer { variant, params })
     }
 
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit
         seq bytes byte_buf map unit_struct
         tuple_struct struct tuple ignored_any identifier newtype_struct
+    }
+}
+
+struct EnumDeserializer {
+    variant: Value,
+    params: Option<Value>,
+}
+
+impl<'de> de::EnumAccess<'de> for EnumDeserializer {
+    type Error = DeserializationFailed;
+    type Variant = VariantDeserializer;
+
+    fn variant_seed<V: de::DeserializeSeed<'de>>(
+        self,
+        seed: V,
+    ) -> Result<(V::Value, Self::Variant), Self::Error> {
+        let value = seed.deserialize(self.variant)?;
+        Ok((
+            value,
+            VariantDeserializer {
+                params: self.params,
+            },
+        ))
+    }
+}
+
+struct VariantDeserializer {
+    params: Option<Value>,
+}
+impl<'de> de::VariantAccess<'de> for VariantDeserializer {
+    type Error = DeserializationFailed;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        match self.params {
+            Some(value) => de::Deserialize::deserialize(value),
+            None => Ok(()),
+        }
+    }
+
+    fn newtype_variant_seed<T: de::DeserializeSeed<'de>>(
+        self,
+        seed: T,
+    ) -> Result<T::Value, Self::Error> {
+        match self.params {
+            Some(value) => seed.deserialize(value),
+            None => Err(de::Error::invalid_type(
+                Unexpected::UnitVariant,
+                &"newtype variant",
+            )),
+        }
+    }
+
+    fn tuple_variant<V: Visitor<'de>>(
+        self,
+        _len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        match self.params {
+            Some(Value::Array(m)) => {
+                ValueDeserializer::from_value(Value::Array(m)).deserialize_any(visitor)
+            }
+            _ => Err(de::Error::invalid_type(
+                Unexpected::UnitVariant,
+                &"tuple variant",
+            )),
+        }
+    }
+
+    fn struct_variant<V: Visitor<'de>>(
+        self,
+        _fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        match self.params {
+            Some(Value::Map(m)) => {
+                ValueDeserializer::from_value(Value::Map(m)).deserialize_any(visitor)
+            }
+            _ => Err(de::Error::invalid_type(
+                Unexpected::UnitVariant,
+                &"struct variant",
+            )),
+        }
     }
 }
 
@@ -138,10 +237,22 @@ mod tests {
     use serde_derive::Serialize;
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    enum Kind {
+        Article,
+        Comment(String),
+        Tuple(usize, usize),
+        Other { truthy: bool },
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct Content {
         text: String,
         num_likes: u64,
         published: bool,
+        kind: Kind,
+        kind2: Kind,
+        kind3: Kind,
+        kind4: Kind,
     }
 
     #[test]
@@ -150,6 +261,10 @@ mod tests {
             text: "hello".to_string(),
             num_likes: 10,
             published: true,
+            kind: Kind::Article,
+            kind2: Kind::Comment(String::new()),
+            kind3: Kind::Tuple(1, 1),
+            kind4: Kind::Other { truthy: true },
         };
         let val = Value::from_serializable(&instance);
         let out = Content::deserialize(val).unwrap();
