@@ -285,9 +285,9 @@ pub(crate) fn abs(val: Value, _: Kwargs, _: &State) -> TeraResult<Value> {
         },
         Value::I128(v) => match v.checked_abs() {
             Some(v) => Ok(v.into()),
-            None => Err(Error::message(format!(
-                "Errored while getting absolute value: it is i128::MIN value."
-            ))),
+            None => Err(Error::message(
+                "Errored while getting absolute value: it is i128::MIN value.".to_string(),
+            )),
         },
         _ => Err(Error::message(format!(
             "This filter can only be used on a number, received `{}`.",
@@ -363,11 +363,7 @@ pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Ve
         }
     };
     let start = get_index(kwargs.get::<isize>("start")?.unwrap_or_default());
-    let mut end = get_index(
-        kwargs
-            .get::<isize>("end")?
-            .unwrap_or_else(|| val.len() as isize),
-    );
+    let mut end = get_index(kwargs.get::<isize>("end")?.unwrap_or(val.len() as isize));
     if end > val.len() {
         end = val.len();
     }
@@ -427,14 +423,12 @@ pub(crate) fn get(val: Map, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default = kwargs.get::<Value>("default")?;
     if let Some(val_found) = val.get(&Key::Str(key)) {
         Ok(val_found.clone())
+    } else if let Some(d) = default {
+        Ok(d)
     } else {
-        if let Some(d) = default {
-            Ok(d)
-        } else {
-            return Err(Error::message(format!(
-                "Map does not a key {key} and no default values were defined"
-            )));
-        }
+        Err(Error::message(format!(
+            "Map does not a key {key} and no default values were defined"
+        )))
     }
 }
 

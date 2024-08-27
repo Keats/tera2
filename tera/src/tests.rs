@@ -149,12 +149,12 @@ pub(crate) fn is_containing(val: &Value, kwargs: Kwargs, _: &State) -> TeraResul
     let pat = kwargs.must_get::<&Value>("pat")?;
     match val {
         Value::String(v, _) => {
-            let s = <&str as ArgFromValue>::from_value(&pat)?;
+            let s = <&str as ArgFromValue>::from_value(pat)?;
             Ok(v.contains(s))
         }
-        Value::Array(v) => Ok(v.contains(&pat)),
+        Value::Array(v) => Ok(v.contains(pat)),
         Value::Map(v) => {
-            let s = <&str as ArgFromValue>::from_value(&pat)?;
+            let s = <&str as ArgFromValue>::from_value(pat)?;
             Ok(v.contains_key(&Key::Str(s)))
         }
         _ => Err(Error::message(format!(

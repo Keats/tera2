@@ -230,24 +230,18 @@ impl<'tera> VirtualMachine<'tera> {
                         state.chunk = old_chunk;
                         res?;
                         state.stack.push(Value::Null, None);
-                    } else {
-                        if let Some(f) = self.tera.functions.get(name.as_str()) {
-                            let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), &state)
-                            {
-                                Ok(v) => v,
-                                Err(err) => rendering_error!(format!("{err}"), span),
-                            };
+                    } else if let Some(f) = self.tera.functions.get(name.as_str()) {
+                        let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
+                            Ok(v) => v,
+                            Err(err) => rendering_error!(format!("{err}"), span),
+                        };
 
-                            state
-                                .stack
-                                .push(val.into(), span.as_ref().map(|c| Cow::Owned(c.clone())));
-                        } else {
-                            // TODO: we _should_ be able to track that at compile time
-                            rendering_error!(
-                                format!("This function is not registered in Tera"),
-                                span
-                            )
-                        }
+                        state
+                            .stack
+                            .push(val, span.as_ref().map(|c| Cow::Owned(c.clone())));
+                    } else {
+                        // TODO: we _should_ be able to track that at compile time
+                        rendering_error!(format!("This function is not registered in Tera"), span)
                     }
                 }
                 Instruction::ApplyFilter(name) => {
@@ -255,7 +249,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let (kwargs, _) = state.stack.pop();
                         let (value, value_span) = state.stack.pop();
                         let val =
-                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), &state) {
+                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
                                 Ok(v) => v,
                                 Err(err) => match err.kind {
                                     ErrorKind::InvalidArgument { .. } => {
@@ -277,7 +271,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let (kwargs, _) = state.stack.pop();
                         let (value, value_span) = state.stack.pop();
                         let val =
-                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), &state) {
+                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
                                 Ok(v) => v,
                                 Err(err) => match err.kind {
                                     ErrorKind::InvalidArgument { .. } => {

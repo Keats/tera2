@@ -550,7 +550,7 @@ impl<'a> Parser<'a> {
                 Token::LeftBracket => {
                     if !lhs.is_array_or_map_literal() {
                         return Err(Error::syntax_error(
-                            format!("Subscript is only allowed after a map or array literal"),
+                            "Subscript is only allowed after a map or array literal".to_string(),
                             &self.current_span,
                         ));
                     }

@@ -347,7 +347,7 @@ impl Value {
 
         let mut res = self.clone();
 
-        for elem in path.split(".") {
+        for elem in path.split('.') {
             match elem.parse::<usize>() {
                 Ok(idx) => match res {
                     Value::Array(arr) => {
