@@ -77,8 +77,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
             }
             Value::String(_, _) => (self.value.clone(), None),
             _ => {
-                // TODO: return proper unexpected type (as_serde_unexpected to Value?)
-                return Err(de::Error::invalid_type(Unexpected::Bool(true), &"todo"));
+                return Err(de::Error::invalid_type(Unexpected::Other(self.value.name()), &"map or string"));
             }
         };
         visitor.visit_enum(EnumDeserializer { variant, params })
@@ -151,7 +150,7 @@ impl<'de> de::VariantAccess<'de> for VariantDeserializer {
             }
             _ => Err(de::Error::invalid_type(
                 Unexpected::UnitVariant,
-                &"truple variant",
+                &"tuple variant",
             )),
         }
     }
