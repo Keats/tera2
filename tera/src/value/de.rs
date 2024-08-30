@@ -77,7 +77,10 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
             }
             Value::String(_, _) => (self.value.clone(), None),
             _ => {
-                return Err(de::Error::invalid_type(Unexpected::Other(self.value.name()), &"map or string"));
+                return Err(de::Error::invalid_type(
+                    Unexpected::Other(self.value.name()),
+                    &"map or string",
+                ));
             }
         };
         visitor.visit_enum(EnumDeserializer { variant, params })

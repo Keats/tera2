@@ -44,9 +44,9 @@ pub(crate) enum Instruction {
     Jump(usize),
     /// Jump to the instruction at the given idx and pops the top value of the stack if the value is falsy
     PopJumpIfFalse(usize),
-    /// Jump is TOS is falsy or pop it. Used with and/or
+    /// Jump if TOS is falsy or pop it. Used with and/or
     JumpIfFalseOrPop(usize),
-    /// Jump is TOS is truthy or pop it. Used with and/or
+    /// Jump if TOS is truthy or pop it. Used with and/or
     JumpIfTrueOrPop(usize),
 
     /// Start capturing the output in another buffer than the template output

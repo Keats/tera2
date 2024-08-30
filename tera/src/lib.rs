@@ -3,6 +3,8 @@ mod context;
 mod errors;
 mod filters;
 mod functions;
+#[cfg(feature = "glob_fs")]
+mod globbing;
 mod parsing;
 mod reporting;
 mod template;
