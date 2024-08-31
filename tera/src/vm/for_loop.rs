@@ -1,9 +1,9 @@
-use crate::value::{Key, StringKind};
+use crate::value::Key;
+#[cfg(not(feature = "unicode"))]
+use crate::value::StringKind;
 use crate::{HashMap, Value};
 
-use serde::ser::SerializeStruct;
-use serde::Serialize;
-use serde::Serializer;
+#[cfg(not(feature = "unicode"))]
 use std::sync::Arc;
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
@@ -15,6 +15,7 @@ pub enum ForLoopValues {
     #[cfg(feature = "unicode")]
     Graphemes(std::vec::IntoIter<Value>),
     /// Values for a per-character iteration on a string
+    #[cfg(not(feature = "unicode"))]
     String(std::vec::IntoIter<char>),
     /// Values for an object style iteration
     Object(std::vec::IntoIter<(Key<'static>, Value)>),
@@ -26,6 +27,7 @@ impl ForLoopValues {
         match self {
             ForLoopValues::Array(a) => (Value::Null, a.next().unwrap()),
             ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.next().unwrap() as u64)),
+            #[cfg(not(feature = "unicode"))]
             ForLoopValues::String(a) => (
                 Value::Null,
                 Value::String(Arc::from(a.next().unwrap().to_string()), StringKind::Normal),
@@ -44,6 +46,7 @@ impl ForLoopValues {
         match self {
             ForLoopValues::Array(a) => a.len(),
             ForLoopValues::Bytes(a) => a.len(),
+            #[cfg(not(feature = "unicode"))]
             ForLoopValues::String(a) => a.len(),
             #[cfg(feature = "unicode")]
             ForLoopValues::Graphemes(a) => a.len(),
@@ -75,21 +78,6 @@ impl Loop {
     }
 }
 
-impl Serialize for Loop {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Loop", 5)?;
-        s.serialize_field("index", &self.index)?;
-        s.serialize_field("index0", &self.index0)?;
-        s.serialize_field("first", &self.first)?;
-        s.serialize_field("last", &self.last)?;
-        s.serialize_field("length", &self.length)?;
-        s.end()
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct ForLoop {
     values: ForLoopValues,
@@ -111,7 +99,7 @@ impl ForLoop {
             Value::String(s, _) => {
                 #[cfg(feature = "unicode")]
                 {
-                    let graphemes: Vec<&str> = unic_segment::Graphemes::new(s.as_str()).collect();
+                    let graphemes: Vec<&str> = unic_segment::Graphemes::new(&*s).collect();
                     let graphemes: Vec<_> = graphemes.into_iter().map(|x| Value::from(x)).collect();
                     ForLoopValues::Graphemes(graphemes.into_iter())
                 }

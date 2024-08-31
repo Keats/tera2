@@ -1,0 +1,4 @@
+$$ top
+{% block content %}{% endblock content %}{{ 1 | upper }}
+$$ bottom
+{% extends "top" %}{% block content %}hello{% endblock content %}

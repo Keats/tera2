@@ -9,6 +9,8 @@ serde = "1"
 # Optional deps
 indexmap = { version = "2", optional = true }
 unic-segment = { version = "0.9", optional = true }
+walkdir = { version = "2.5.0", optional = true }
+globset = { version = "0.4.14", optional = true }
 
 # Crates for speedup
 hashbrown = { version = "0.14", optional = true }
@@ -30,12 +32,15 @@ no_fmt = ["dep:itoa", "dep:ryu"]
 fast_escape = ["dep:pulldown-cmark-escape"]
 # Improve performance by adding extra dependencies
 fast = ["no_fmt", "fast_escape"]
+# Loads files disks using a glob
+glob_fs = ["dep:walkdir", "dep:globset"]
 
 [dev-dependencies]
 criterion = "0.5"
 iai-callgrind = "0.8.0"
 insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
+tempfile = "3"
 
 [lib]
 doctest = false

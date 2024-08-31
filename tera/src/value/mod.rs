@@ -213,48 +213,48 @@ impl Value {
             }
             Value::Map(v) => format_map(v, f),
             Value::F64(v) => {
-                #[cfg(feature = "no-fmt")]
+                #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = ryu::Buffer::new();
                     f.write_all(buf.format(*v).as_bytes())
                 }
-                #[cfg(not(feature = "no-fmt"))]
+                #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
             Value::U64(v) => {
-                #[cfg(feature = "no-fmt")]
+                #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
                     f.write_all(buf.format(*v).as_bytes())
                 }
-                #[cfg(not(feature = "no-fmt"))]
+                #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
             Value::I64(v) => {
-                #[cfg(feature = "no-fmt")]
+                #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
                     f.write_all(buf.format(*v).as_bytes())
                 }
-                #[cfg(not(feature = "no-fmt"))]
+                #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
             Value::U128(v) => {
-                #[cfg(feature = "no-fmt")]
+                #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
                     f.write_all(buf.format(*v).as_bytes())
                 }
-                #[cfg(not(feature = "no-fmt"))]
+                #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
             Value::I128(v) => {
-                #[cfg(feature = "no-fmt")]
+                #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
                     f.write_all(buf.format(*v).as_bytes())
                 }
-                #[cfg(not(feature = "no-fmt"))]
+                #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
         }

@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
+
 use crate::args::ArgFromValue;
 use crate::errors::{Error, TeraResult};
 use crate::filters::{Filter, StoredFilter};
@@ -7,7 +11,9 @@ use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::vm::interpreter::VirtualMachine;
 use crate::{escape_html, Context, HashMap};
-use std::io::Write;
+
+#[cfg(feature = "glob_fs")]
+use crate::globbing::load_from_glob;
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -17,6 +23,11 @@ pub type EscapeFn = fn(&str) -> String;
 
 #[derive(Clone)]
 pub struct Tera {
+    /// The glob used to load templates if there was one.
+    /// Only used if the `glob_fs` feature is turned on
+    #[doc(hidden)]
+    #[allow(dead_code)]
+    glob: Option<String>,
     #[doc(hidden)]
     pub templates: HashMap<String, Template>,
     /// Which extensions does Tera automatically autoescape on.
@@ -34,6 +45,48 @@ pub struct Tera {
 impl Tera {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[cfg(feature = "glob_fs")]
+    pub fn load_from_glob(&mut self, glob: &str) -> TeraResult<()> {
+        self.glob = Some(glob.to_string());
+
+        let mut errors = Vec::new();
+        for (path, name) in load_from_glob(glob)? {
+            match self.add_file(&path, Some(&name)) {
+                Ok(_) => (),
+                Err(e) => errors.push(format!(
+                    "Failed to load {}: {e:?} ({:?})",
+                    path.display(),
+                    e.source.as_ref().expect("to have a source")
+                )),
+            }
+        }
+
+        if !errors.is_empty() {
+            Err(Error::message(errors.join("\n")))
+        } else {
+            self.finalize_templates()
+        }
+    }
+
+    /// Re-parse all templates found in the glob given to Tera.
+    ///
+    /// Use this when you are watching a directory and want to reload everything,
+    /// for example when a file is added.
+    ///
+    /// If you are adding templates without using a glob, we can't know when a template
+    /// is deleted, which would result in an error if we are trying to reload that file.
+    #[cfg(feature = "glob_fs")]
+    pub fn full_reload(&mut self) -> TeraResult<()> {
+        if let Some(glob) = self.glob.clone().as_ref() {
+            self.load_from_glob(&glob)?;
+            self.finalize_templates()
+        } else {
+            return Err(Error::message(
+                "Reloading is only available if you are using a glob",
+            ));
+        }
     }
 
     /// Select which suffix(es) to automatically do HTML escaping on.
@@ -56,6 +109,7 @@ impl Tera {
     pub fn autoescape_on(&mut self, suffixes: Vec<&'static str>) {
         self.autoescape_suffixes = suffixes;
     }
+
     /// Set user-defined function that is used to escape content.
     ///
     /// Often times, arbitrary data needs to be injected into a template without allowing injection
@@ -286,7 +340,7 @@ impl Tera {
 
     /// Add a single template to the Tera instance.
     ///
-    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// This will error if there are errors in the inheritance, such as adding a child
     /// template without the parent one.
     ///
     /// # Bulk loading
@@ -315,7 +369,7 @@ impl Tera {
 
     /// Add all the templates given to the Tera instance
     ///
-    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// This will error if there are errors in the inheritance, such as adding a child
     /// template without the parent one.
     ///
     /// ```no_compile
@@ -341,6 +395,80 @@ impl Tera {
         self.finalize_templates()?;
 
         Ok(())
+    }
+
+    /// Add a template from a path: reads the file and parses it.
+    /// This will return an error if the template is invalid and doesn't check the validity of
+    /// the new set of templates.
+    fn add_file<P: AsRef<Path>>(&mut self, path: P, name: Option<&str>) -> TeraResult<()> {
+        let path = path.as_ref();
+        let tpl_name = name.unwrap_or_else(|| path.to_str().unwrap());
+
+        let mut f = File::open(path)
+            .map_err(|e| Error::chain(format!("Couldn't open template '{:?}'", path), e))?;
+
+        let mut content = String::new();
+        f.read_to_string(&mut content)
+            .map_err(|e| Error::chain(format!("Failed to read template '{:?}'", path), e))?;
+
+        let template = Template::new(tpl_name, &content, Some(path.to_str().unwrap().to_string()))
+            // TODO: need to format the error message with source context
+            .map_err(|e| Error::chain(format!("Failed to parse '{}'", tpl_name), e))?;
+
+        self.templates.insert(tpl_name.to_string(), template);
+        Ok(())
+    }
+
+    /// Add a single template from a path to the Tera instance. The default name for the template is
+    /// the path given, but this can be renamed with the `name` parameter
+    ///
+    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// template without the parent one.
+    /// If you want to add several file, use [Tera::add_template_files](struct.Tera.html#method.add_template_files)
+    ///
+    /// ```
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
+    /// // Rename template with custom name
+    /// tera.add_template_file("examples/basic/templates/macros.html", Some("macros.html")).unwrap();
+    /// // Use path as name
+    /// tera.add_template_file("examples/basic/templates/base.html", None).unwrap();
+    /// ```
+    pub fn add_template_file<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        name: Option<&str>,
+    ) -> TeraResult<()> {
+        self.add_file(path, name)?;
+        self.finalize_templates()
+    }
+
+    /// Add several templates from paths to the Tera instance.
+    ///
+    /// The default name for the template is the path given, but this can be renamed with the
+    /// second parameter of the tuple
+    ///
+    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// template without the parent one.
+    ///
+    /// ```no_run
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
+    /// tera.add_template_files(vec![
+    ///     ("./path/to/template.tera", None), // this template will have the value of path1 as name
+    ///     ("./path/to/other.tera", Some("hey")), // this template will have `hey` as name
+    /// ]);
+    /// ```
+    pub fn add_template_files<I, P, N>(&mut self, files: I) -> TeraResult<()>
+    where
+        I: IntoIterator<Item = (P, Option<N>)>,
+        P: AsRef<Path>,
+        N: AsRef<str>,
+    {
+        for (path, name) in files {
+            self.add_file(path, name.as_ref().map(AsRef::as_ref))?;
+        }
+        self.finalize_templates()
     }
 
     #[inline]
@@ -505,6 +633,7 @@ impl Tera {
 impl Default for Tera {
     fn default() -> Self {
         let mut tera = Self {
+            glob: None,
             templates: HashMap::new(),
             autoescape_suffixes: vec![".html", ".htm", ".xml"],
             escape_fn: escape_html,

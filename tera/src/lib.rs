@@ -3,6 +3,8 @@ mod context;
 mod errors;
 mod filters;
 mod functions;
+#[cfg(feature = "glob_fs")]
+mod globbing;
 mod parsing;
 mod reporting;
 mod template;
@@ -13,7 +15,9 @@ pub mod value;
 pub(crate) mod vm;
 
 pub use crate::tera::{EscapeFn, Tera};
+pub use args::Kwargs;
 pub use context::Context;
+pub use errors::TeraResult;
 pub use parsing::parser::Parser;
 pub use utils::escape_html;
 pub use value::number::Number;
