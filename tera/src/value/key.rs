@@ -41,17 +41,17 @@ impl<'a> Key<'a> {
             Key::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
             Key::String(v) => f.write_all(v.as_bytes()),
             Key::Str(v) => f.write_all(v.as_bytes()),
-            #[cfg(feature = "no-fmt")]
+            #[cfg(feature = "no_fmt")]
             Key::U64(v) => {
                 let mut buf = itoa::Buffer::new();
                 f.write_all(buf.format(*v).as_bytes())
             }
-            #[cfg(feature = "no-fmt")]
+            #[cfg(feature = "no_fmt")]
             Key::I64(v) => {
                 let mut buf = itoa::Buffer::new();
                 f.write_all(buf.format(*v).as_bytes())
             }
-            #[cfg(not(feature = "no-fmt"))]
+            #[cfg(not(feature = "no_fmt"))]
             _ => write!(f, "{self}"),
         }
     }
