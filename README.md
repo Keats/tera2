@@ -54,6 +54,7 @@ TODO:
 - [x] MAYBE: add a way to add global context to the Tera struct that are passed on every render automatically
 - [ ] Shitload of tests
 - [ ] More fuzzing
+- [ ] Document all the Rust API properly
 
 
 Ideas:
