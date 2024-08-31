@@ -23,8 +23,10 @@ pub type EscapeFn = fn(&str) -> String;
 
 #[derive(Clone)]
 pub struct Tera {
-    /// The glob used to load templates if there was one
+    /// The glob used to load templates if there was one.
+    /// Only used if the `glob_fs` feature is turned on
     #[doc(hidden)]
+    #[allow(dead_code)]
     glob: Option<String>,
     #[doc(hidden)]
     pub templates: HashMap<String, Template>,

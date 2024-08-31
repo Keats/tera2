@@ -6,6 +6,7 @@ pub fn do_nothing_filter(value: Value, _: Kwargs, _: &State) -> Value {
     value
 }
 
+// TODO: move examples folder to root of the repo to be able to select features
 fn main() {
     let mut tera = Tera::new();
     tera.register_filter("do_nothing", do_nothing_filter);
