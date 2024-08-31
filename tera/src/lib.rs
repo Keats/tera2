@@ -21,6 +21,8 @@ pub use utils::escape_html;
 pub use value::number::Number;
 pub use value::Value;
 pub use vm::state::State;
+pub use errors::TeraResult;
+pub use args::Kwargs;
 
 #[cfg(ahash)]
 pub(crate) use hashbrown::{HashMap, HashSet};

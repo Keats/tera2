@@ -55,9 +55,16 @@ impl<'tera> VirtualMachine<'tera> {
         macro_rules! rendering_error {
             ($msg:expr,$span:expr) => {{
                 let mut err = ReportError::new($msg, &$span.as_ref().clone().unwrap());
+                let chunk = state.chunk.expect("to have a chunk");
+                let (name, source) = if self.template.name != chunk.name {
+                    let tpl = &self.tera.templates[&chunk.name];
+                    (&tpl.name, &tpl.source)
+                } else {
+                    (&self.template.name, &self.template.source)
+                };
                 err.generate_report(
-                    &self.template.name,
-                    &self.template.source,
+                    name,
+                    source,
                     "Rendering error",
                 );
                 return Err(Error::new(ErrorKind::RenderingError(err)));

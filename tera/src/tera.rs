@@ -64,7 +64,7 @@ impl Tera {
         if !errors.is_empty() {
             Err(Error::message(errors.join("\n")))
         } else {
-            Ok(())
+            self.finalize_templates()
         }
     }
 
@@ -338,7 +338,7 @@ impl Tera {
 
     /// Add a single template to the Tera instance.
     ///
-    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// This will error if there are errors in the inheritance, such as adding a child
     /// template without the parent one.
     ///
     /// # Bulk loading
@@ -367,7 +367,7 @@ impl Tera {
 
     /// Add all the templates given to the Tera instance
     ///
-    /// This will error if the inheritance chain can't be built, such as adding a child
+    /// This will error if there are errors in the inheritance, such as adding a child
     /// template without the parent one.
     ///
     /// ```no_compile

@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/rendering_inputs/errors/inheritance/points_to_right_template_unknown_fn.txt
+---
+ Rendering error --> [top:1:44]
+  |
+1 | {% block content %}{% endblock content %}{{ 1 | upper }}
+  |                                             ^---
+  = Invalid type for the value, expected `&str` but got `i64`
