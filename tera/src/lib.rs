@@ -15,14 +15,14 @@ pub mod value;
 pub(crate) mod vm;
 
 pub use crate::tera::{EscapeFn, Tera};
+pub use args::Kwargs;
 pub use context::Context;
+pub use errors::TeraResult;
 pub use parsing::parser::Parser;
 pub use utils::escape_html;
 pub use value::number::Number;
 pub use value::Value;
 pub use vm::state::State;
-pub use errors::TeraResult;
-pub use args::Kwargs;
 
 #[cfg(ahash)]
 pub(crate) use hashbrown::{HashMap, HashSet};

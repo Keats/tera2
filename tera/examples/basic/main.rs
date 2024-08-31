@@ -1,6 +1,5 @@
 use std::error::Error;
-use tera::{Context, Tera, Value, State, Kwargs};
-
+use tera::{Context, Kwargs, State, Tera, Value};
 
 pub fn do_nothing_filter(value: Value, _: Kwargs, _: &State) -> Value {
     value
@@ -10,7 +9,8 @@ pub fn do_nothing_filter(value: Value, _: Kwargs, _: &State) -> Value {
 fn main() {
     let mut tera = Tera::new();
     tera.register_filter("do_nothing", do_nothing_filter);
-    tera.load_from_glob("examples/basic/templates/**/*").unwrap();
+    tera.load_from_glob("examples/basic/templates/**/*")
+        .unwrap();
 
     let mut context = Context::new();
     context.insert("username", &"Bob");

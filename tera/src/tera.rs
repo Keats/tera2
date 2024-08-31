@@ -434,7 +434,11 @@ impl Tera {
     /// // Use path as name
     /// tera.add_template_file("examples/basic/templates/base.html", None).unwrap();
     /// ```
-    pub fn add_template_file<P: AsRef<Path>>(&mut self, path: P, name: Option<&str>) -> TeraResult<()> {
+    pub fn add_template_file<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        name: Option<&str>,
+    ) -> TeraResult<()> {
         self.add_file(path, name)?;
         self.finalize_templates()
     }
@@ -456,10 +460,10 @@ impl Tera {
     /// ]);
     /// ```
     pub fn add_template_files<I, P, N>(&mut self, files: I) -> TeraResult<()>
-        where
-            I: IntoIterator<Item = (P, Option<N>)>,
-            P: AsRef<Path>,
-            N: AsRef<str>,
+    where
+        I: IntoIterator<Item = (P, Option<N>)>,
+        P: AsRef<Path>,
+        N: AsRef<str>,
     {
         for (path, name) in files {
             self.add_file(path, name.as_ref().map(AsRef::as_ref))?;

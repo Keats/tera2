@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use globset::{GlobBuilder};
+use globset::GlobBuilder;
 use walkdir::WalkDir;
 
 use crate::errors::{Error, TeraResult};
@@ -73,7 +73,10 @@ mod tests {
         let data = load_from_glob("examples/basic/templates/**/*").unwrap();
         assert_eq!(data.len(), 3);
         assert!(data.iter().find(|(_, y)| y == "base.html").is_some());
-        assert!(data.iter().find(|(_, y)| y == "users/profile.html").is_some());
+        assert!(data
+            .iter()
+            .find(|(_, y)| y == "users/profile.html")
+            .is_some());
     }
 
     #[test]
@@ -81,7 +84,10 @@ mod tests {
         let data = load_from_glob("examples/basic/templates/**/*.{html,xml}").unwrap();
         assert_eq!(data.len(), 3);
         assert!(data.iter().find(|(_, y)| y == "base.html").is_some());
-        assert!(data.iter().find(|(_, y)| y == "users/profile.html").is_some());
+        assert!(data
+            .iter()
+            .find(|(_, y)| y == "users/profile.html")
+            .is_some());
     }
 
     // https://github.com/Keats/tera/issues/380

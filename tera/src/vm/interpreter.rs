@@ -62,11 +62,7 @@ impl<'tera> VirtualMachine<'tera> {
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(
-                    name,
-                    source,
-                    "Rendering error",
-                );
+                err.generate_report(name, source, "Rendering error");
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
         }
