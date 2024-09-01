@@ -15,7 +15,6 @@ globset = { version = "0.4.14", optional = true }
 # Crates for speedup
 hashbrown = { version = "0.14", optional = true }
 itoa = { version = "1.0.9", optional = true }
-ryu = { version = "1.0.15", optional = true }
 pulldown-cmark-escape = { version = "0.10", optional = true}
 
 [features]
@@ -26,8 +25,8 @@ ahash = ["hashbrown", "hashbrown/serde"]
 preserve_order = ["dep:indexmap"]
 # If we want Tera to work with graphemes clusters rather than utf-8 characters when iterating on strings
 unicode = ["dep:unic-segment"]
-# Use itoa/ryu to format numbers (instead of std::fmt)
-no_fmt = ["dep:itoa", "dep:ryu"]
+# Use itoa to format numbers (instead of std::fmt)
+no_fmt = ["dep:itoa"]
 # Use a faster HTML escape than the default one
 fast_escape = ["dep:pulldown-cmark-escape"]
 # Improve performance by adding extra dependencies
