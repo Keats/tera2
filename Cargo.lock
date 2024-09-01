@@ -688,7 +688,6 @@ dependencies = [
  "insta",
  "itoa",
  "pulldown-cmark-escape",
- "ryu",
  "serde",
  "serde_derive",
  "tempfile",

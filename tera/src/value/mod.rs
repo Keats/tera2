@@ -213,12 +213,8 @@ impl Value {
             }
             Value::Map(v) => format_map(v, f),
             Value::F64(v) => {
-                #[cfg(feature = "no_fmt")]
-                {
-                    let mut buf = ryu::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
-                }
-                #[cfg(not(feature = "no_fmt"))]
+                // We could use ryu to print floats but it doesn't match the output from
+                // the std so tests become annoying.
                 write!(f, "{v}")
             }
             Value::U64(v) => {
