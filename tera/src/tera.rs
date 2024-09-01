@@ -51,6 +51,10 @@ impl Tera {
     pub fn load_from_glob(&mut self, glob: &str) -> TeraResult<()> {
         self.glob = Some(glob.to_string());
 
+        // We want to preserve templates that have been added through
+        // `Tera::extend` so we only keep those
+        self.templates.retain(|_, t| t.from_extend);
+
         let mut errors = Vec::new();
         for (path, name) in load_from_glob(glob)? {
             match self.add_file(&path, Some(&name)) {
@@ -471,6 +475,48 @@ impl Tera {
         self.finalize_templates()
     }
 
+    /// Extend this [`Tera`] instance with the templates, filters, testers and functions defined in
+    /// another instance.
+    ///
+    /// Use that method when you want to add a given Tera instance templates/filters/testers/functions
+    /// to your own. If a template/filter/tester/function with the same name already exists in your instance,
+    /// it will not be overwritten.
+    ///
+    ///```no_compile
+    /// // add all the templates from FRAMEWORK_TERA
+    /// // except the ones that have an identical name to the ones in `my_tera`
+    /// my_tera.extend(&FRAMEWORK_TERA);
+    ///```
+    pub fn extend(&mut self, other: &Tera) -> TeraResult<()> {
+        for (name, template) in &other.templates {
+            if !self.templates.contains_key(name) {
+                let mut tpl = template.clone();
+                tpl.from_extend = true;
+                self.templates.insert(name.to_string(), tpl);
+            }
+        }
+
+        for (name, filter) in &other.filters {
+            if !self.filters.contains_key(name) {
+                self.filters.insert(name, filter.clone());
+            }
+        }
+
+        for (name, test) in &other.tests {
+            if !self.tests.contains_key(name) {
+                self.tests.insert(name, test.clone());
+            }
+        }
+
+        for (name, function) in &other.functions {
+            if !self.functions.contains_key(name) {
+                self.functions.insert(name, function.clone());
+            }
+        }
+
+        self.finalize_templates()
+    }
+
     #[inline]
     pub(crate) fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
         match self.templates.get(template_name) {
@@ -651,7 +697,7 @@ impl Default for Tera {
 
 #[cfg(test)]
 mod tests {
-    use crate::context;
+    use crate::{context, Kwargs, State};
 
     use super::*;
 
@@ -673,4 +719,79 @@ mod tests {
             .unwrap();
         assert_eq!(content2, "UserID: 7489, Username: John Doe");
     }
+    
+    #[test]
+    fn extend_no_overlap() {
+        let mut my_tera = Tera::default();
+        my_tera
+            .add_raw_templates(vec![
+                ("one", "{% block hey %}1{% endblock hey %}"),
+                ("two", "{% block hey %}2{% endblock hey %}"),
+                ("three", "{% block hey %}3{% endblock hey %}"),
+            ])
+            .unwrap();
+
+        let mut framework_tera = Tera::default();
+        framework_tera.add_raw_templates(vec![("four", "Framework X")]).unwrap();
+        framework_tera.register_filter("hello", |_: &str, _: Kwargs, _: &State| {
+            "hello"
+        });
+        framework_tera.register_test("testing", |_: &str, _: Kwargs, _: &State| {
+            true
+        });
+        my_tera.extend(&framework_tera).unwrap();
+        assert_eq!(my_tera.templates.len(), 4);
+        let result = my_tera.render("four", &Context::default()).unwrap();
+        assert_eq!(result, "Framework X");
+        assert!(my_tera.filters.contains_key("hello"));
+        assert!(my_tera.tests.contains_key("testing"));
+    }
+
+    #[test]
+    fn extend_with_overlap() {
+        let mut my_tera = Tera::default();
+        my_tera
+            .add_raw_templates(vec![
+                ("one", "MINE"),
+                ("two", "{% block hey %}2{% endblock hey %}"),
+                ("three", "{% block hey %}3{% endblock hey %}"),
+            ])
+            .unwrap();
+
+        let mut framework_tera = Tera::default();
+        framework_tera
+            .add_raw_templates(vec![("one", "FRAMEWORK"), ("four", "Framework X")])
+            .unwrap();
+        my_tera.extend(&framework_tera).unwrap();
+        assert_eq!(my_tera.templates.len(), 4);
+        let result = my_tera.render("one", &Context::default()).unwrap();
+        assert_eq!(result, "MINE");
+    }
+
+    #[cfg(feature = "glob_fs")]
+    #[test]
+    fn can_full_reload() {
+        let mut tera = Tera::default();
+        tera.load_from_glob("examples/basic/templates/**/*").unwrap();
+        tera.full_reload().unwrap();
+
+        assert!(tera.get_template("base.html").is_ok());
+    }
+
+    #[cfg(feature = "glob_fs")]
+    #[test]
+    fn full_reload_with_glob_after_extending() {
+        let mut tera = Tera::default();
+        tera.load_from_glob("examples/basic/templates/**/*").unwrap();
+        let mut framework_tera = Tera::default();
+        framework_tera
+            .add_raw_templates(vec![("one", "FRAMEWORK"), ("four", "Framework X")])
+            .unwrap();
+        tera.extend(&framework_tera).unwrap();
+        tera.full_reload().unwrap();
+
+        assert!(tera.get_template("base.html").is_ok());
+        assert!(tera.get_template("one").is_ok());
+    }
+
 }

@@ -23,6 +23,9 @@ pub struct Template {
     /// The full list of parent templates names
     pub(crate) parents: Vec<String>,
     pub(crate) block_lineage: HashMap<String, Vec<Chunk>>,
+    /// Whether this template came from a call to `Tera::extend`, so we do
+    /// not remove it when we are doing a template reload
+    pub(crate) from_extend: bool,
 }
 
 impl Template {
@@ -117,6 +120,7 @@ impl Template {
             chunk,
             parents,
             block_lineage: HashMap::new(),
+            from_extend: false,
         })
     }
 
