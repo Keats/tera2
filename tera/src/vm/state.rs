@@ -108,39 +108,6 @@ impl<'t> State<'t> {
         }
     }
 
-    // pub fn current_context_cloned(&self) -> Value {
-    //     let mut context = HashMap::new();
-    //
-    //     // Go back the stack in reverse to see what we have access to
-    //     for frame in self.stack.iter().rev() {
-    //         context.extend(frame.context_owned());
-    //         if let Some(ref for_loop) = frame.for_loop {
-    //             context.insert(
-    //                 for_loop.value_name.to_string(),
-    //                 for_loop.get_current_value().into_owned(),
-    //             );
-    //             if for_loop.is_key_value() {
-    //                 context.insert(
-    //                     for_loop.key_name.clone().unwrap(),
-    //                     Value::String(for_loop.get_current_key()),
-    //                 );
-    //             }
-    //         }
-    //         // Macros don't have access to the user context, we're done
-    //         if frame.kind == FrameType::Macro {
-    //             return to_value(&context).unwrap();
-    //         }
-    //     }
-    //
-    //     // If we are here we take the user context
-    //     // and add the values found in the stack to it.
-    //     // We do it this way as we can override global variable temporarily in forloops
-    //     let mut new_ctx = self.context.inner.clone();
-    //     for (key, val) in context {
-    //         new_ctx.insert(key, &val)
-    //     }
-    //     new_ctx.into_json()
-    // }
     fn dump_context(&self) -> Value {
         let mut context = HashMap::new();
         context.extend(self.context.data.clone().into_iter());
