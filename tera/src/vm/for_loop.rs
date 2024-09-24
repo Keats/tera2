@@ -83,7 +83,7 @@ pub(crate) struct ForLoop {
     values: ForLoopValues,
     loop_data: Loop,
     pub(crate) end_ip: usize,
-    context: HashMap<String, Value>,
+    pub(crate) context: HashMap<String, Value>,
     value_name: Option<String>,
     key_name: Option<String>,
     current_values: (Value, Value),
