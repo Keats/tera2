@@ -166,13 +166,18 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::WriteTop => {
-                    let (top, top_span) = state.stack.pop();
+                    let (mut top, top_span) = state.stack.pop();
                     if top == Value::Undefined {
                         rendering_error!(
                             format!("Tried to render a variable that is not defined"),
                             top_span
                         );
                     }
+
+                    if !self.template.autoescape_enabled {
+                        top = top.mark_safe();
+                    }
+
                     if let Some(captured) = state.capture_buffers.last_mut() {
                         top.format(captured)?;
                     } else {

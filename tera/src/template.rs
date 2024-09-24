@@ -26,6 +26,9 @@ pub struct Template {
     /// Whether this template came from a call to `Tera::extend`, so we do
     /// not remove it when we are doing a template reload
     pub(crate) from_extend: bool,
+    /// Whether to auto-escape this template. It's set to `true` as default and will be updated
+    /// when calling `Tera::autoescape_on` and when finalizing the templates
+    pub(crate) autoescape_enabled: bool,
 }
 
 impl Template {
@@ -121,6 +124,7 @@ impl Template {
             parents,
             block_lineage: HashMap::new(),
             from_extend: false,
+            autoescape_enabled: true,
         })
     }
 
