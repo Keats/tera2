@@ -14,6 +14,7 @@ use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
+
 pub(crate) struct VirtualMachine<'tera> {
     tera: &'tera Tera,
     template: &'tera Template,

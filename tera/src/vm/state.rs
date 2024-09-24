@@ -4,7 +4,12 @@ use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
 use crate::utils::Span;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+
+
+/// Special string indicating request to dump context
+static MAGICAL_DUMP_VAR: &str = "__tera_context";
+
 
 /// The state of the interpreter.
 /// We pass it around rather than put it on the VM to avoid multiple borrow issues
@@ -103,8 +108,57 @@ impl<'t> State<'t> {
         }
     }
 
+    // pub fn current_context_cloned(&self) -> Value {
+    //     let mut context = HashMap::new();
+    //
+    //     // Go back the stack in reverse to see what we have access to
+    //     for frame in self.stack.iter().rev() {
+    //         context.extend(frame.context_owned());
+    //         if let Some(ref for_loop) = frame.for_loop {
+    //             context.insert(
+    //                 for_loop.value_name.to_string(),
+    //                 for_loop.get_current_value().into_owned(),
+    //             );
+    //             if for_loop.is_key_value() {
+    //                 context.insert(
+    //                     for_loop.key_name.clone().unwrap(),
+    //                     Value::String(for_loop.get_current_key()),
+    //                 );
+    //             }
+    //         }
+    //         // Macros don't have access to the user context, we're done
+    //         if frame.kind == FrameType::Macro {
+    //             return to_value(&context).unwrap();
+    //         }
+    //     }
+    //
+    //     // If we are here we take the user context
+    //     // and add the values found in the stack to it.
+    //     // We do it this way as we can override global variable temporarily in forloops
+    //     let mut new_ctx = self.context.inner.clone();
+    //     for (key, val) in context {
+    //         new_ctx.insert(key, &val)
+    //     }
+    //     new_ctx.into_json()
+    // }
+    fn dump_context(&self) -> Value {
+        let mut context = HashMap::new();
+        context.extend(self.context.data.clone().into_iter());
+        context.extend(self.set_variables.clone().into_iter());
+
+        for forloop in &self.for_loops {
+            context.extend(forloop.context.clone().into_iter());
+        }
+
+        context.into()
+    }
+
     pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
-        self.stack
-            .push_borrowed(self.get(name), span.as_ref().unwrap());
+        if name == MAGICAL_DUMP_VAR {
+            self.stack.push(self.dump_context(), None);
+        } else {
+            self.stack
+                .push_borrowed(self.get(name), span.as_ref().unwrap());
+        }
     }
 }

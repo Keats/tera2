@@ -1,0 +1,4 @@
+{% set hello_world = "hello world" %}
+{% for i in range(end=1) %}{% set hello_world = "hello world in a loop" %}{{__tera_context}}{% endfor %}
+---
+{{__tera_context}}
