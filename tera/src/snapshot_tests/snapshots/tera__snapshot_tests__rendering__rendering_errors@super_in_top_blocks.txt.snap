@@ -3,7 +3,7 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/super_in_top_blocks.txt
 ---
- Rendering error --> ["super_in_top_blocks.txt":2:3]
+ Rendering error --> [super_in_top_blocks.txt:2:3]
   |
 2 | {{ super() }}
   |    ^---

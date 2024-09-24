@@ -120,8 +120,9 @@ fn rendering_ok() {
     insta::glob!("rendering_inputs/success/*.txt", |path| {
         println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{:?}", path.file_name().unwrap());
+        let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
+        tera.autoescape_on(vec![".txt"]);
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
         tera.register_filter("read_ctx", |x: &str, _: Kwargs, state: &State| {
             state.get_from_path(x)
@@ -157,8 +158,7 @@ fn rendering_macros_ok() {
 fn rendering_errors() {
     insta::glob!("rendering_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{:?}", path.file_name().unwrap());
-        println!("{p:?}");
+        let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![(&p, contents)]).unwrap();
         let err = tera.render(&p, &get_context()).unwrap_err();
@@ -169,7 +169,6 @@ fn rendering_errors() {
 #[test]
 fn rendering_inheritance_errors() {
     insta::glob!("rendering_inputs/errors/inheritance/*.txt", |path| {
-        println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
         let (tera, tpl_name) = create_multi_templates_tera(&contents);
         let err = tera.render(&tpl_name, &get_context()).unwrap_err();

@@ -93,6 +93,12 @@ impl Tera {
         }
     }
 
+    fn set_templates_auto_escape(&mut self) {
+        for (tpl_name, tpl) in self.templates.iter_mut() {
+            tpl.autoescape_enabled = self.autoescape_suffixes.iter().any(|s| tpl_name.ends_with(s));
+        }
+    }
+
     /// Select which suffix(es) to automatically do HTML escaping on.
     ///
     /// By default, autoescaping is performed on `.html`, `.htm` and `.xml` template files. Only
@@ -112,6 +118,7 @@ impl Tera {
     /// ```
     pub fn autoescape_on(&mut self, suffixes: Vec<&'static str>) {
         self.autoescape_suffixes = suffixes;
+        self.set_templates_auto_escape();
     }
 
     /// Set user-defined function that is used to escape content.
@@ -339,6 +346,7 @@ impl Tera {
             tpl.block_lineage = tpl_blocks.remove(name.as_str()).unwrap();
         }
 
+        self.set_templates_auto_escape();
         Ok(())
     }
 

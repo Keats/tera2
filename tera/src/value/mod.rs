@@ -314,6 +314,15 @@ impl Value {
         }
     }
 
+    #[inline]
+    pub fn mark_safe(self) -> Self {
+        if let Value::String(s, _) = self {
+            Value::String(s, StringKind::Safe)
+        } else {
+            self
+        }
+    }
+
     pub fn as_map(&self) -> Option<&Map> {
         match self {
             Value::Map(s) => Some(s),
