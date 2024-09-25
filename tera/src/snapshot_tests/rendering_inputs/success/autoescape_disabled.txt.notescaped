@@ -1,0 +1,12 @@
+{%- set s1 = '<"string1">' -%}
+{%- set s2 = '<"string2">' -%}
+{{ s1 }} {{ s2 }}
+{{ s1 ~ s2 }}
+{{ s1 ~ s2 | safe }}
+{{ s1 | safe ~ s2 | safe }}
+{% set a = [s1, s2, ] %}
+{{ a }}
+{% set m = {'key1': s1, 'key2': s2, } %}
+{{ m }}
+{{ s1 ~ description }}
+{{ "<p>" in description }}

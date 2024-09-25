@@ -117,8 +117,7 @@ fn get_context() -> Context {
 
 #[test]
 fn rendering_ok() {
-    insta::glob!("rendering_inputs/success/*.txt", |path| {
-        println!("{path:?}");
+    insta::glob!("rendering_inputs/success/*.txt*", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
