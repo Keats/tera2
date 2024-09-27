@@ -316,10 +316,15 @@ impl Value {
 
     #[inline]
     pub fn mark_safe(self) -> Self {
-        if let Value::String(s, _) = self {
-            Value::String(s, StringKind::Safe)
-        } else {
-            self
+        match self {
+            Value::String(s, _) => Value::String(s, StringKind::Safe),
+            Value::Array(values) => {
+                Value::Array(Arc::new(values.iter().map(|x| x.clone().mark_safe()).collect()))
+            }
+            Value::Map(map) => {
+                Value::Map(Arc::new(map.iter().map(|(k, v)| (k.clone(), v.clone().mark_safe())).collect()))
+            }
+            _ => self
         }
     }
 
