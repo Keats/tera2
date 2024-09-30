@@ -4,8 +4,8 @@
 {{ data.names[0] }}
 {{ data.names[1 + 1] }}
 {{ data.weights }}
-{{ data }}
+{{ data | safe }}
 {% set hello = 1 %}{{ hello }}
 {% set_global world = 2 %}{{ world }}
-{{ [name, age, 10, "hello"] }}
-{{ {"hello": name} }}
+{{ [name, age, 10, "hello"] | safe }}
+{{ {"hello": name} | safe }}

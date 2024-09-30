@@ -3,4 +3,4 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&out"
 input_file: tera/src/snapshot_tests/rendering_inputs/success/macros/arg_not_escaped.txt
 ---
-<p>I should be escaped by default</p>
+<p>Some HTML chars & more</p>

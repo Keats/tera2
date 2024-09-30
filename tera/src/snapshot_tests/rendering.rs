@@ -50,6 +50,7 @@ fn get_context() -> Context {
     let mut context = Context::new();
     context.insert("name", &"Bob");
     context.insert("description", &"<p>I should be escaped by default</p>");
+    context.insert("some_html", &"<p>Some HTML chars & more</p>");
     context.insert("age", &18);
     context.insert("one", &1);
     context.insert("product", &Product::new());

@@ -14,7 +14,6 @@ use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
-
 pub(crate) struct VirtualMachine<'tera> {
     tera: &'tera Tera,
     template: &'tera Template,
@@ -78,29 +77,18 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        // pop the stack, marking the value as safe if the template is not escaped
-        macro_rules! pop_stack {
-            () => {{
-                let (mut a, a_span) = state.stack.pop();
-                if !self.template.autoescape_enabled {
-                    a = a.mark_safe();
-                }
-                (a, a_span)
-            }};
-        }
-
         macro_rules! op_binop {
             ($op:tt) => {{
-                let (b, b_span) = pop_stack!();
-                let (a, a_span) = pop_stack!();
+                let (b, b_span) = state.stack.pop();
+                let (a, a_span) = state.stack.pop();
                 state.stack.push(Value::from(a $op b), Some(expand_span!(a_span, b_span)));
             }};
         }
 
         macro_rules! math_binop {
             ($fn:ident) => {{
-                let (b, b_span) = pop_stack!();
-                let (a, a_span) = pop_stack!();
+                let (b, b_span) = state.stack.pop();
+                let (a, a_span) = state.stack.pop();
 
                 if !a.is_number() {
                     rendering_error!(
@@ -145,7 +133,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
-                    let (a, a_span) = pop_stack!();
+                    let (a, a_span) = state.stack.pop();
                     if a == Value::Undefined {
                         rendering_error!(format!("Container is not defined"), a_span);
                     }
@@ -154,8 +142,8 @@ impl<'tera> VirtualMachine<'tera> {
                         .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
                 }
                 Instruction::BinarySubscript => {
-                    let (subscript, subscript_span) = pop_stack!();
-                    let (val, val_span) = pop_stack!();
+                    let (subscript, subscript_span) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
                     if val == Value::Undefined {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
@@ -178,7 +166,7 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::WriteTop => {
-                    let (top, top_span) = pop_stack!();
+                    let (top, top_span) = state.stack.pop();
                     if top == Value::Undefined {
                         rendering_error!(
                             format!("Tried to render a variable that is not defined"),
@@ -186,19 +174,31 @@ impl<'tera> VirtualMachine<'tera> {
                         );
                     }
 
-                    if let Some(captured) = state.capture_buffers.last_mut() {
-                        top.format(captured)?;
+                    if !self.template.autoescape_enabled || top.is_safe() {
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            top.format(captured)?;
+                        } else {
+                            top.format(output)?;
+                        }
                     } else {
-                        top.format(output)?;
+                        // Avoiding String as much as possible
+                        // TODO: Add more benchmarks
+                        let mut out: Vec<u8> = Vec::new();
+                        top.format(&mut out)?;
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            (self.tera.escape_fn)(&out, captured)?;
+                        } else {
+                            (self.tera.escape_fn)(&out, output)?;
+                        }
                     }
                 }
                 Instruction::Set(name) => {
                     // TODO: do we need to keep those spans?
-                    let (val, _) = pop_stack!();
+                    let (val, _) = state.stack.pop();
                     state.store_local(name, val);
                 }
                 Instruction::SetGlobal(name) => {
-                    let (val, _) = pop_stack!();
+                    let (val, _) = state.stack.pop();
                     state.store_global(name, val);
                 }
                 Instruction::Include(name) => {
@@ -207,8 +207,8 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        let (val, _) = pop_stack!();
-                        let (key, _) = pop_stack!();
+                        let (val, _) = state.stack.pop();
+                        let (key, _) = state.stack.pop();
                         elems.push((key.as_key()?, val));
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
@@ -218,7 +218,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
                     for _ in 0..*num_elem {
-                        elems.push(pop_stack!().0);
+                        elems.push(state.stack.pop().0);
                     }
                     elems.reverse();
                     state.stack.push(Value::from(elems), None);
@@ -263,7 +263,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::ApplyFilter(name) => {
                     if let Some(f) = self.tera.filters.get(name.as_str()) {
                         let (kwargs, _) = state.stack.pop();
-                        let (value, value_span) = pop_stack!();
+                        let (value, value_span) = state.stack.pop();
                         let val =
                             match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
                                 Ok(v) => v,
@@ -285,7 +285,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::RunTest(name) => {
                     if let Some(f) = self.tera.tests.get(name.as_str()) {
                         let (kwargs, _) = state.stack.pop();
-                        let (value, value_span) = pop_stack!();
+                        let (value, value_span) = state.stack.pop();
                         let val =
                             match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
                                 Ok(v) => v,
@@ -335,6 +335,7 @@ impl<'tera> VirtualMachine<'tera> {
                         compiled_macro_def,
                         context,
                     )?;
+
                     state
                         .stack
                         .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());
@@ -390,7 +391,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(val, None);
                 }
                 Instruction::StartIterate(is_key_value) => {
-                    let (container, container_span) = pop_stack!();
+                    let (container, container_span) = state.stack.pop();
                     if !container.can_be_iterated_on() {
                         rendering_error!(
                             format!("Iteration not possible on type `{}`", container.name()),
@@ -453,8 +454,8 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::Equal => op_binop!(==),
                 Instruction::NotEqual => op_binop!(!=),
                 Instruction::StrConcat => {
-                    let (b, b_span) = pop_stack!();
-                    let (a, a_span) = pop_stack!();
+                    let (b, b_span) = state.stack.pop();
+                    let (a, a_span) = state.stack.pop();
                     let c_span = expand_span!(a_span, b_span);
                     // TODO: we could push_str if `a` is a string
                     state
@@ -462,8 +463,8 @@ impl<'tera> VirtualMachine<'tera> {
                         .push(Value::from(format!("{a}{b}")), Some(c_span));
                 }
                 Instruction::In => {
-                    let (container, container_span) = pop_stack!();
-                    let (needle, _) = pop_stack!();
+                    let (container, container_span) = state.stack.pop();
+                    let (needle, _) = state.stack.pop();
                     match container.contains(&needle) {
                         Ok(b) => {
                             state.stack.push(Value::Bool(b), None);

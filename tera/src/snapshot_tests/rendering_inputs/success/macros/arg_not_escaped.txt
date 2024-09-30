@@ -1,4 +1,4 @@
 $$ macros
 {% macro print(val) %}{{val|safe}}{% endmacro print %}
 $$ tpl
-{% import "macros" as macros %}{{ macros::print(val=description)}}
+{% import "macros" as macros %}{{ macros::print(val=some_html)}}

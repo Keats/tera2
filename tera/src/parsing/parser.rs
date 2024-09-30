@@ -377,10 +377,12 @@ impl<'a> Parser<'a> {
 
             let key = match self.next_or_error()? {
                 // TODO: can we borrow there?
+                (Token::String(key), _) => Key::String(Arc::from(key)),
                 (Token::Str(key), _) => Key::String(Arc::from(key.to_string())),
                 (Token::Integer(key), _) => Key::I64(key),
                 (Token::Bool(key), _) => Key::Bool(key),
                 (token, span) => {
+                    println!("{token:?}");
                     return Err(Error::syntax_error(
                         format!(
                             "Found {} but expected a string, an integer or a bool.",

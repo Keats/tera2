@@ -3,3 +3,7 @@
 {{ 'abcdef' == 'abc' ~ foo }}
 {{ 'abc/def' == 'abc/' ~ 'def' }}
 {{ 'abc/def' == 'abc/' ~ foo }}
+escaped: {{ [some_html] }}
+safe: {{ [some_html] | safe }}
+escaped: {{ {"a": some_html} }}
+safe: {{ {"a": some_html} | safe }}

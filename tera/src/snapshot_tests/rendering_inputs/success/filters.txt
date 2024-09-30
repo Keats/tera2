@@ -7,7 +7,7 @@
 {{ undefined_val | default(value="default val") | capitalize }}
 {{ product.undefined_field | default(value="default val") | capitalize }}
 {{ [1, 2, 3] | length }}
-{{ "abcdefghdijklm" | split(pat="d") }}
+{{ "abcdefghdijklm" | split(pat="d") | safe }}
 {{ 2.8 * 2 | round }}
 {{ " html " | upper | trim }}
 {{ malicious | safe }}
@@ -32,16 +32,16 @@
 {{ [1, 2, 3] | slice(start=-1) }}
 {{ [1, 2, 3] | slice(start=0, end=2) }}
 {{ [1, 2, 3, 2, 3, 4] | unique }}
-{{ reviews | map(attribute="title") }}
+{{ reviews | map(attribute="title") | safe }}
 {{ year_data | map(attribute="year") }}
 {{ vectors | filter(attribute="0", value=0) }}
-{{ reviews | filter(attribute="title", value="My review") }}
-{{ year_data | group_by(attribute="year") }}
+{{ reviews | filter(attribute="title", value="My review") | safe }}
+{{ year_data | group_by(attribute="year") | safe }}
 indent1:{{ "one\ntwo\nthree" | indent }}
 indent2:{{ "one\ntwo\nthree" | indent(first=true, width=2) }}
 indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "name" | read_ctx }}
 {{ "vectors.1.2" | read_ctx }}
 {{ "objects.0.label" | read_ctx }}
-{{ data | get(key="names") }}
+{{ data | get(key="names") | safe }}
 {{ data | get(key="ages", default=[1]) }}
