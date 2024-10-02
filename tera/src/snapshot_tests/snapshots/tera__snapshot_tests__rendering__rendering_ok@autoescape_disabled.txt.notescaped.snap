@@ -1,0 +1,11 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/autoescape_disabled.txt.notescaped
+---
+<"string1">
+<"string1"><"string1">
+["<\"string1\">"]
+["\n<div> \\ ' \" & </div>"]
+{"hello": "\n<div> \\ ' \" & </div>"}
+<p> in description: true

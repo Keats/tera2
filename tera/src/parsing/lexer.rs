@@ -320,13 +320,22 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
         ($delim:expr) => {{
             let start_loc = loc!();
             let mut has_escapes = false;
+            let mut escaped = false;
             let str_len = rest
                 .as_bytes()
                 .iter()
                 .skip(1)
                 .take_while(|&&c| {
+                    // if we are escaping something, note it and continue
                     if c == b'\\' {
                         has_escapes = true;
+                        escaped = true;
+                        return true;
+                    }
+                    // If we were escaping something, continue
+                    if escaped == true {
+                        escaped = false;
+                        return true;
                     }
                     c != $delim
                 })

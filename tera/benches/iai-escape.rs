@@ -63,14 +63,14 @@ const HTML_VERY_LONG: &str = r#"
     justo.
 </p>"#;
 
-#[library_benchmark]
-#[bench::long_html(HTML_VERY_LONG)]
-#[bench::long_no_html(NO_HTML_VERY_LONG)]
-#[bench::short_html(HTML_SHORT)]
-#[bench::short_no_html(NO_HTML_SHORT)]
-fn bench_escape_html(input: &str) -> String {
-    format!("{}", black_box(escape_html(input)))
-}
+// #[library_benchmark]
+// #[bench::long_html(HTML_VERY_LONG)]
+// #[bench::long_no_html(NO_HTML_VERY_LONG)]
+// #[bench::short_html(HTML_SHORT)]
+// #[bench::short_no_html(NO_HTML_SHORT)]
+// fn bench_escape_html(input: &str) -> String {
+//     format!("{}", black_box(escape_html(input)))
+// }
 
-library_benchmark_group!(name = escape; benchmarks = bench_escape_html);
-main!(library_benchmark_groups = escape);
+// library_benchmark_group!(name = escape; benchmarks = bench_escape_html);
+// main!(library_benchmark_groups = escape);

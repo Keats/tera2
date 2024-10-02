@@ -14,7 +14,6 @@ use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
-
 pub(crate) struct VirtualMachine<'tera> {
     tera: &'tera Tera,
     template: &'tera Template,
@@ -167,7 +166,7 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::WriteTop => {
-                    let (mut top, top_span) = state.stack.pop();
+                    let (top, top_span) = state.stack.pop();
                     if top == Value::Undefined {
                         rendering_error!(
                             format!("Tried to render a variable that is not defined"),
@@ -175,14 +174,22 @@ impl<'tera> VirtualMachine<'tera> {
                         );
                     }
 
-                    if !self.template.autoescape_enabled {
-                        top = top.mark_safe();
-                    }
-
-                    if let Some(captured) = state.capture_buffers.last_mut() {
-                        top.format(captured)?;
+                    if !self.template.autoescape_enabled || top.is_safe() {
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            top.format(captured)?;
+                        } else {
+                            top.format(output)?;
+                        }
                     } else {
-                        top.format(output)?;
+                        // Avoiding String as much as possible
+                        // TODO: Add more benchmarks
+                        let mut out: Vec<u8> = Vec::new();
+                        top.format(&mut out)?;
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            (self.tera.escape_fn)(&out, captured)?;
+                        } else {
+                            (self.tera.escape_fn)(&out, output)?;
+                        }
                     }
                 }
                 Instruction::Set(name) => {
@@ -328,6 +335,7 @@ impl<'tera> VirtualMachine<'tera> {
                         compiled_macro_def,
                         context,
                     )?;
+
                     state
                         .stack
                         .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());

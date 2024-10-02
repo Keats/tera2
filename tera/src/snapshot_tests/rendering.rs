@@ -50,6 +50,7 @@ fn get_context() -> Context {
     let mut context = Context::new();
     context.insert("name", &"Bob");
     context.insert("description", &"<p>I should be escaped by default</p>");
+    context.insert("some_html", &"<p>Some HTML chars & more</p>");
     context.insert("age", &18);
     context.insert("one", &1);
     context.insert("product", &Product::new());
@@ -117,8 +118,7 @@ fn get_context() -> Context {
 
 #[test]
 fn rendering_ok() {
-    insta::glob!("rendering_inputs/success/*.txt", |path| {
-        println!("{path:?}");
+    insta::glob!("rendering_inputs/success/*.txt*", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();

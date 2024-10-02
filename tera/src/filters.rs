@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::sync::Arc;
@@ -5,7 +6,7 @@ use std::sync::Arc;
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::value::{FunctionResult, Key, Map};
+use crate::value::{FunctionResult, Key, Map, StringKind};
 use crate::vm::state::State;
 use crate::{HashMap, Value};
 
@@ -56,8 +57,8 @@ impl StoredFilter {
     }
 }
 
-pub(crate) fn safe(val: &str, _: Kwargs, _: &State) -> Value {
-    Value::safe_string(val)
+pub(crate) fn safe(val: Cow<'_, str>, _: Kwargs, _: &State) -> Value {
+    Value::String(Arc::from(val), StringKind::Safe)
 }
 
 pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
@@ -170,7 +171,7 @@ pub(crate) fn indent(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String>
     Ok(res)
 }
 
-pub(crate) fn str(val: Value, _: Kwargs, _: &State) -> String {
+pub(crate) fn as_str(val: Value, _: Kwargs, _: &State) -> String {
     format!("{val}")
 }
 
@@ -613,19 +614,19 @@ mod tests {
     fn test_str() {
         let ctx = Context::new();
         let state = State::new(&ctx);
-        assert_eq!(str((2.1).into(), Kwargs::default(), &state), "2.1");
-        assert_eq!(str(2.into(), Kwargs::default(), &state), "2");
-        assert_eq!(str(true.into(), Kwargs::default(), &state), "true");
+        assert_eq!(as_str((2.1).into(), Kwargs::default(), &state), "2.1");
+        assert_eq!(as_str(2.into(), Kwargs::default(), &state), "2");
+        assert_eq!(as_str(true.into(), Kwargs::default(), &state), "true");
         assert_eq!(
-            str(vec![1, 2, 3].into(), Kwargs::default(), &state),
+            as_str(vec![1, 2, 3].into(), Kwargs::default(), &state),
             "[1, 2, 3]"
         );
         let mut map = Map::new();
         map.insert("hello".into(), "world".into());
         map.insert("other".into(), 2.into());
         assert_eq!(
-            str(map.into(), Kwargs::default(), &state),
-            "{hello: 'world', other: 2}"
+            as_str(map.into(), Kwargs::default(), &state),
+            r#"{"hello": "world", "other": 2}"#
         );
     }
 

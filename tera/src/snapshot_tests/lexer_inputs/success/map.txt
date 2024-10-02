@@ -1,2 +1,3 @@
 {% set value = {"hello": 0, "bob": true, "d": data} %}
 {% set literal_only = {"hello": 0, "bob": true, "d": "data"} %}
+{% set escape_in_key = {"hello \n \" hello": 0,} %}

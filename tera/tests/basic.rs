@@ -168,17 +168,3 @@ fn can_render_to_write() {
     tera.render_to("hello", &ctx, &mut out).unwrap();
     assert_eq!(String::from_utf8(out).unwrap(), "Hello Bob")
 }
-
-
-#[test]
-fn can_disable_auto_escape() {
-    let mut tera = Tera::default();
-    tera.add_raw_templates(vec![("page.html", r#"{% set s = '<"string">' -%}{{s}}"#)])
-        .unwrap();
-    let out = tera.render("page.html", &Context::new()).unwrap();
-    assert_eq!(out, "&lt;&quot;string&quot;&gt;");
-    tera.autoescape_on(vec![]);
-    let out = tera.render("page.html", &Context::new()).unwrap();
-    assert_eq!(out, r#"<"string">"#);
-
-}

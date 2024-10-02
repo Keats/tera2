@@ -99,30 +99,29 @@ impl Span {
 /// ' --> &#39;
 /// ```
 #[inline]
-pub fn escape_html(input: &str) -> String {
+pub fn escape_html(input: &[u8], buf: &mut dyn std::io::Write) -> std::io::Result<()> {
     #[cfg(feature = "fast_escape")]
     {
-        let mut value = String::with_capacity(input.len() + 30);
-        pulldown_cmark_escape::escape_html(&mut value, input)
+        // FIXME
+        let mut value = String::new();
+        pulldown_cmark_escape::escape_html(&mut value, &String::from_utf8_lossy(input))
             .expect("writing to a string is infallible");
-        value
+        buf.write_all(value.as_bytes()).expect("");
+        Ok(())
     }
 
     #[cfg(not(feature = "fast_escape"))]
     {
-        let mut output = String::with_capacity(input.len() * 2);
-        for c in input.chars() {
+        for c in input {
             match c {
-                '&' => output.push_str("&amp;"),
-                '<' => output.push_str("&lt;"),
-                '>' => output.push_str("&gt;"),
-                '"' => output.push_str("&quot;"),
-                '\'' => output.push_str("&#39;"),
-                _ => output.push(c),
-            }
+                b'&' => buf.write_all(b"&amp;")?,
+                b'<' => buf.write_all(b"&lt;")?,
+                b'>' => buf.write_all(b"&gt;")?,
+                b'"' => buf.write_all(b"&quot;")?,
+                b'\'' => buf.write_all(b"&#39;")?,
+                _ => buf.write_all(&[*c])?,
+            };
         }
-
-        // Not using shrink_to_fit() on purpose
-        output
+        Ok(())
     }
 }

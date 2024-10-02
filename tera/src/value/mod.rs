@@ -18,7 +18,7 @@ mod utils;
 
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::{escape_html, HashMap};
+use crate::HashMap;
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
@@ -38,14 +38,16 @@ pub(crate) fn format_map(map: &Map, f: &mut impl std::io::Write) -> std::io::Res
         if idx > 0 {
             f.write_all(b", ")?;
         }
-        key.format(f)?;
-        f.write_all(b": ")?;
-        if value.as_str().is_some() {
-            f.write_all(b"'")?;
+        if let Some(v) = key.as_str() {
+            write!(f, "{v:?}")?
+        } else {
+            key.format(f)?;
         }
-        value.format(f)?;
-        if value.as_str().is_some() {
-            f.write_all(b"'")?;
+
+        f.write_all(b": ")?;
+        match value {
+            Value::String(v, _) => write!(f, "{v:?}")?,
+            _ => value.format(f)?,
         }
     }
     f.write_all(b"}")
@@ -187,13 +189,7 @@ impl Value {
             Value::Null | Value::Undefined => Ok(()),
             Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
             Value::Bytes(v) => f.write_all(v),
-            Value::String(v, kind) => {
-                if matches!(kind, StringKind::Safe) {
-                    f.write_all(v.as_bytes())
-                } else {
-                    f.write_all(escape_html(v).as_bytes())
-                }
-            }
+            Value::String(v, _) => f.write_all(v.as_bytes()),
             Value::Array(v) => {
                 f.write_all(b"[")?;
 
@@ -201,12 +197,10 @@ impl Value {
                     if idx > 0 {
                         f.write_all(b", ")?;
                     }
-                    if elem.as_str().is_some() {
-                        f.write_all(b"'")?;
-                    }
-                    elem.format(f)?;
-                    if elem.as_str().is_some() {
-                        f.write_all(b"'")?;
+
+                    match elem {
+                        Value::String(v, _) => write!(f, "{v:?}")?,
+                        _ => elem.format(f)?,
                     }
                 }
                 f.write_all(b"]")
@@ -315,11 +309,19 @@ impl Value {
     }
 
     #[inline]
+    pub fn is_safe(&self) -> bool {
+        match self {
+            Value::String(_, kind) => *kind == StringKind::Safe,
+            Value::Array(_) | Value::Map(_) | Value::Bytes(_) => false,
+            _ => true,
+        }
+    }
+
+    #[inline]
     pub fn mark_safe(self) -> Self {
-        if let Value::String(s, _) = self {
-            Value::String(s, StringKind::Safe)
-        } else {
-            self
+        match self {
+            Value::String(s, _) => Value::String(s, StringKind::Safe),
+            _ => self,
         }
     }
 

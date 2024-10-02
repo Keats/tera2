@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
@@ -85,6 +86,14 @@ impl_for_literal!(f64, {
     Value::F64(b) => b,
 });
 
+impl<'k> ArgFromValue<'k> for String {
+    type Output = String;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        Ok(format!("{value}"))
+    }
+}
+
 impl<'k> ArgFromValue<'k> for &str {
     type Output = &'k str;
 
@@ -95,7 +104,16 @@ impl<'k> ArgFromValue<'k> for &str {
     }
 }
 
-// TODO: impl for Cow?
+impl<'k> ArgFromValue<'k> for Cow<'_, str> {
+    type Output = Cow<'k, str>;
+
+    fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
+        match value {
+            Value::String(s, _) => Ok(Cow::Borrowed(s)),
+            _ => Ok(Cow::Owned(format!("{value}"))),
+        }
+    }
+}
 
 impl<'k> ArgFromValue<'k> for &Value {
     type Output = &'k Value;

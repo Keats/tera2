@@ -19,7 +19,7 @@ use crate::globbing::load_from_glob;
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
 
 /// The escape function type definition
-pub type EscapeFn = fn(&str) -> String;
+pub type EscapeFn = fn(&[u8], &mut dyn std::io::Write) -> std::io::Result<()>;
 
 #[derive(Clone)]
 pub struct Tera {
@@ -35,7 +35,7 @@ pub struct Tera {
     #[doc(hidden)]
     autoescape_suffixes: Vec<&'static str>,
     #[doc(hidden)]
-    escape_fn: EscapeFn,
+    pub(crate) escape_fn: EscapeFn,
     global_context: Context,
     pub(crate) filters: HashMap<&'static str, StoredFilter>,
     pub(crate) tests: HashMap<&'static str, StoredTest>,
@@ -95,7 +95,10 @@ impl Tera {
 
     fn set_templates_auto_escape(&mut self) {
         for (tpl_name, tpl) in self.templates.iter_mut() {
-            tpl.autoescape_enabled = self.autoescape_suffixes.iter().any(|s| tpl_name.ends_with(s));
+            tpl.autoescape_enabled = self
+                .autoescape_suffixes
+                .iter()
+                .any(|s| tpl_name.ends_with(s));
         }
     }
 
@@ -142,6 +145,7 @@ impl Tera {
     /// let mut tera = Tera::default();
     ///
     /// // Override escape function
+    /// TODO: fix me
     /// tera.set_escape_fn(|input| {
     ///     input.escape_default().collect()
     /// });
@@ -222,7 +226,7 @@ impl Tera {
         self.register_filter("capitalize", crate::filters::capitalize);
         self.register_filter("title", crate::filters::title);
         self.register_filter("indent", crate::filters::indent);
-        self.register_filter("str", crate::filters::str);
+        self.register_filter("str", crate::filters::as_str);
         self.register_filter("int", crate::filters::int);
         self.register_filter("float", crate::filters::float);
         self.register_filter("length", crate::filters::length);
@@ -727,7 +731,7 @@ mod tests {
             .unwrap();
         assert_eq!(content2, "UserID: 7489, Username: John Doe");
     }
-    
+
     #[test]
     fn extend_no_overlap() {
         let mut my_tera = Tera::default();
@@ -740,13 +744,11 @@ mod tests {
             .unwrap();
 
         let mut framework_tera = Tera::default();
-        framework_tera.add_raw_templates(vec![("four", "Framework X")]).unwrap();
-        framework_tera.register_filter("hello", |_: &str, _: Kwargs, _: &State| {
-            "hello"
-        });
-        framework_tera.register_test("testing", |_: &str, _: Kwargs, _: &State| {
-            true
-        });
+        framework_tera
+            .add_raw_templates(vec![("four", "Framework X")])
+            .unwrap();
+        framework_tera.register_filter("hello", |_: &str, _: Kwargs, _: &State| "hello");
+        framework_tera.register_test("testing", |_: &str, _: Kwargs, _: &State| true);
         my_tera.extend(&framework_tera).unwrap();
         assert_eq!(my_tera.templates.len(), 4);
         let result = my_tera.render("four", &Context::default()).unwrap();
@@ -780,7 +782,8 @@ mod tests {
     #[test]
     fn can_full_reload() {
         let mut tera = Tera::default();
-        tera.load_from_glob("examples/basic/templates/**/*").unwrap();
+        tera.load_from_glob("examples/basic/templates/**/*")
+            .unwrap();
         tera.full_reload().unwrap();
 
         assert!(tera.get_template("base.html").is_ok());
@@ -790,7 +793,8 @@ mod tests {
     #[test]
     fn full_reload_with_glob_after_extending() {
         let mut tera = Tera::default();
-        tera.load_from_glob("examples/basic/templates/**/*").unwrap();
+        tera.load_from_glob("examples/basic/templates/**/*")
+            .unwrap();
         let mut framework_tera = Tera::default();
         framework_tera
             .add_raw_templates(vec![("one", "FRAMEWORK"), ("four", "Framework X")])
@@ -801,5 +805,4 @@ mod tests {
         assert!(tera.get_template("base.html").is_ok());
         assert!(tera.get_template("one").is_ok());
     }
-
 }
