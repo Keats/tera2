@@ -4,7 +4,7 @@ use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
 use crate::utils::Span;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 /// Special string indicating request to dump context
 static MAGICAL_DUMP_VAR: &str = "__tera_context";
@@ -107,7 +107,7 @@ impl<'t> State<'t> {
     }
 
     fn dump_context(&self) -> Value {
-        let mut context = HashMap::new();
+        let mut context = crate::HashMap::new();
         context.extend(self.context.data.clone());
         context.extend(self.set_variables.clone());
 

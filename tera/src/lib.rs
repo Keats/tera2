@@ -24,9 +24,9 @@ pub use value::number::Number;
 pub use value::Value;
 pub use vm::state::State;
 
-#[cfg(ahash)]
+#[cfg(feature = "ahash")]
 pub(crate) use hashbrown::{HashMap, HashSet};
-#[cfg(not(ahash))]
+#[cfg(not(feature = "ahash"))]
 pub(crate) use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
