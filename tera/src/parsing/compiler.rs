@@ -98,6 +98,29 @@ impl<'s> Compiler<'s> {
                 self.compile_expr(item.sub_expr);
                 self.chunk.add(Instruction::BinarySubscript, Some(span));
             }
+            Expression::Slice(e) => {
+                let (slice, span) = e.into_parts();
+                self.compile_expr(slice.expr);
+                if let Some(start) = slice.start {
+                    self.compile_expr(start);
+                } else {
+                    self.chunk.add(Instruction::LoadConst(0.into()), None);
+                }
+
+                if let Some(end) = slice.end {
+                    self.compile_expr(end);
+                } else {
+                    self.chunk.add(Instruction::LoadConst(Value::Null), None);
+                }
+
+                if let Some(step) = slice.step {
+                    self.compile_expr(step);
+                } else {
+                    self.chunk.add(Instruction::LoadConst(1.into()), None);
+                }
+
+                self.chunk.add(Instruction::Slice, Some(span));
+            }
             Expression::Filter(e) => {
                 let (filter, span) = e.into_parts();
                 self.compile_expr(filter.expr);

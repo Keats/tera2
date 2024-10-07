@@ -258,7 +258,7 @@ impl Value {
         Value::String(Arc::from(val), StringKind::Safe)
     }
 
-    fn as_i128(&self) -> Option<i128> {
+    pub(crate) fn as_i128(&self) -> Option<i128> {
         match self {
             Value::U64(v) => Some(*v as i128),
             Value::I64(v) => Some(*v as i128),
@@ -503,6 +503,48 @@ impl Value {
                 }
             }
             _ => Ok(Value::Undefined),
+        }
+    }
+
+    pub(crate) fn slice(
+        &self,
+        start: Option<i128>,
+        end: Option<i128>,
+        step: Option<i128>,
+    ) -> TeraResult<Value> {
+        let start = start.unwrap_or(0);
+        let step = step.unwrap_or(1);
+        let reverse = step == -1;
+
+        match self {
+            Value::Array(arr) => {
+                let mut input = Vec::with_capacity(arr.len());
+                let mut out = Vec::with_capacity(arr.len());
+                let end = end.unwrap_or_else(|| arr.len() as i128);
+
+                for item in arr.iter() {
+                    input.push(item.clone());
+                }
+
+                if reverse {
+                    input.reverse();
+                }
+
+                for (idx, item) in input.into_iter().enumerate() {
+                    if (idx as i128) >= start || (idx as i128) < end {
+                        out.push(item);
+                    }
+                }
+
+                Ok(out.into())
+            }
+            Value::String(s, _) => {
+                todo!("p")
+            }
+            _ => Err(Error::message(format!(
+                "Slicing can only be used on arrays or strings, not on `{}`.",
+                self.name()
+            ))),
         }
     }
 

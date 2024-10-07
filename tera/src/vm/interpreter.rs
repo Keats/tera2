@@ -158,6 +158,27 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     }
                 }
+                Instruction::Slice => {
+                    let (step, _) = state.stack.pop();
+                    let (end, _) = state.stack.pop();
+                    let (start, _) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val == Value::Undefined {
+                        rendering_error!(format!("Container is not defined"), val_span);
+                    }
+
+                    // TODO: see errors and handle spans correctly
+                    // let mut slice_span = expand_span!(val_span, start_span);
+
+                    match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
+                        Ok(v) => {
+                            state.stack.push(v, Some(val_span.unwrap()));
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), val_span);
+                        }
+                    }
+                }
                 Instruction::WriteText(t) => {
                     if let Some(captured) = state.capture_buffers.last_mut() {
                         captured.write_all(t.as_bytes())?;
