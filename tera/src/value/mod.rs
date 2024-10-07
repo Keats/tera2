@@ -496,7 +496,14 @@ impl Value {
             }
             Value::Array(arr) => {
                 match item.as_i128() {
-                    Some(idx) => Ok(arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)),
+                    Some(idx) => {
+                        let correct_idx = if idx < 0 {
+                            arr.len() as i128 + idx
+                        } else {
+                            idx
+                        } as usize;
+                        Ok(arr.get(correct_idx).cloned().unwrap_or(Value::Undefined))
+                    },
                     None =>  Err(Error::message(
                         format!("Array indices can only be integers, not `{}`.", item.name()),
                     ))
@@ -531,7 +538,7 @@ impl Value {
                 }
 
                 for (idx, item) in input.into_iter().enumerate() {
-                    if (idx as i128) >= start || (idx as i128) < end {
+                    if (idx as i128) >= start && (idx as i128) < end {
                         out.push(item);
                     }
                 }
