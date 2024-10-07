@@ -52,6 +52,7 @@ fn get_context() -> Context {
     context.insert("description", &"<p>I should be escaped by default</p>");
     context.insert("some_html", &"<p>Some HTML chars & more</p>");
     context.insert("age", &18);
+    context.insert("some_bool", &true);
     context.insert("one", &1);
     context.insert("product", &Product::new());
     context.insert("vectors", &vec![vec![0, 3, 6], vec![1, 4, 7]]);

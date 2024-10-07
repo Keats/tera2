@@ -1,0 +1,8 @@
+{{ age ~ name }}
+{{ name ~ name }}
+{{ name ~ ", " ~ name }}
+{{ some_bool ~ name }}
+{{ age ~ some_bool }}
+{{ age ~ numbers }}
+{{ "hello" ~ "world" }}
+{{ "hello" ~ 1 }}

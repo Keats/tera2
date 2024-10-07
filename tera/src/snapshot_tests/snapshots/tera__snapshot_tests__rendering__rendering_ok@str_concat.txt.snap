@@ -1,0 +1,13 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/str_concat.txt
+---
+18Bob
+BobBob
+Bob, Bob
+trueBob
+18true
+18[1, 2, 3]
+helloworld
+hello1
