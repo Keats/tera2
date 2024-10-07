@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 use std::fmt;
 
 use crate::parsing::ast::{Expression, MacroDefinition, Node};
@@ -6,6 +6,7 @@ use crate::parsing::parser::Parser;
 use crate::template::Template;
 use crate::utils::Spanned;
 use crate::value::Value;
+use crate::HashMap;
 
 struct Expressions(pub Vec<Expression>);
 
