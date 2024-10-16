@@ -50,7 +50,7 @@ TODO:
 - [ ] Add more helpful errors when loading templates (eg a forloop with for key, key in value/missing includes etc)
 - [ ] Some constant folding: maths, subscript on literals
 - [x] Allow escape chars (eg \n) in strings concat, there was an issue about that in Zola
-- [ ] Feature to load templates from a glob with optional dep
+- [x] Feature to load templates from a glob with optional dep
 - [x] MAYBE: add a way to add global context to the Tera struct that are passed on every render automatically
 - [ ] Shitload of tests
 - [ ] More fuzzing
