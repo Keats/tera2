@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/rendering_inputs/errors/slicing_non_containers.txt
+---
+ Rendering error --> [slicing_non_containers.txt:1:3]
+  |
+1 | {{ one[-1] }}
+  |    ^---
+  = Slicing can only be used on arrays or strings, not on `i64`.

@@ -258,7 +258,7 @@ impl Value {
         Value::String(Arc::from(val), StringKind::Safe)
     }
 
-    fn as_i128(&self) -> Option<i128> {
+    pub(crate) fn as_i128(&self) -> Option<i128> {
         match self {
             Value::U64(v) => Some(*v as i128),
             Value::I64(v) => Some(*v as i128),
@@ -496,13 +496,105 @@ impl Value {
             }
             Value::Array(arr) => {
                 match item.as_i128() {
-                    Some(idx) => Ok(arr.get(idx as usize).cloned().unwrap_or(Value::Undefined)),
+                    Some(idx) => {
+                        let correct_idx = if idx < 0 {
+                            arr.len() as i128 + idx
+                        } else {
+                            idx
+                        } as usize;
+                        Ok(arr.get(correct_idx).cloned().unwrap_or(Value::Undefined))
+                    },
                     None =>  Err(Error::message(
                         format!("Array indices can only be integers, not `{}`.", item.name()),
                     ))
                 }
             }
             _ => Ok(Value::Undefined),
+        }
+    }
+
+    pub(crate) fn slice(
+        &self,
+        start: Option<i128>,
+        end: Option<i128>,
+        step: Option<i128>,
+    ) -> TeraResult<Value> {
+        let step = step.unwrap_or(1);
+        let reverse = step == -1;
+
+        let get_actual_idx = |size: i128, param: Option<i128>| -> i128 {
+            if let Some(p) = param {
+                if p < 0 {
+                    size + p
+                } else {
+                    p
+                }
+            } else {
+                size
+            }
+        };
+
+        match self {
+            Value::Array(arr) => {
+                let mut input = Vec::with_capacity(arr.len());
+                let mut out = Vec::with_capacity(arr.len());
+                let start = get_actual_idx(arr.len() as i128, start);
+                let end = get_actual_idx(arr.len() as i128, end);
+
+                for item in arr.iter() {
+                    input.push(item.clone());
+                }
+
+                if reverse {
+                    input.reverse();
+                }
+
+                for (idx, item) in input.into_iter().enumerate() {
+                    if (idx as i128) >= start && (idx as i128) < end {
+                        out.push(item);
+                    }
+                }
+
+                Ok(out.into())
+            }
+            Value::String(s, kind) => {
+                let mut out = Vec::with_capacity(s.len());
+
+                #[cfg(feature = "unicode")]
+                let mut input: Vec<&str> = unic_segment::Graphemes::new(&*s).collect();
+                #[cfg(not(feature = "unicode"))]
+                let mut input: Vec<char> = s.chars().collect();
+
+                let start = get_actual_idx(input.len() as i128, start);
+                let end = get_actual_idx(input.len() as i128, end);
+
+                if reverse {
+                    input.reverse();
+                }
+
+                for (idx, item) in input.iter().enumerate() {
+                    if (idx as i128) >= start && (idx as i128) < end {
+                        out.push(*item);
+                    }
+                }
+
+                #[cfg(feature = "unicode")]
+                {
+                    Ok(Value::String(Arc::from(out.join("")), *kind))
+                }
+
+                #[cfg(not(feature = "unicode"))]
+                {
+                    Ok(Value::String(
+                        Arc::from(String::from_iter(out).as_str()),
+                        *kind,
+                    ))
+                }
+            }
+            _ => Err(Error::message(format!(
+                "Slicing can only be used on arrays or strings, not on `{}`.",
+                self.name()
+            ))),
         }
     }
 

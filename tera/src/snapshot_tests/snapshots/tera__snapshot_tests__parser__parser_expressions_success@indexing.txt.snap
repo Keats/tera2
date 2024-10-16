@@ -1,0 +1,11 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: Expressions(expr_nodes)
+input_file: tera/src/snapshot_tests/parser_inputs/success/expr/indexing.txt
+---
+array[0]
+array[(- 1)]
+array[:2]
+array[1:2]
+array[1:2:2]
+array[:(- 1)]

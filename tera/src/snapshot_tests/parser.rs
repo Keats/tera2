@@ -1,4 +1,3 @@
-
 use std::fmt;
 
 use crate::parsing::ast::{Expression, MacroDefinition, Node};

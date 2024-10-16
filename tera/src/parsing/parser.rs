@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
-    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Ternary,
-    Test, UnaryOperation, Var,
+    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Slice,
+    Ternary, Test, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -188,13 +188,66 @@ impl<'a> Parser<'a> {
             ));
         }
 
-        let sub_expr = self.parse_expression(0)?;
         let mut span = expr.span().clone();
+
+        let mut start = None;
+        let mut end = None;
+        let mut step = None;
+        let mut slice = false;
+
+        // If we don't have a colon (eg `::-1`), parse an expr first
+        // If there are no colons after, it's just the normal subscript expr
+        if !matches!(self.next, Some(Ok((Token::Colon, _)))) {
+            let sub_expr = self.parse_expression(0)?;
+            // Something like [-1] is a slice
+            if matches!(sub_expr, Expression::UnaryOperation(..)) {
+                slice = true;
+            }
+            start = Some(sub_expr)
+        }
+
+        // Now, it could be slice indexing pattern if there is a `:`
+        if matches!(self.next, Some(Ok((Token::Colon, _)))) {
+            expect_token!(self, Token::Colon, ":")?;
+            slice = true;
+
+            // If the next character is not `:` or `]`, parse the expr
+            if !matches!(
+                self.next,
+                Some(Ok((Token::Colon, _) | (Token::RightBracket, _)))
+            ) {
+                end = Some(self.parse_expression(0)?);
+            }
+
+            // Then check if there is a step value. If there is a `:`, there _must_ be a value
+            if matches!(self.next, Some(Ok((Token::Colon, _)))) {
+                expect_token!(self, Token::Colon, ":")?;
+                step = Some(self.parse_expression(0)?);
+            }
+        }
         span.expand(&self.current_span);
-
-        let expr = Expression::GetItem(Spanned::new(GetItem { expr, sub_expr }, span));
-
         expect_token!(self, Token::RightBracket, "]")?;
+
+        let expr = if slice {
+            Expression::Slice(Spanned::new(
+                Slice {
+                    expr,
+                    start,
+                    end,
+                    step,
+                },
+                span,
+            ))
+        } else {
+            Expression::GetItem(Spanned::new(
+                GetItem {
+                    expr,
+                    sub_expr: start.expect("to have an expr"),
+                },
+                span,
+            ))
+        };
+
         self.num_left_brackets -= 1;
 
         Ok(expr)

@@ -129,7 +129,9 @@ impl<'tera> VirtualMachine<'tera> {
         while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
             match instr {
                 Instruction::LoadConst(v) => {
-                    state.stack.push_borrowed(v.clone(), span.as_ref().unwrap())
+                    state
+                        .stack
+                        .push(v.clone(), span.as_ref().map(Cow::Borrowed));
                 }
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
@@ -155,6 +157,27 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), subscript_span);
+                        }
+                    }
+                }
+                Instruction::Slice => {
+                    let (step, _) = state.stack.pop();
+                    let (end, _) = state.stack.pop();
+                    let (start, _) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val == Value::Undefined {
+                        rendering_error!(format!("Container is not defined"), val_span);
+                    }
+
+                    // let mut slice_span = expand_span!(val_span, start_span);
+                    // This returns an error if the value is not an array/string so we don't need to
+                    // expand the span.
+                    match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
+                        Ok(v) => {
+                            state.stack.push(v, Some(val_span.unwrap()));
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), val_span);
                         }
                     }
                 }

@@ -98,8 +98,10 @@ pub enum Expression {
     Var(Spanned<Var>),
     /// The `.` getter, as in item.field
     GetAttr(Spanned<GetAttr>),
-    /// The in brackets getter as in item[hello * 10]
+    /// The in brackets getter as in `item[hello * 10]`
     GetItem(Spanned<GetItem>),
+    /// A python like slice indexing pattern, like `[1:5:2]`
+    Slice(Spanned<Slice>),
     /// my_value | safe(potential="argument") filter
     Filter(Spanned<Filter>),
     /// my_value is defined
@@ -145,6 +147,7 @@ impl Expression {
             Expression::Var(s) => s.span(),
             Expression::GetAttr(s) => s.span(),
             Expression::GetItem(s) => s.span(),
+            Expression::Slice(s) => s.span(),
             Expression::Filter(s) => s.span(),
             Expression::Ternary(s) => s.span(),
         }
@@ -163,6 +166,7 @@ impl Expression {
             Expression::Var(s) => s.span_mut().expand(span),
             Expression::GetAttr(s) => s.span_mut().expand(span),
             Expression::GetItem(s) => s.span_mut().expand(span),
+            Expression::Slice(s) => s.span_mut().expand(span),
             Expression::Filter(s) => s.span_mut().expand(span),
             Expression::Ternary(s) => s.span_mut().expand(span),
         }
@@ -195,6 +199,7 @@ impl fmt::Debug for Expression {
             Var(i) => fmt::Debug::fmt(i, f),
             GetAttr(i) => fmt::Debug::fmt(i, f),
             GetItem(i) => fmt::Debug::fmt(i, f),
+            Slice(i) => fmt::Debug::fmt(i, f),
             Ternary(i) => fmt::Debug::fmt(i, f),
         }
     }
@@ -250,6 +255,7 @@ impl fmt::Display for Expression {
             Var(i) => write!(f, "{}", **i),
             GetAttr(i) => write!(f, "{}", **i),
             GetItem(i) => write!(f, "{}", **i),
+            Slice(i) => write!(f, "{}", **i),
             Ternary(i) => write!(f, "{}", **i),
         }
     }
@@ -513,6 +519,31 @@ pub struct GetAttr {
 impl fmt::Display for GetAttr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}.{}", self.expr, self.name)
+    }
+}
+
+/// A slicing expression (eg [-1], [1:], [:2] etc)
+#[derive(Clone, Debug, PartialEq)]
+pub struct Slice {
+    pub expr: Expression,
+    pub start: Option<Expression>,
+    pub end: Option<Expression>,
+    pub step: Option<Expression>,
+}
+
+impl fmt::Display for Slice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[", self.expr)?;
+        if let Some(ref expr) = self.start {
+            write!(f, "{}", expr)?;
+        }
+        if let Some(ref expr) = self.end {
+            write!(f, ":{}", expr)?;
+        }
+        if let Some(ref expr) = self.step {
+            write!(f, ":{}", expr)?;
+        }
+        write!(f, "]")
     }
 }
 
