@@ -198,7 +198,12 @@ impl<'a> Parser<'a> {
         // If we don't have a colon (eg `::-1`), parse an expr first
         // If there are no colons after, it's just the normal subscript expr
         if !matches!(self.next, Some(Ok((Token::Colon, _)))) {
-            start = Some(self.parse_expression(0)?);
+            let sub_expr = self.parse_expression(0)?;
+            // Something like [-1] is a slice
+            if matches!(sub_expr, Expression::UnaryOperation(..)) {
+                slice = true;
+            }
+            start = Some(sub_expr)
         }
 
         // Now, it could be slice indexing pattern if there is a `:`

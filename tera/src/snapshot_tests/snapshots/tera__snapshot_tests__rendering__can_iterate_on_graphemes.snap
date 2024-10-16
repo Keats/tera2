@@ -1,0 +1,8 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+---
+1.न
+2.म
+3.स्
+4.ते

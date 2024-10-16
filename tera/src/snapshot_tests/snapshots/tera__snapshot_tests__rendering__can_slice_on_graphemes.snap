@@ -1,0 +1,7 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+---
+तेस्मन
+मस्ते
+नमस्

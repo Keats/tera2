@@ -186,7 +186,26 @@ fn can_iterate_on_graphemes() {
     let mut tera = Tera::default();
     tera.add_raw_template("tpl", tpl).unwrap();
     let mut context = Context::default();
-    context.insert("string", "a\r\nb🇺🇳🇮🇨");
+    // s.chars() would give ['न', 'म', 'स', '्', 'त', 'े']
+    // graphemes are ["न", "म", "स्", "ते"]
+    context.insert("string", "नमस्ते");
+    let out = tera.render("tpl", &context).unwrap();
+
+    insta::assert_snapshot!(&out);
+}
+
+#[cfg(feature = "unicode")]
+#[test]
+fn can_slice_on_graphemes() {
+    let tpl = r#"
+{{ string[::-1] }}
+{{ string[1:] }}
+{{ string[:-1] }}
+"#;
+    let mut tera = Tera::default();
+    tera.add_raw_template("tpl", tpl).unwrap();
+    let mut context = Context::default();
+    context.insert("string", "नमस्ते");
     let out = tera.render("tpl", &context).unwrap();
 
     insta::assert_snapshot!(&out);

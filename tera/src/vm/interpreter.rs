@@ -129,7 +129,9 @@ impl<'tera> VirtualMachine<'tera> {
         while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
             match instr {
                 Instruction::LoadConst(v) => {
-                    state.stack.push(v.clone(), span.as_ref().map(|c| Cow::Borrowed(c)));
+                    state
+                        .stack
+                        .push(v.clone(), span.as_ref().map(Cow::Borrowed));
                 }
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
