@@ -6,8 +6,6 @@ use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-#[cfg(feature = "preserve_order")]
-use indexmap::IndexMap;
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 mod de;
@@ -25,14 +23,15 @@ pub use key::Key;
 pub type Map = HashMap<Key<'static>, Value>;
 
 #[cfg(feature = "preserve_order")]
-pub type Map = IndexMap<Key<'static>, Value>;
+pub type Map = indexmap::IndexMap<Key<'static>, Value>;
 
 #[inline]
 pub(crate) fn format_map(map: &Map, f: &mut impl std::io::Write) -> std::io::Result<()> {
     let mut key_val: Box<_> = map.iter().collect();
-    // Keys are sorted to have deterministic output
-    // TODO: Consider using sort_unstable_by_key
-    key_val.sort_by_key(|elem| elem.0);
+    // Keys are sorted to have deterministic output if preserve_order is not used
+    if cfg!(not(feature = "preserve_order")) {
+        key_val.sort_by_key(|elem| elem.0);
+    }
     f.write_all(b"{")?;
     for (idx, (key, value)) in key_val.iter().enumerate() {
         if idx > 0 {
@@ -786,8 +785,8 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
 }
 
 #[cfg(feature = "preserve_order")]
-impl<K: Into<Key<'static>>, T: Into<Value>> From<IndexMap<K, T>> for Value {
-    fn from(input: IndexMap<K, T>) -> Self {
+impl<K: Into<Key<'static>>, T: Into<Value>> From<indexmap::IndexMap<K, T>> for Value {
+    fn from(input: indexmap::IndexMap<K, T>) -> Self {
         let mut map = Map::with_capacity(input.len());
         for (key, value) in input {
             map.insert(key.into(), value.into());
