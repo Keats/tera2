@@ -522,7 +522,7 @@ impl fmt::Display for GetAttr {
     }
 }
 
-/// An item lookup expression.
+/// A slicing expression (eg [-1], [1:], [:2] etc)
 #[derive(Clone, Debug, PartialEq)]
 pub struct Slice {
     pub expr: Expression,

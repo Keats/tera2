@@ -169,9 +169,9 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
 
-                    // TODO: see errors and handle spans correctly
                     // let mut slice_span = expand_span!(val_span, start_span);
-
+                    // This returns an error if the value is not an array/string so we don't need to
+                    // expand the span.
                     match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
                         Ok(v) => {
                             state.stack.push(v, Some(val_span.unwrap()));
