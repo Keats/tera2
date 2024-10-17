@@ -117,6 +117,9 @@ fn get_context() -> Context {
     context
 }
 
+// Disable those tests with preserve_order since the order of printed maps would change
+// and fail
+#[cfg(not(feature = "preserve_order"))]
 #[test]
 fn rendering_ok() {
     insta::glob!("rendering_inputs/success/*.txt*", |path| {
@@ -206,6 +209,24 @@ fn can_slice_on_graphemes() {
     tera.add_raw_template("tpl", tpl).unwrap();
     let mut context = Context::default();
     context.insert("string", "नमस्ते");
+    let out = tera.render("tpl", &context).unwrap();
+
+    insta::assert_snapshot!(&out);
+}
+
+#[cfg(feature = "preserve_order")]
+#[test]
+fn inline_map_preserve_order() {
+    let tpl = r#"
+{% set m = {"name": "Alex", "age": 42, "vip": true, } -%}
+{{ m }}
+{% for k, v in m -%}
+{{ k }} = {{ v }}
+{% endfor -%}
+"#;
+    let mut tera = Tera::default();
+    tera.add_raw_template("tpl", tpl).unwrap();
+    let mut context = Context::default();
     let out = tera.render("tpl", &context).unwrap();
 
     insta::assert_snapshot!(&out);

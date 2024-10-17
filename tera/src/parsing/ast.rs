@@ -1,5 +1,4 @@
 use crate::errors::{Error, TeraResult};
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
@@ -311,9 +310,15 @@ impl fmt::Display for BinaryOperation {
     }
 }
 
+#[cfg(not(feature = "preserve_order"))]
+pub type ExpressionMap = HashMap<Key<'static>, Expression>;
+
+#[cfg(feature = "preserve_order")]
+pub type ExpressionMap = indexmap::IndexMap<Key<'static>, Expression>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Map {
-    pub items: BTreeMap<Key<'static>, Expression>,
+    pub items: ExpressionMap,
 }
 
 impl fmt::Display for Map {

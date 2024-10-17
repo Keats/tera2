@@ -1,12 +1,11 @@
-use std::collections::BTreeMap;
 use std::iter::Peekable;
 use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, Expression, Filter, FilterSection, ForLoop,
-    FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set, Slice,
-    Ternary, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, Expression, ExpressionMap, Filter, FilterSection,
+    ForLoop, FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set,
+    Slice, Ternary, Test, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -411,7 +410,7 @@ impl<'a> Parser<'a> {
 
     fn parse_map(&mut self) -> TeraResult<Expression> {
         let mut literal_only = true;
-        let mut items = BTreeMap::new();
+        let mut items = ExpressionMap::new();
         let mut span = self.current_span.clone();
 
         loop {
@@ -435,7 +434,6 @@ impl<'a> Parser<'a> {
                 (Token::Integer(key), _) => Key::I64(key),
                 (Token::Bool(key), _) => Key::Bool(key),
                 (token, span) => {
-                    println!("{token:?}");
                     return Err(Error::syntax_error(
                         format!(
                             "Found {} but expected a string, an integer or a bool.",
