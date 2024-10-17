@@ -1,5 +1,4 @@
 use crate::errors::{Error, TeraResult};
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 

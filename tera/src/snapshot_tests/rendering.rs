@@ -117,7 +117,6 @@ fn get_context() -> Context {
     context
 }
 
-
 // Disable those tests with preserve_order since the order of printed maps would change
 // and fail
 #[cfg(not(feature = "preserve_order"))]
