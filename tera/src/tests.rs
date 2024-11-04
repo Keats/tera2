@@ -75,6 +75,10 @@ pub(crate) fn is_map(val: &Value, _: Kwargs, _: &State) -> bool {
     matches!(val, Value::Map(..))
 }
 
+pub(crate) fn is_bool(val: &Value, _: Kwargs, _: &State) -> bool {
+    matches!(val, Value::Bool(..))
+}
+
 pub(crate) fn is_array(val: &Value, _: Kwargs, _: &State) -> bool {
     matches!(val, Value::Array(..))
 }

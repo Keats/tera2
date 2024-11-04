@@ -250,6 +250,7 @@ impl Tera {
         self.register_test("string", crate::tests::is_string);
         self.register_test("number", crate::tests::is_number);
         self.register_test("map", crate::tests::is_map);
+        self.register_test("bool", crate::tests::is_bool);
         self.register_test("array", crate::tests::is_array);
         self.register_test("integer", crate::tests::is_integer);
         self.register_test("float", crate::tests::is_float);

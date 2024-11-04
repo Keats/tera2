@@ -741,62 +741,33 @@ impl<'a> Parser<'a> {
             )
         })?;
 
-        let mut false_body = Vec::new();
-
-        let mut elif = None;
-        loop {
-            match &self.next {
-                Some(Ok((Token::Ident("elif"), _))) => {
-                    if let Some(existing_elif) = elif {
-                        false_body.push(Node::If(existing_elif));
-                    }
-                    self.next_or_error()?;
-                    let expr = self.parse_expression(0)?;
-                    expect_token!(self, Token::TagEnd(..), "%}")?;
-                    let elif_body = self.parse_until(|tok| {
-                        matches!(
-                            tok,
-                            Token::Ident("endif") | Token::Ident("else") | Token::Ident("elif")
-                        )
-                    })?;
-                    elif = Some(If {
-                        expr,
-                        body: elif_body,
-                        false_body: Vec::new(),
-                    });
-                }
-                Some(Ok((Token::Ident("else"), _))) => {
-                    self.next_or_error()?;
-                    expect_token!(self, Token::TagEnd(..), "%}")?;
-                    let else_body = self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?;
-                    if let Some(ref mut current_elif) = elif {
-                        current_elif.false_body = else_body;
-                    } else {
-                        false_body = else_body;
-                    }
-                }
-                Some(Ok((Token::Ident("endif"), _))) => {
-                    if let Some(el) = elif {
-                        false_body.push(Node::If(el));
-                    }
-                    self.next_or_error()?;
-                    break;
-                }
-                Some(Ok((token, _))) => {
-                    return Err(Error::syntax_error(
-                        format!("Found {token} but was expecting `elif`, `else` or `endif`."),
-                        &self.current_span,
-                    ));
-                }
-                Some(Err(e)) => {
-                    return Err(Error {
-                        kind: e.kind.clone(),
-                        source: None,
-                    });
-                }
-                None => return Err(self.eoi()),
+        let false_body = match &self.next {
+            Some(Ok((Token::Ident("elif"), _))) => {
+                self.next_or_error()?;
+                vec![Node::If(self.parse_if()?)]
             }
-        }
+            Some(Ok((Token::Ident("else"), _))) => {
+                self.next_or_error()?;
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+                self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?
+            }
+            Some(Ok((Token::Ident("endif"), _))) => {
+                Vec::new()
+            }
+            Some(Ok((token, _))) => {
+                return Err(Error::syntax_error(
+                    format!("Found {token} but was expecting `elif`, `else` or `endif`."),
+                    &self.current_span,
+                ));
+            }
+            Some(Err(e)) => {
+                return Err(Error {
+                    kind: e.kind.clone(),
+                    source: None,
+                });
+            }
+            None => return Err(self.eoi()),
+        };
 
         self.body_contexts.pop();
         Ok(If {
@@ -1048,6 +1019,7 @@ impl<'a> Parser<'a> {
             }
             Token::Ident("if") => {
                 let node = self.parse_if()?;
+                expect_token!(self, Token::Ident("endif"), "endif")?;
                 Ok(Some(Node::If(node)))
             }
             Token::Ident("filter") => {

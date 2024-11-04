@@ -1,0 +1,11 @@
+{%- set a = [42, true, "str", {}, []] %}
+{%- for x in a %}
+{{ loop.index0 }}. {{ x }}
+{%-   if x is number %} is number
+{%-   elif x is bool %} is boolean
+{%-   elif x is string %} is string
+{%-   elif x is map %} is mapping
+{%-   elif x is array %} is array
+{%-   else %} [ why does it work? ]
+{%-   endif %}
+{%- endfor %}
