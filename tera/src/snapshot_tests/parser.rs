@@ -73,6 +73,18 @@ fn parser_macros_success() {
 }
 
 #[test]
+fn parser_components_success() {
+    insta::glob!("parser_inputs/success/components/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let components = &Parser::new(&contents)
+            .parse()
+            .unwrap()
+            .component_definitions;
+        insta::assert_debug_snapshot!(components[0]);
+    });
+}
+
+#[test]
 fn parser_tags_success() {
     insta::glob!("parser_inputs/success/tags/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();

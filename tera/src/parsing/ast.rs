@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 use crate::errors::{Error, TeraResult};
 use std::fmt;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
@@ -634,6 +636,69 @@ pub struct MacroDefinition {
     /// The args for that macro: name -> optional default value
     /// Expression for default args can only be literals
     pub kwargs: HashMap<String, Option<Value>>,
+    pub body: Vec<Node>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Type {
+    String,
+    Bool,
+    Integer,
+    Float,
+    Number,
+    Array,
+    Map,
+}
+
+impl FromStr for Type {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "string" => Ok(Type::String),
+            "bool" => Ok(Type::Bool),
+            "integer" => Ok(Type::Integer),
+            "float" => Ok(Type::Float),
+            "number" => Ok(Type::Number),
+            "array" => Ok(Type::Array),
+            "map" => Ok(Type::Map),
+            _ => Err(Error::message(
+                format!("Found {s} but the only types allowed are: string, bool, integer, float, number, array and map"),
+            )),
+        }
+    }
+}
+
+impl Type {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Type::String => "string",
+            Type::Bool => "bool",
+            Type::Integer => "integer",
+            Type::Float => "float",
+            Type::Number => "number",
+            Type::Array => "array",
+            Type::Map => "map",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ComponentArgument {
+    pub default: Option<Value>,
+    pub typ: Option<Type>,
+}
+
+/// A component definition `{% component hello() %}...{% endcomponent %}`
+/// Not present in the AST, we extract them during parsing
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ComponentDefinition {
+    pub name: String,
+    /// The args for that macro: name -> optional default value
+    /// Expression for default args can only be literals
+    pub kwargs: BTreeMap<String, ComponentArgument>,
+    /// Component metadata that you might need at compile time
+    pub metadata: BTreeMap<String, Value>,
     pub body: Vec<Node>,
 }
 
