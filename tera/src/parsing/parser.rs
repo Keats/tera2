@@ -1,11 +1,13 @@
+use std::collections::BTreeMap;
 use std::iter::Peekable;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, Expression, ExpressionMap, Filter, FilterSection,
-    ForLoop, FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set,
-    Slice, Ternary, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentDefinition, Expression,
+    ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If, Include,
+    MacroCall, MacroDefinition, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -79,6 +81,7 @@ enum BodyContext {
     Block,
     If,
     MacroDefinition,
+    ComponentDefinition,
     FilterSection,
 }
 
@@ -94,6 +97,7 @@ pub struct ParserOutput {
     pub(crate) parent: Option<String>,
     // The AST for the body
     pub(crate) nodes: Vec<Node>,
+    pub(crate) component_definitions: Vec<ComponentDefinition>,
     pub(crate) macro_definitions: Vec<MacroDefinition>,
     // (file, namespace)
     pub(crate) macro_imports: Vec<(String, String)>,
@@ -775,6 +779,153 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_literal_map(&mut self, context: &str) -> TeraResult<Value> {
+        expect_token!(self, Token::LeftBrace, "{")?;
+        let map = self.parse_map()?;
+        if let Some(val) = map.as_value() {
+            Ok(val)
+        } else {
+            Err(Error::syntax_error(
+                format!("Invalid {context}: this map should only contain literal values."),
+                map.span(),
+            ))
+        }
+    }
+
+    fn parse_component_definition(&mut self) -> TeraResult<ComponentDefinition> {
+        if !self.body_contexts.is_empty() {
+            return Err(Error::syntax_error(
+                "Component definitions cannot be written in another tag.".to_string(),
+                &self.current_span,
+            ));
+        }
+        self.body_contexts.push(BodyContext::ComponentDefinition);
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        expect_token!(self, Token::LeftParen, "(")?;
+        let mut kwargs = BTreeMap::new();
+
+        let mut component_def = ComponentDefinition {
+            name: name.to_string(),
+            ..Default::default()
+        };
+
+        loop {
+            if matches!(self.next, Some(Ok((Token::RightParen, _)))) {
+                self.next_or_error()?;
+                break;
+            }
+
+            let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            let mut kwarg = ComponentArgument::default();
+
+            // First a potential type
+            if let Some(Ok((Token::Colon, _))) = self.next {
+                self.next_or_error()?;
+                match &self.next {
+                    Some(Ok((Token::Ident(type_str), span))) => {
+                        let typ = Type::from_str(type_str)
+                            .map_err(|e| Error::syntax_error(format!("{e}"), span))?;
+                        self.next_or_error()?;
+                        kwarg.typ = Some(typ);
+                    }
+                    Some(Ok((token, span))) => {
+                        return Err(Error::syntax_error(
+                            format!("Found {token} but the only types allowed are: string, bool, integer, float, number, array and map"),
+                            span,
+                        ));
+                    }
+                    Some(Err(e)) => {
+                        return Err(Error {
+                            kind: e.kind.clone(),
+                            source: None,
+                        });
+                    }
+                    None => return Err(self.eoi()),
+                }
+            }
+
+            // Then a potential default value
+            if let Some(Ok((Token::Assign, _))) = self.next {
+                self.next_or_error()?;
+
+                let (val, eat_next) = match &self.next {
+                    Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::LeftBracket, _))) => {
+                        expect_token!(self, Token::LeftBracket, "[")?;
+                        let array = self.parse_array()?;
+                        if let Some(val) = array.as_value() {
+                            (val, false)
+                        } else {
+                            return Err(Error::syntax_error(
+                                "Invalid default argument: this array should only contain literal values.".to_string(),
+                                array.span(),
+                            ));
+                        }
+                    }
+                    Some(Ok((Token::LeftBrace, _))) => {
+                        (self.parse_literal_map("default argument")?, false)
+                    }
+                    Some(Ok((token, span))) => {
+                        return Err(Error::syntax_error(
+                            format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float, array or map"),
+                            span,
+                        ));
+                    }
+                    Some(Err(e)) => {
+                        return Err(Error {
+                            kind: e.kind.clone(),
+                            source: None,
+                        });
+                    }
+                    None => return Err(self.eoi()),
+                };
+                if eat_next {
+                    self.next_or_error()?;
+                }
+
+                kwarg.default = Some(val);
+            }
+
+            // And finally maybe a comma
+            if let Some(Ok((Token::Comma, _))) = self.next {
+                self.next_or_error()?;
+            }
+
+            kwargs.insert(arg_name.to_string(), kwarg);
+        }
+        component_def.kwargs = kwargs;
+
+        // Then we potentially have a metadata map
+        if let Some(Ok((Token::LeftBrace, _))) = self.next {
+            let map = self.parse_literal_map("component metadata")?;
+            for (key, value) in map.as_map().unwrap() {
+                component_def
+                    .metadata
+                    .insert(key.to_string(), value.clone());
+            }
+        }
+
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+
+        let body = self.parse_until(|tok| matches!(tok, Token::Ident("endcomponent")))?;
+        self.next_or_error()?;
+
+        if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
+            let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            if name != end_name {
+                return Err(self.different_name_end_tag(name, end_name, "component"));
+            }
+        }
+
+        self.body_contexts.pop();
+        component_def.body = body;
+
+        Ok(component_def)
+    }
+
     fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
         if !self.body_contexts.is_empty() {
             return Err(Error::syntax_error(
@@ -1044,6 +1195,11 @@ impl<'a> Parser<'a> {
             Token::Ident("macro") => {
                 let macro_def = self.parse_macro_definition()?;
                 self.output.macro_definitions.push(macro_def);
+                Ok(None)
+            }
+            Token::Ident("component") => {
+                let component_def = self.parse_component_definition()?;
+                self.output.component_definitions.push(component_def);
                 Ok(None)
             }
             Token::Ident("import") => {
