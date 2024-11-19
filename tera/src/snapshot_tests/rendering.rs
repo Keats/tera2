@@ -156,18 +156,6 @@ fn rendering_inheritance_ok() {
     });
 }
 
-#[test]
-fn rendering_macros_ok() {
-    insta::glob!("rendering_inputs/success/macros/*.txt", |path| {
-        println!("{path:?}");
-        let contents = std::fs::read_to_string(path).unwrap();
-        let normalized_contents = normalize_line_endings(&contents);
-        let (tera, tpl_name) = create_multi_templates_tera(&normalized_contents);
-        let out = tera.render(&tpl_name, &get_context()).unwrap();
-        let normalized_out = normalize_line_endings(&out);
-        insta::assert_snapshot!(&normalized_out);
-    });
-}
 
 #[test]
 fn rendering_errors() {

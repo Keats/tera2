@@ -33,8 +33,10 @@ pub(crate) enum Instruction {
     BuildList(usize),
     /// Call the named Tera function
     CallFunction(String),
-    /// Render the macro at the given index in the macro_calls vec
-    RenderMacro(usize),
+    /// Render the given inline component
+    RenderInlineComponent(String),
+    /// Render the given component with body
+    RenderBodyComponent(String),
     /// Apply the given filter
     ApplyFilter(String),
     /// Run the given test

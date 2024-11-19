@@ -7,7 +7,7 @@ use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall, ComponentDefinition,
     Expression, ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If,
-    Include, MacroCall, MacroDefinition, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
+    Include, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -73,14 +73,13 @@ const RESERVED_NAMES: [&str; 14] = [
 ];
 
 /// This enum is only used to error when some tags are used in places they are not allowed
-/// For example super() outside of a block or a macro definition inside a macro definition
+/// For example super() outside of a block or a component definition inside a component definition
 /// or continue/break in for
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum BodyContext {
     ForLoop,
     Block,
     If,
-    MacroDefinition,
     ComponentDefinition,
     FilterSection,
 }
@@ -98,9 +97,6 @@ pub struct ParserOutput {
     // The AST for the body
     pub(crate) nodes: Vec<Node>,
     pub(crate) component_definitions: Vec<ComponentDefinition>,
-    pub(crate) macro_definitions: Vec<MacroDefinition>,
-    // (file, namespace)
-    pub(crate) macro_imports: Vec<(String, String)>,
 }
 
 pub struct Parser<'a> {
@@ -256,10 +252,10 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    /// Can be just an ident or a macro call/fn
+    /// Can be just an ident or a component call/fn
     fn parse_ident(&mut self, ident: &str) -> TeraResult<Expression> {
         let mut start_span = self.current_span.clone();
-        // We might not end up using that one if it's a macro or a fn call
+        // We might not end up using that one if it's a component or a fn call
         let mut expr = Expression::Var(Spanned::new(
             Var {
                 name: ident.to_string(),
@@ -314,27 +310,6 @@ impl<'a> Parser<'a> {
                     expr = Expression::FunctionCall(Spanned::new(
                         FunctionCall {
                             name: ident.to_owned(),
-                            kwargs,
-                        },
-                        start_span,
-                    ));
-                    break;
-                }
-                // Macro calls
-                Some(Ok((Token::Colon, _))) => {
-                    // we expect 2 colons, eg macros::bla()
-                    expect_token!(self, Token::Colon, ":")?;
-                    expect_token!(self, Token::Colon, ":")?;
-                    // Then the macro name
-                    let (macro_name, _) =
-                        expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    let kwargs = self.parse_kwargs()?;
-                    start_span.expand(&self.current_span);
-                    expr = Expression::MacroCall(Spanned::new(
-                        MacroCall {
-                            name: macro_name.to_string(),
-                            namespace: ident.to_string(),
-                            filename: None,
                             kwargs,
                         },
                         start_span,
@@ -888,7 +863,7 @@ impl<'a> Parser<'a> {
                     }
                     Some(Ok((token, span))) => {
                         return Err(Error::syntax_error(
-                            format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float, array or map"),
+                            format!("Found {token} but component default arguments can only be one of: string, bool, integer, float, array or map"),
                             span,
                         ));
                     }
@@ -942,112 +917,6 @@ impl<'a> Parser<'a> {
         component_def.body = body;
 
         Ok(component_def)
-    }
-
-    fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
-        if !self.body_contexts.is_empty() {
-            return Err(Error::syntax_error(
-                "Macro definitions cannot be written in another tag.".to_string(),
-                &self.current_span,
-            ));
-        }
-
-        self.body_contexts.push(BodyContext::MacroDefinition);
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-        expect_token!(self, Token::LeftParen, "(")?;
-        let mut kwargs = HashMap::new();
-
-        loop {
-            if matches!(self.next, Some(Ok((Token::RightParen, _)))) {
-                self.next_or_error()?;
-                break;
-            }
-
-            let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            kwargs.insert(arg_name.to_string(), None);
-            match self.next {
-                Some(Ok((Token::Assign, _))) => {
-                    self.next_or_error()?;
-
-                    let (val, eat_next) = match &self.next {
-                        Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::LeftBracket, _))) => {
-                            expect_token!(self, Token::LeftBracket, "[")?;
-                            let array = self.parse_array()?;
-                            if let Some(val) = array.as_value() {
-                                (val, false)
-                            } else {
-                                return Err(Error::syntax_error(
-                                    "Invalid default argument: this array should only contain literal values.".to_string(),
-                                    array.span(),
-                                ));
-                            }
-                        }
-                        Some(Ok((Token::LeftBrace, _))) => {
-                            expect_token!(self, Token::LeftBrace, "{")?;
-                            let map = self.parse_map()?;
-                            if let Some(val) = map.as_value() {
-                                (val, false)
-                            } else {
-                                return Err(Error::syntax_error(
-                                    "Invalid default argument: this map should only contain literal values.".to_string(),
-                                    map.span(),
-                                ));
-                            }
-                        }
-                        Some(Ok((token, span))) => {
-                            return Err(Error::syntax_error(
-                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float, array or map"),
-                                span,
-                            ));
-                        }
-                        Some(Err(e)) => {
-                            return Err(Error {
-                                kind: e.kind.clone(),
-                                source: None,
-                            });
-                        }
-                        None => return Err(self.eoi()),
-                    };
-                    if eat_next {
-                        self.next_or_error()?;
-                    }
-
-                    kwargs.insert(arg_name.to_string(), Some(val));
-
-                    if matches!(self.next, Some(Ok((Token::Comma, _)))) {
-                        self.next_or_error()?;
-                        continue;
-                    }
-                }
-                Some(Ok((Token::Comma, _))) => {
-                    self.next_or_error()?;
-                }
-                _ => continue,
-            }
-        }
-
-        expect_token!(self, Token::TagEnd(..), "%}")?;
-        let body = self.parse_until(|tok| matches!(tok, Token::Ident("endmacro")))?;
-        self.next_or_error()?;
-
-        if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
-            let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            if name != end_name {
-                return Err(self.different_name_end_tag(name, end_name, "macro"));
-            }
-        }
-
-        self.body_contexts.pop();
-
-        Ok(MacroDefinition {
-            name: name.to_string(),
-            kwargs,
-            body,
-        })
     }
 
     fn parse_set(&mut self, global: bool) -> TeraResult<Node> {
@@ -1130,7 +999,7 @@ impl<'a> Parser<'a> {
                 }
                 if !is_first_node {
                     return Err(Error::syntax_error(
-                        "`extends` needs to be the first tag of the template, with the exception of macro imports that are allowed before.".to_string(),
+                        "`extends` needs to be the first tag of the template".to_string(),
                         &self.current_span,
                     ));
                 }
@@ -1210,11 +1079,6 @@ impl<'a> Parser<'a> {
                     body,
                 })))
             }
-            Token::Ident("macro") => {
-                let macro_def = self.parse_macro_definition()?;
-                self.output.macro_definitions.push(macro_def);
-                Ok(None)
-            }
             Token::Ident("component") => {
                 let component_def = self.parse_component_definition()?;
                 self.output.component_definitions.push(component_def);
@@ -1244,26 +1108,6 @@ impl<'a> Parser<'a> {
                 Ok(Some(Node::Expression(Expression::ComponentCall(
                     Spanned::new(component, component_span),
                 ))))
-            }
-            Token::Ident("import") => {
-                // {% import 'macros.html' as macros %}
-                let (filename, _) = expect_token!(self, Token::Str(s) => s, "string")?;
-                expect_token!(self, Token::Ident("as"), "as")?;
-                let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
-
-                for (_, namespace2) in &self.output.macro_imports {
-                    if namespace == namespace2 {
-                        return Err(Error::syntax_error(
-                            format!("Multiple macros imports using the `{namespace}` namespace"),
-                            &self.current_span,
-                        ));
-                    }
-                }
-                self.output
-                    .macro_imports
-                    .push((filename.to_string(), namespace.to_string()));
-
-                Ok(None)
             }
             Token::Ident("break") | Token::Ident("continue") => {
                 let is_break = tag_token == Token::Ident("break");

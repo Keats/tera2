@@ -1,1 +1,0 @@
-{% macro array(array=[], map={}, array_of_maps=[{"hello": 1}]) %}{% endmacro %}
