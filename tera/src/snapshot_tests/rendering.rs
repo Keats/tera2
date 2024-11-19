@@ -147,28 +147,6 @@ fn rendering_inheritance_ok() {
     });
 }
 
-#[test]
-fn rendering_macros_ok() {
-    insta::glob!("rendering_inputs/success/macros/*.txt", |path| {
-        println!("{path:?}");
-        let contents = std::fs::read_to_string(path).unwrap();
-        let (tera, tpl_name) = create_multi_templates_tera(&contents);
-        let out = tera.render(&tpl_name, &get_context()).unwrap();
-        insta::assert_snapshot!(&out);
-    });
-}
-
-#[test]
-fn rendering_errors() {
-    insta::glob!("rendering_inputs/errors/*.txt", |path| {
-        let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{}", path.file_name().unwrap().to_string_lossy());
-        let mut tera = Tera::default();
-        tera.add_raw_templates(vec![(&p, contents)]).unwrap();
-        let err = tera.render(&p, &get_context()).unwrap_err();
-        insta::assert_snapshot!(&err);
-    });
-}
 
 #[test]
 fn rendering_inheritance_errors() {

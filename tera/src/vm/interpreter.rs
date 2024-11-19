@@ -3,14 +3,13 @@ use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
-use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
 use crate::args::Kwargs;
-use crate::parsing::ast::MacroCall;
+use crate::parsing::ast::{ComponentCall, ComponentDefinition};
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
@@ -328,23 +327,19 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("This test is not registered in Tera"), span)
                     }
                 }
-                Instruction::RenderMacro(idx) => {
+                Instruction::RenderBodyComponent(name) => {
+                    todo!("Implement me")
+                }
+                Instruction::RenderInlineComponent(name) => {
                     let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
                     let mut context = Context::new();
-                    // first need to make sure the data in the template makes sense
-                    let curr_template = if self.template.parents.is_empty() {
-                        self.template
-                    } else {
-                        self.tera.get_template(state.current_tpl_name())?
-                    };
-
-                    let compiled_macro_def = &curr_template.macro_calls_def[*idx];
-                    for (key, value) in &compiled_macro_def.kwargs {
+                    let (component_def, component_chunk) = &self.tera.components[name];
+                    for (key, value) in &component_def.kwargs {
                         match kwargs.get(&Key::Str(key)) {
                             Some(kwarg_val) => {
                                 context.insert(key, kwarg_val);
                             }
-                            None => match value {
+                            None => match &value.default {
                                 Some(kwarg_val) => {
                                     context.insert(key, kwarg_val);
                                 }
@@ -352,13 +347,7 @@ impl<'tera> VirtualMachine<'tera> {
                             },
                         }
                     }
-
-                    let val = self.render_macro(
-                        &curr_template.macro_calls[*idx],
-                        compiled_macro_def,
-                        context,
-                    )?;
-
+                    let val = self.render_component(&component_chunk, context)?;
                     state
                         .stack
                         .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());
@@ -520,19 +509,14 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    fn render_macro(
-        &self,
-        call: &MacroCall,
-        macro_def: &CompiledMacroDefinition,
-        context: Context,
-    ) -> TeraResult<String> {
-        let tpl = self.tera.get_template(call.filename.as_ref().unwrap())?;
+    fn render_component(&self, chunk: &Chunk, context: Context) -> TeraResult<String> {
+        // TODO: need to keep around the filename the component is defined in to fetch it for errors
         let vm = Self {
             tera: self.tera,
-            template: tpl,
+            template: self.template,
         };
 
-        let mut state = State::new_with_chunk(&context, &macro_def.chunk);
+        let mut state = State::new_with_chunk(&context, chunk);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 

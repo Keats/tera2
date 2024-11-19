@@ -109,7 +109,6 @@ pub enum Expression {
     Test(Spanned<Test>),
     /// 'a' if truthy else 'b'
     Ternary(Spanned<Ternary>),
-    MacroCall(Spanned<MacroCall>),
     ComponentCall(Spanned<ComponentCall>),
     FunctionCall(Spanned<FunctionCall>),
     UnaryOperation(Spanned<UnaryOperation>),
@@ -143,7 +142,6 @@ impl Expression {
             Expression::Array(s) => s.span(),
             Expression::Test(s) => s.span(),
             Expression::ComponentCall(s) => s.span(),
-            Expression::MacroCall(s) => s.span(),
             Expression::FunctionCall(s) => s.span(),
             Expression::UnaryOperation(s) => s.span(),
             Expression::BinaryOperation(s) => s.span(),
@@ -163,7 +161,6 @@ impl Expression {
             Expression::Array(s) => s.span_mut().expand(span),
             Expression::Test(s) => s.span_mut().expand(span),
             Expression::ComponentCall(s) => s.span_mut().expand(span),
-            Expression::MacroCall(s) => s.span_mut().expand(span),
             Expression::FunctionCall(s) => s.span_mut().expand(span),
             Expression::UnaryOperation(s) => s.span_mut().expand(span),
             Expression::BinaryOperation(s) => s.span_mut().expand(span),
@@ -196,7 +193,6 @@ impl fmt::Debug for Expression {
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
             ComponentCall(i) => fmt::Debug::fmt(i, f),
-            MacroCall(i) => fmt::Debug::fmt(i, f),
             Filter(i) => fmt::Debug::fmt(i, f),
             FunctionCall(i) => fmt::Debug::fmt(i, f),
             UnaryOperation(i) => fmt::Debug::fmt(i, f),
@@ -252,7 +248,6 @@ impl fmt::Display for Expression {
             Map(i) => write!(f, "{}", **i),
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
-            MacroCall(i) => write!(f, "{}", **i),
             ComponentCall(i) => write!(f, "{}", **i),
             Filter(i) => write!(f, "{}", **i),
             FunctionCall(i) => write!(f, "{}", **i),
@@ -437,74 +432,6 @@ impl fmt::Display for ComponentCall {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct MacroCall {
-    pub namespace: String,
-    /// The filename it's defined in
-    pub filename: Option<String>,
-    pub name: String,
-    pub kwargs: HashMap<String, Expression>,
-}
-
-impl MacroCall {
-    pub fn validate_args_names(
-        &self,
-        tpl_name: &str,
-        kwargs_allowed: &[&String],
-    ) -> TeraResult<()> {
-        let mut kwargs_names = self.kwargs.keys().collect::<Vec<_>>();
-        kwargs_names.sort();
-        let mut allowed = kwargs_allowed
-            .iter()
-            .map(|x| (*x).as_str())
-            .collect::<Vec<_>>();
-        allowed.sort();
-
-        for arg_name in &kwargs_names {
-            if !allowed.contains(&arg_name.as_str()) {
-                return Err(Error::message(format!(
-                    "Template {tpl_name} is calling macro {} \
-                                    with an argument {arg_name} which isn't present in its definition. \
-                                    Only the following are allowed: {}.",
-                    self.name,
-                    allowed.join(", ")
-                )));
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn validate(&self, tpl_name: &str, defs: &[MacroDefinition]) -> TeraResult<()> {
-        if let Some(macro_def) = defs.iter().find(|x| x.name == self.name) {
-            self.validate_args_names(tpl_name, &macro_def.kwargs.keys().collect::<Vec<_>>())
-        } else {
-            Err(Error::macro_not_found(
-                tpl_name,
-                &self.namespace,
-                &self.name,
-            ))
-        }
-    }
-}
-
-impl fmt::Display for MacroCall {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}::{}", self.namespace, self.name)?;
-        write!(f, "{{",)?;
-        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
-        keys.sort();
-        for (i, k) in keys.iter().enumerate() {
-            if i == self.kwargs.len() - 1 {
-                write!(f, "{}={}", k, self.kwargs[*k])?
-            } else {
-                write!(f, "{}={}, ", k, self.kwargs[*k])?
-            }
-        }
-        write!(f, "}}",)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
@@ -668,17 +595,6 @@ pub struct FilterSection {
     pub body: Vec<Node>,
 }
 
-/// A Macro definition `{% macro hello() %}...{% endmacro %}`
-/// Not present in the AST, we extract them during parsing
-#[derive(Clone, Debug, PartialEq)]
-pub struct MacroDefinition {
-    pub name: String,
-    /// The args for that macro: name -> optional default value
-    /// Expression for default args can only be literals
-    pub kwargs: HashMap<String, Option<Value>>,
-    pub body: Vec<Node>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Type {
     String,
@@ -734,7 +650,7 @@ pub struct ComponentArgument {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ComponentDefinition {
     pub name: String,
-    /// The args for that macro: name -> optional default value
+    /// The args for that component: name -> optional default value
     /// Expression for default args can only be literals
     pub kwargs: BTreeMap<String, ComponentArgument>,
     /// Component metadata that you might need at compile time

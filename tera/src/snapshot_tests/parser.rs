@@ -51,28 +51,6 @@ fn parser_errors() {
 }
 
 #[test]
-fn parser_macros_success() {
-    insta::glob!("parser_inputs/success/macros/*.txt", |path| {
-        let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
-        println!("{nodes:?}");
-
-        let mut expr_nodes = Vec::with_capacity(nodes.len());
-        for node in nodes {
-            match node {
-                Node::Expression(n) => {
-                    expr_nodes.push(n.clone());
-                }
-                _ => (),
-            }
-        }
-        if !expr_nodes.is_empty() {
-            insta::assert_snapshot!(Expressions(expr_nodes));
-        }
-    });
-}
-
-#[test]
 fn parser_components_definition_success() {
     insta::glob!("parser_inputs/success/components/def/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
@@ -129,57 +107,12 @@ fn parser_tags_success() {
     });
 }
 
-#[test]
-fn parser_macro_def_success() {
-    let tests = vec![
-        (
-            "{% macro popup() -%} hello {%- endmacro %}",
-            MacroDefinition {
-                name: "popup".to_string(),
-                kwargs: HashMap::new(),
-                body: vec![Node::Content("hello".to_owned())],
-            },
-        ),
-        (
-            "{% macro another(hey='ho', optional) -%} hello {%- endmacro another %}",
-            MacroDefinition {
-                name: "another".to_owned(),
-                kwargs: {
-                    let mut kwargs = HashMap::new();
-                    kwargs.insert("hey".to_owned(), Some(Value::from("ho")));
-                    kwargs.insert("optional".to_owned(), None);
-                    kwargs
-                },
-                body: vec![Node::Content("hello".to_owned())],
-            },
-        ),
-    ];
-
-    for (t, expected) in tests {
-        let parser = Parser::new(t);
-        let macros = parser.parse().unwrap().macro_definitions;
-        assert_eq!(
-            macros.iter().find(|x| x.name == expected.name).unwrap(),
-            &expected
-        );
-    }
-}
 
 #[test]
 fn parser_extends_success() {
     let parser = Parser::new("{% extends 'a.html' %}");
     let parent = parser.parse().unwrap().parent;
     assert_eq!(parent, Some("a.html".to_string()));
-}
-
-#[test]
-fn parser_macro_import_success() {
-    let parser = Parser::new(r#"{% import 'macros.html' as macros %}"#);
-    let macro_imports = parser.parse().unwrap().macro_imports;
-    assert_eq!(
-        macro_imports,
-        vec![("macros.html".to_string(), "macros".to_string())]
-    );
 }
 
 #[test]

@@ -1,6 +1,5 @@
 use crate::errors::{Error, ErrorKind, TeraResult};
-use crate::parsing::ast::MacroCall;
-use crate::parsing::compiler::CompiledMacroDefinition;
+use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::{Chunk, Compiler};
 use crate::{HashMap, Parser};
 
@@ -10,14 +9,10 @@ pub struct Template {
     pub(crate) source: String,
     pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,
-    /// Used for its index in instructions
-    pub(crate) macro_calls: Vec<MacroCall>,
-    /// Same as above, but just the definition directly
-    pub(crate) macro_calls_def: Vec<CompiledMacroDefinition>,
     /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
-    /// The macros defined in this template only
-    pub(crate) macro_definitions: HashMap<String, CompiledMacroDefinition>,
+    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
+    pub(crate) component_calls: Vec<String>,
     /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
@@ -56,72 +51,35 @@ impl Template {
         let mut body_compiler = Compiler::new(tpl_name, source);
         body_compiler.compile(parser_output.nodes);
 
-        // We are going to convert macro calls {namespace -> name} to {filename -> name}
-        let mut macro_calls = Vec::with_capacity(body_compiler.macro_calls.len());
-
-        // We need the macro handling logic both for the template and for each macro
-        let macro_defs = parser_output.macro_definitions.clone();
-        let mut handle_macro_call = |mut macro_call: MacroCall| -> TeraResult<()> {
-            if macro_call.namespace == "self" {
-                macro_call.validate(tpl_name, &macro_defs)?;
-                macro_call.filename = Some(tpl_name.to_string());
-                macro_calls.push(macro_call);
-                return Ok(());
-            }
-
-            if let Some((filename, _)) = parser_output
-                .macro_imports
-                .iter()
-                .find(|(_, n)| n == &macro_call.namespace)
-            {
-                macro_call.filename = Some(filename.to_string());
-                macro_calls.push(macro_call);
-                Ok(())
-            } else {
-                Err(Error::namespace_not_loaded(tpl_name, macro_call.namespace))
-            }
-        };
-
-        for macro_call in body_compiler.macro_calls {
-            handle_macro_call(macro_call)?;
-        }
-
         let chunk = body_compiler.chunk;
         let blocks = body_compiler.blocks;
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
-
-        let mut macro_definitions = HashMap::with_capacity(parser_output.macro_definitions.len());
-        for macro_def in parser_output.macro_definitions {
-            let macro_def_name = macro_def.name;
-            let kwargs = macro_def.kwargs;
-            let mut compiler = Compiler::new(&macro_def_name, source);
-            compiler.compile(macro_def.body);
-
-            for macro_call in compiler.macro_calls {
-                handle_macro_call(macro_call)?;
-            }
-
-            macro_definitions.insert(
-                macro_def_name.clone(),
-                CompiledMacroDefinition {
-                    name: macro_def_name,
-                    kwargs,
-                    chunk: compiler.chunk,
-                },
-            );
-        }
+        let components = parser_output
+            .component_definitions
+            .into_iter()
+            .map(|c| {
+                let mut compiler = Compiler::new(&c.name, source);
+                // We don't need the nodes again after it's compiled
+                compiler.compile(c.body.clone());
+                (c.name.clone(), (c, compiler.chunk))
+            })
+            .collect();
+        let component_calls = body_compiler
+            .component_calls
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
 
         Ok(Self {
             name: tpl_name.to_string(),
             source: source.to_string(),
             path,
             blocks,
-            macro_definitions,
-            macro_calls,
-            macro_calls_def: Vec::new(),
             raw_content_num_bytes,
             chunk,
             parents,
+            components,
+            component_calls,
             block_lineage: HashMap::new(),
             from_extend: false,
             autoescape_enabled: true,
