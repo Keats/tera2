@@ -73,14 +73,34 @@ fn parser_macros_success() {
 }
 
 #[test]
-fn parser_components_success() {
-    insta::glob!("parser_inputs/success/components/*.txt", |path| {
+fn parser_components_definition_success() {
+    insta::glob!("parser_inputs/success/components/def/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
         let components = &Parser::new(&contents)
             .parse()
             .unwrap()
             .component_definitions;
         insta::assert_debug_snapshot!(components[0]);
+    });
+}
+
+#[test]
+fn parser_components_render_success() {
+    insta::glob!("parser_inputs/success/components/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let nodes = &Parser::new(&contents).parse().unwrap().nodes;
+        let mut expr_nodes = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            match node {
+                Node::Expression(n) => {
+                    expr_nodes.push(n.clone());
+                }
+                _ => (),
+            }
+        }
+        if !expr_nodes.is_empty() {
+            insta::assert_snapshot!(Expressions(expr_nodes));
+        }
     });
 }
 

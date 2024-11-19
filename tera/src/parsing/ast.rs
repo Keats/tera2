@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use crate::errors::{Error, TeraResult};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -110,6 +110,7 @@ pub enum Expression {
     /// 'a' if truthy else 'b'
     Ternary(Spanned<Ternary>),
     MacroCall(Spanned<MacroCall>),
+    ComponentCall(Spanned<ComponentCall>),
     FunctionCall(Spanned<FunctionCall>),
     UnaryOperation(Spanned<UnaryOperation>),
     BinaryOperation(Spanned<BinaryOperation>),
@@ -141,6 +142,7 @@ impl Expression {
             Expression::Map(s) => s.span(),
             Expression::Array(s) => s.span(),
             Expression::Test(s) => s.span(),
+            Expression::ComponentCall(s) => s.span(),
             Expression::MacroCall(s) => s.span(),
             Expression::FunctionCall(s) => s.span(),
             Expression::UnaryOperation(s) => s.span(),
@@ -160,6 +162,7 @@ impl Expression {
             Expression::Map(s) => s.span_mut().expand(span),
             Expression::Array(s) => s.span_mut().expand(span),
             Expression::Test(s) => s.span_mut().expand(span),
+            Expression::ComponentCall(s) => s.span_mut().expand(span),
             Expression::MacroCall(s) => s.span_mut().expand(span),
             Expression::FunctionCall(s) => s.span_mut().expand(span),
             Expression::UnaryOperation(s) => s.span_mut().expand(span),
@@ -192,6 +195,7 @@ impl fmt::Debug for Expression {
             Map(i) => fmt::Debug::fmt(i, f),
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
+            ComponentCall(i) => fmt::Debug::fmt(i, f),
             MacroCall(i) => fmt::Debug::fmt(i, f),
             Filter(i) => fmt::Debug::fmt(i, f),
             FunctionCall(i) => fmt::Debug::fmt(i, f),
@@ -249,6 +253,7 @@ impl fmt::Display for Expression {
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
             MacroCall(i) => write!(f, "{}", **i),
+            ComponentCall(i) => write!(f, "{}", **i),
             Filter(i) => write!(f, "{}", **i),
             FunctionCall(i) => write!(f, "{}", **i),
             UnaryOperation(i) => write!(f, "{}", **i),
@@ -392,6 +397,41 @@ impl fmt::Display for Test {
         }
 
         write!(f, "}})",)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ComponentCall {
+    pub name: String,
+    pub kwargs: HashMap<String, Expression>,
+    pub body: Vec<Node>,
+}
+
+impl fmt::Display for ComponentCall {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, ":{}", self.name)?;
+        // TODO: print body
+        write!(f, "{{",)?;
+        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
+        keys.sort();
+        for (i, k) in keys.iter().enumerate() {
+            if i == self.kwargs.len() - 1 {
+                write!(f, "{}={}", k, self.kwargs[*k])?
+            } else {
+                write!(f, "{}={}, ", k, self.kwargs[*k])?
+            }
+        }
+        write!(f, "}}",)?;
+
+        if !self.body.is_empty() {
+            write!(f, "[",)?;
+            for node in &self.body {
+                write!(f, "{:?}", node)?;
+            }
+            write!(f, "]",)?;
+        }
+
         Ok(())
     }
 }
@@ -619,7 +659,7 @@ pub struct If {
     pub false_body: Vec<Node>,
 }
 
-/// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
+/// A filter section node `{% filter name(param="value") %} content {% endfilter %}`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterSection {
     pub name: Spanned<String>,

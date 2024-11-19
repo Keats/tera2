@@ -1,0 +1,25 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: "components[0]"
+input_file: tera/src/snapshot_tests/parser_inputs/success/components/def/metadata.txt
+---
+ComponentDefinition {
+    name: "array",
+    kwargs: {
+        "greeting": ComponentArgument {
+            default: None,
+            typ: Some(
+                String,
+            ),
+        },
+    },
+    metadata: {
+        "css": String(
+            "./array.css",
+            Normal,
+        ),
+    },
+    body: [
+        "Hello",
+    ],
+}

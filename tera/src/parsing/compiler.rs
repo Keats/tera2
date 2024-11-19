@@ -146,6 +146,9 @@ impl<'s> Compiler<'s> {
                 self.compile_expr(ternary.false_expr);
                 self.end_branch(self.chunk.len());
             }
+            Expression::ComponentCall(e) => {
+                todo!("Implement component calls")
+            }
             Expression::MacroCall(e) => {
                 let (macro_call, span) = e.into_parts();
                 self.compile_kwargs(macro_call.kwargs.clone());

@@ -1,9 +1,0 @@
----
-source: tera/src/snapshot_tests/rendering.rs
-assertion_line: 231
-expression: "&out"
----
-{"name": "Alex", "age": 42, "vip": true}
-name = Alex
-age = 42
-vip = true
