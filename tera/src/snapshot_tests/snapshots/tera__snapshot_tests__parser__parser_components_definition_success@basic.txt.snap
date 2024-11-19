@@ -1,0 +1,48 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: "components[0]"
+input_file: tera/src/snapshot_tests/parser_inputs/success/components/def/basic.txt
+---
+ComponentDefinition {
+    name: "array",
+    kwargs: {
+        "array": ComponentArgument {
+            default: Some(
+                Array(
+                    [],
+                ),
+            ),
+            typ: None,
+        },
+        "array_of_maps": ComponentArgument {
+            default: Some(
+                Array(
+                    [
+                        Map(
+                            {
+                                String(
+                                    "hello",
+                                ): I64(
+                                    1,
+                                ),
+                            },
+                        ),
+                    ],
+                ),
+            ),
+            typ: None,
+        },
+        "map": ComponentArgument {
+            default: Some(
+                Map(
+                    {},
+                ),
+            ),
+            typ: None,
+        },
+    },
+    metadata: {},
+    body: [
+        "Hello",
+    ],
+}

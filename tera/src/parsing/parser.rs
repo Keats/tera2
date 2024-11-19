@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentDefinition, Expression,
-    ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If, Include,
-    MacroCall, MacroDefinition, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall, ComponentDefinition,
+    Expression, ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If,
+    Include, MacroCall, MacroDefinition, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -558,6 +558,7 @@ impl<'a> Parser<'a> {
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
+            Token::Colon => self.parse_component_call()?,
             Token::LeftBrace => self.parse_map()?,
             Token::LeftBracket => self.parse_array()?,
             Token::LeftParen => {
@@ -692,6 +693,23 @@ impl<'a> Parser<'a> {
         }
 
         Ok(lhs)
+    }
+
+    fn parse_component_call(&mut self) -> TeraResult<Expression> {
+        let mut start_span = self.current_span.clone();
+        // First the component name
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let kwargs = self.parse_kwargs()?;
+        start_span.expand(&self.current_span);
+        let expr = Expression::ComponentCall(Spanned::new(
+            ComponentCall {
+                name: name.to_string(),
+                kwargs,
+                body: Vec::new(),
+            },
+            start_span,
+        ));
+        Ok(expr)
     }
 
     fn parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
@@ -1201,6 +1219,31 @@ impl<'a> Parser<'a> {
                 let component_def = self.parse_component_definition()?;
                 self.output.component_definitions.push(component_def);
                 Ok(None)
+            }
+            Token::Colon => {
+                let (mut component, component_span) = match self.parse_component_call()? {
+                    Expression::ComponentCall(c) => c.into_parts(),
+                    _ => unreachable!(),
+                };
+                expect_token!(self, Token::TagEnd(..), "%}")?;
+                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endcomponent")))?;
+                self.next_or_error()?;
+
+                if matches!(self.next, Some(Ok((Token::Colon, _)))) {
+                    expect_token!(self, Token::Colon, ":")?;
+                    let (end_name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                    if end_name != component.name {
+                        return Err(self.different_name_end_tag(
+                            &component.name,
+                            end_name,
+                            "component",
+                        ));
+                    }
+                }
+                component.body = body;
+                Ok(Some(Node::Expression(Expression::ComponentCall(
+                    Spanned::new(component, component_span),
+                ))))
             }
             Token::Ident("import") => {
                 // {% import 'macros.html' as macros %}
