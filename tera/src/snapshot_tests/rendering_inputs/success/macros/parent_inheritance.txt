@@ -1,6 +1,0 @@
-$$ macros
-{% macro hello()%}Hello{% endmacro hello %}
-$$ parent
-{% import "macros" as macros %}{% block hey %}{{macros::hello()}}{% endblock hey %}
-$$ child
-{% extends "parent" %}{% import "macros" as macros %}{% block hey %}{{super()}}/{{macros::hello()}}{% endblock hey %}

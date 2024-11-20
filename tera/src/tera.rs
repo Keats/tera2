@@ -14,6 +14,8 @@ use crate::{escape_html, Context, HashMap};
 
 #[cfg(feature = "glob_fs")]
 use crate::globbing::load_from_glob;
+use crate::parsing::ast::ComponentDefinition;
+use crate::parsing::Chunk;
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -40,6 +42,7 @@ pub struct Tera {
     pub(crate) filters: HashMap<&'static str, StoredFilter>,
     pub(crate) tests: HashMap<&'static str, StoredTest>,
     pub(crate) functions: HashMap<&'static str, StoredFunction>,
+    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
 }
 
 impl Tera {
@@ -272,17 +275,20 @@ impl Tera {
     /// Optimizes the templates when possible and doing some light
     /// checks like whether blocks/macros/templates all exist when they are used
     fn finalize_templates(&mut self) -> TeraResult<()> {
-        // {file -> {name -> compiled macro}}
-        let mut compiled_macros_by_file = HashMap::with_capacity(20);
         let mut tpl_parents = HashMap::new();
         let mut tpl_size_hint = HashMap::new();
+        let mut components = HashMap::new();
 
         // 1st loop: we find the parents of each templates with all the block definitions
-        // as well as copying the macro definitions defined in each template
+        // as well as copying the component definitions defined in each template
         for (name, tpl) in &self.templates {
             let parents = find_parents(&self.templates, tpl, tpl, vec![])?;
-            compiled_macros_by_file.insert(tpl.name.clone(), tpl.macro_definitions.clone());
-
+            for (component_name, c) in &tpl.components {
+                if components.contains_key(component_name) {
+                    todo!("Write a proper error message for duplicate components, with both filenames")
+                }
+                components.insert(component_name.clone(), c.clone());
+            }
             let mut size_hint = tpl.raw_content_num_bytes;
             for parent in &parents {
                 size_hint += &self.templates[parent].raw_content_num_bytes;
@@ -292,38 +298,18 @@ impl Tera {
             tpl_size_hint.insert(name.clone(), size_hint);
         }
 
-        // 2nd loop: we find the macro definition for each macro calls in each template
-        // {tpl_name: vec![compiled macro]|
-        let mut tpl_macro_definitions = HashMap::with_capacity(self.templates.len());
+        // 2nd loop: we check whether we know all the components that are called are defined
+        // as well as finding each block lineage
         let mut tpl_blocks = HashMap::with_capacity(self.templates.len());
         for (name, tpl) in &self.templates {
-            let mut definitions = Vec::new();
-            for macro_call in &tpl.macro_calls {
-                // Safe unwrap, we will have filled the filename before getting there
-                let tpl_name = macro_call.filename.as_ref().unwrap();
-                let tpl_w_definition = self.templates.get(tpl_name).ok_or_else(|| {
-                    Error::message(format!(
-                        "Template `{name}` loads macros from `{tpl_name}` which isn't present in Tera"
-                    ))
-                })?;
-                let macro_name = &macro_call.name;
-
-                let definition = tpl_w_definition
-                    .macro_definitions
-                    .get(macro_name)
-                    .ok_or_else(|| {
-                        Error::message(format!(
-                            "Template `{name}` is using macros `{macro_name}` from `{tpl_name}` which wasn't found",
-                        ))
-                    })?;
-                macro_call
-                    .validate_args_names(name, &definition.kwargs.keys().collect::<Vec<_>>())?;
-                definitions.push(definition.clone());
+            for call in &tpl.component_calls {
+                if !components.contains_key(call) {
+                    return Err(Error::message(format!(
+                        "Template `{name}` uses component `{call}` which isn't present in Tera"
+                    )));
+                }
             }
-            tpl_macro_definitions.insert(name.to_string(), definitions);
 
-            // TODO: can we avoid cloning the chunk?
-            // TODO: Can we just point to things while avoiding hashmap lookups
             let mut blocks = HashMap::with_capacity(tpl.blocks.len());
             for (block_name, chunk) in &tpl.blocks {
                 let mut all_blocks = vec![chunk.clone()];
@@ -343,14 +329,14 @@ impl Tera {
             tpl_blocks.insert(name.clone(), blocks);
         }
 
-        // 3rd loop: we actually set everything we've done on the templates object
+        // 3rd loop: we actually set everything we've done on the templates objects
         for (name, tpl) in self.templates.iter_mut() {
             tpl.raw_content_num_bytes += tpl_size_hint.remove(name.as_str()).unwrap();
             tpl.parents = tpl_parents.remove(name.as_str()).unwrap();
-            tpl.macro_calls_def = tpl_macro_definitions.remove(name.as_str()).unwrap();
             tpl.block_lineage = tpl_blocks.remove(name.as_str()).unwrap();
         }
 
+        self.components = components;
         self.set_templates_auto_escape();
         Ok(())
     }
@@ -700,6 +686,7 @@ impl Default for Tera {
             filters: HashMap::new(),
             tests: HashMap::new(),
             functions: HashMap::new(),
+            components: HashMap::new(),
         };
         tera.register_builtin_filters();
         tera.register_builtin_tests();

@@ -1,4 +1,0 @@
-$$ macros
-{% macro hello(val=1) %}{{val}}{% endmacro hello %}
-$$ tpl
-{% import "macros" as macros %}{{macros::hello(val=2)}}

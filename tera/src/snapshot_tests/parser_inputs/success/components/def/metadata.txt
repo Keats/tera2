@@ -1,0 +1,1 @@
+{% component array(greeting: string) {"css": "./array.css"} %}Hello{% endcomponent %}

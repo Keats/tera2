@@ -1,0 +1,1 @@
+{% component array(greeting: string, age: integer, data: map = {}) %}Hello{% endcomponent %}

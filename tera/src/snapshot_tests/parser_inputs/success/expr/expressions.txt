@@ -109,11 +109,11 @@
 {{ {"hello": "world"}["hello"] }}
 {{ {"hel\nlo": "world"} }}
 
-// Macro calls
-{{ macros::input(label='Name', type='text') }}
-{{ macros::input() | safe }}
-{{ macros::input(n=a -1) }}
+// Component calls
+{{ :input(label='Name', type='text') }}
+{{ :input() | safe }}
+{{ :input(n=a -1) }}
 
 // null
-{{ macros::input(label=none) }}
+{{ :input(label=none) }}
 {{ a == None }}

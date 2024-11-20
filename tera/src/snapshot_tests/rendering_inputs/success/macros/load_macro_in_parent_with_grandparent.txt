@@ -1,8 +1,0 @@
-$$ macros
-{% macro hello()%}1{% endmacro hello %}
-$$ top
-{% block bob %}{% endblock bob %}
-$$ middle
-{% extends "top" %}{% import "macros" as macros %}{% block bob %}{{ macros::hello() }} - Hey{% endblock bob %}
-$$ bottom
-{% extends "middle" %}{% block bob %}{{ super() }}{% endblock bob %}
