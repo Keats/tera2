@@ -4,16 +4,16 @@ expression: "&nodes"
 input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_complex.txt
 ---
 [
-    "\n\n<html>\n  <head>\n    <title>",
+    "<html>\n  <head>\n    <title>",
     Block {
         name: "title",
         body: [
             GetAttr {
                 expr: Var {
                     name: "product",
-                } @ 5:31-5:38 (85..92),
+                } @ 3:31-3:38 (47..54),
                 name: "name",
-            } @ 5:39-5:43 (93..97),
+            } @ 3:39-3:43 (55..59),
         ],
     },
     "</title>\n  </head>\n  <body>",
@@ -25,22 +25,22 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                 value: "item",
                 target: Var {
                     name: "items",
-                } @ 9:24-9:29 (198..203),
+                } @ 7:24-7:29 (160..165),
                 body: [
                     If {
                         expr: GetAttr {
                             expr: Var {
                                 name: "item",
-                            } @ 10:19-10:23 (227..231),
+                            } @ 8:19-8:23 (189..193),
                             name: "show",
-                        } @ 10:24-10:28 (232..236),
+                        } @ 8:24-8:28 (194..198),
                         body: [
                             GetAttr {
                                 expr: Var {
                                     name: "item",
-                                } @ 10:34-10:38 (242..246),
+                                } @ 8:34-8:38 (204..208),
                                 name: "name",
-                            } @ 10:39-10:43 (247..251),
+                            } @ 8:39-8:43 (209..213),
                         ],
                         false_body: [
                             "-",
@@ -55,34 +55,34 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                 left: GetAttr {
                                     expr: Var {
                                         name: "item",
-                                    } @ 11:23-11:27 (303..307),
+                                    } @ 9:23-9:27 (265..269),
                                     name: "price",
-                                } @ 11:28-11:33 (308..313),
+                                } @ 9:28-9:33 (270..275),
                                 right: Var {
                                     name: "vat",
-                                } @ 11:36-11:39 (316..319),
-                            } @ 11:23-11:39 (303..319),
+                                } @ 9:36-9:39 (278..281),
+                            } @ 9:23-9:39 (265..281),
                             right: BinaryOperation {
                                 op: Mul,
                                 left: GetAttr {
                                     expr: Var {
                                         name: "item",
-                                    } @ 11:43-11:47 (323..327),
+                                    } @ 9:43-9:47 (285..289),
                                     name: "price",
-                                } @ 11:48-11:53 (328..333),
+                                } @ 9:48-9:53 (290..295),
                                 right: Var {
                                     name: "discount",
-                                } @ 11:56-11:64 (336..344),
-                            } @ 11:43-11:65 (323..345),
-                        } @ 11:23-11:65 (303..345),
+                                } @ 9:56-9:64 (298..306),
+                            } @ 9:43-9:65 (285..307),
+                        } @ 9:23-9:65 (265..307),
                         name: "integer",
                         kwargs: {
-                            "base": 10 @ 11:81-11:83 (361..363),
+                            "base": 10 @ 9:81-9:83 (323..325),
                         },
-                    } @ 11:68-11:84 (348..364),
+                    } @ 9:68-9:84 (310..326),
                     "\n\n            ",
                     FilterSection {
-                        name: "markdown" @ 13:22-13:30 (391..399),
+                        name: "markdown" @ 11:22-11:30 (353..361),
                         kwargs: {},
                         body: [
                             "\n            ## Description\n\n            ",
@@ -90,28 +90,27 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                 expr: GetAttr {
                                     expr: Var {
                                         name: "page",
-                                    } @ 16:15-16:19 (446..450),
+                                    } @ 14:15-14:19 (408..412),
                                     name: "description",
-                                } @ 16:20-16:31 (451..462),
+                                } @ 14:20-14:31 (413..424),
                                 name: "safe",
                                 kwargs: {},
-                            } @ 16:34-16:38 (465..469),
+                            } @ 14:34-14:38 (427..431),
                             "\n            ",
                         ],
                     },
                     "\n\n            ",
                     Filter {
-                        expr: MacroCall {
-                            namespace: "macros",
-                            filename: None,
+                        expr: ComponentCall {
                             name: "cta",
                             kwargs: {
-                                "title": "Buy now" @ 19:33-19:42 (535..544),
+                                "title": "Buy now" @ 17:26-17:35 (490..499),
                             },
-                        } @ 19:15-19:43 (517..545),
+                            body: [],
+                        } @ 17:15-17:36 (479..500),
                         name: "safe",
                         kwargs: {},
-                    } @ 19:46-19:50 (548..552),
+                    } @ 17:39-17:43 (503..507),
                     "\n\n            ",
                     Include {
                         name: "sales.html",

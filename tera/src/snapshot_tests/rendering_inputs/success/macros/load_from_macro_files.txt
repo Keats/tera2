@@ -1,8 +1,0 @@
-$$ submacros
-{% macro emma() %}Emma{% endmacro emma %}
-$$ macros
-{% import "submacros" as submacros %}{% macro hommage() %}{{ submacros::emma() }} was an amazing person!{% endmacro hommage %}
-$$ parent
-{% block main %}Someone was a terrible person!{% endblock main %} Don't you think?
-$$ child
-{% extends "parent" %}{% import "macros" as macros %}{% block main %}{{ macros::hommage() }}{% endblock main %}

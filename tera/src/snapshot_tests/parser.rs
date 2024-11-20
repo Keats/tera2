@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::parsing::ast::{Expression, MacroDefinition, Node};
+use crate::parsing::ast::{Expression, Node};
 use crate::parsing::parser::Parser;
 use crate::template::Template;
 use crate::utils::Spanned;
@@ -66,6 +66,7 @@ fn parser_components_definition_success() {
 fn parser_components_render_success() {
     insta::glob!("parser_inputs/success/components/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
+        println!("{path:?}");
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
@@ -88,7 +89,6 @@ fn parser_tags_success() {
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut res_nodes = Vec::with_capacity(nodes.len());
-        // println!("{:?}", nodes);
         for node in nodes {
             if matches!(
                 node,
@@ -134,6 +134,7 @@ fn parser_can_convert_array_to_const_when_possible() {
 #[test]
 fn parser_templates_success() {
     insta::glob!("parser_inputs/success/tpl/*.txt", |path| {
+        println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         insta::assert_debug_snapshot!(&nodes);

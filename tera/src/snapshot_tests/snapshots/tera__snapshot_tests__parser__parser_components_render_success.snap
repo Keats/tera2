@@ -1,6 +1,6 @@
 ---
 source: tera/src/snapshot_tests/parser.rs
 expression: Expressions(expr_nodes)
-input_file: tera/src/snapshot_tests/parser_inputs/success/components/render_inline.txt
+input_file: tera/src/snapshot_tests/parser_inputs/success/components/render_body.txt
 ---
-:button{and=1, with=arg}
+:button{and=1, with=arg}["Hello"]

@@ -81,6 +81,7 @@ enum BodyContext {
     Block,
     If,
     ComponentDefinition,
+    ComponentCall,
     FilterSection,
 }
 
@@ -1090,6 +1091,7 @@ impl<'a> Parser<'a> {
                     _ => unreachable!(),
                 };
                 expect_token!(self, Token::TagEnd(..), "%}")?;
+                self.body_contexts.push(BodyContext::ComponentCall);
                 let body = self.parse_until(|tok| matches!(tok, Token::Ident("endcomponent")))?;
                 self.next_or_error()?;
 
@@ -1104,6 +1106,8 @@ impl<'a> Parser<'a> {
                         ));
                     }
                 }
+                self.body_contexts.pop();
+
                 component.body = body;
                 Ok(Some(Node::Expression(Expression::ComponentCall(
                     Spanned::new(component, component_span),

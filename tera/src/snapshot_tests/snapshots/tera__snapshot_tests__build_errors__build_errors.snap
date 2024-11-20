@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/build_errors.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/build_errors/extending_itself.txt
+---
+Circular extend detected for template 'parent'. Inheritance chain: `["parent"]`

@@ -137,6 +137,17 @@ fn rendering_ok() {
 }
 
 #[test]
+fn rendering_components_ok() {
+    insta::glob!("rendering_inputs/success/components/*.txt", |path| {
+        println!("{path:?}");
+        let contents = std::fs::read_to_string(path).unwrap();
+        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let out = tera.render(&tpl_name, &get_context()).unwrap();
+        insta::assert_snapshot!(&out);
+    });
+}
+
+#[test]
 fn rendering_inheritance_ok() {
     insta::glob!("rendering_inputs/success/inheritance/*.txt", |path| {
         println!("{path:?}");

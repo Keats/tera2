@@ -1,4 +1,0 @@
-$$ macros
-{% macro factorial(n) %}{% if n > 1 %}{{ n }} - {{ self::factorial(n=n-1) }}{% else %}1{% endif %}{{ n }}{% endmacro factorial %}
-$$ tpl
-{% import "macros" as macros %}{{macros::factorial(n=7)}}
