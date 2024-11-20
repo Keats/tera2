@@ -161,7 +161,6 @@ impl<'s> Compiler<'s> {
                         Instruction::RenderBodyComponent(component_call.name),
                         Some(span),
                     );
-                    self.chunk.add(Instruction::WriteTop, None);
                 }
             }
             Expression::FunctionCall(e) => {

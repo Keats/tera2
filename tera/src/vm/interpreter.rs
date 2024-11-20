@@ -125,6 +125,34 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
+        macro_rules! component {
+            ($name:expr, $span:expr, $has_body:expr) => {{
+                    let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
+                    let mut context = Context::new();
+                    let (component_def, component_chunk) = &self.tera.components[$name];
+                    for (key, value) in &component_def.kwargs {
+                        match kwargs.get(&Key::Str(key)) {
+                            Some(kwarg_val) => {
+                                context.insert(key, kwarg_val);
+                            }
+                            None => match &value.default {
+                                Some(kwarg_val) => {
+                                    context.insert(key, kwarg_val);
+                                }
+                                None => todo!("Missing arg macro error"),
+                            },
+                        }
+                    }
+                    if $has_body {
+                        context.insert("body", &state.stack.pop().0);
+                    }
+                    let val = self.render_component(&component_chunk, context)?;
+                    state
+                        .stack
+                        .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
+            }};
+        }
+
         while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
             match instr {
                 Instruction::LoadConst(v) => {
@@ -215,7 +243,6 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::Set(name) => {
-                    // TODO: do we need to keep those spans?
                     let (val, _) = state.stack.pop();
                     state.store_local(name, val);
                 }
@@ -328,29 +355,10 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::RenderBodyComponent(name) => {
-                    todo!("Implement me")
+                    component!(name, span, true);
                 }
                 Instruction::RenderInlineComponent(name) => {
-                    let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
-                    let mut context = Context::new();
-                    let (component_def, component_chunk) = &self.tera.components[name];
-                    for (key, value) in &component_def.kwargs {
-                        match kwargs.get(&Key::Str(key)) {
-                            Some(kwarg_val) => {
-                                context.insert(key, kwarg_val);
-                            }
-                            None => match &value.default {
-                                Some(kwarg_val) => {
-                                    context.insert(key, kwarg_val);
-                                }
-                                None => todo!("Missing arg macro error"),
-                            },
-                        }
-                    }
-                    let val = self.render_component(&component_chunk, context)?;
-                    state
-                        .stack
-                        .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());
+                    component!(name, span, false);
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
