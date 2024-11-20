@@ -1,6 +1,0 @@
-$$ moremacros
-{% macro another_one() %}{% set_global value2 = "1312" %}{% endmacro another_one %}
-$$ macros
-{% import "moremacros" as moremacros %}{% macro test_global() %}{% set_global value1 = "A" %}{{ moremacros::another_one() }}{{ value1 }}-{{ value2 or "B" }}{% endmacro test_global %}
-$$ tpl
-{% import "macros" as macros %}{{ macros::test_global() }}

@@ -1,0 +1,4 @@
+$$ component
+{% component factorial(n) %}{% if n > 1 %}{{ n }} - {{ :factorial(n=n-1) }}{% else %}1{% endif %}{{ n }}{% endcomponent factorial %}
+$$ tpl
+{{:factorial(n=7)}}

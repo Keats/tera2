@@ -1,0 +1,14 @@
+{% component copyright() -%}
+{#- artificial macro -#}
+© 2017-2023 Vincent Prouillet
+{%- endcomponent %}
+
+
+{% component unordered_list(items) %}
+{# reimplenting <ol> for no reason #}
+<ul>
+{% for item in items %}
+    <li>{{ loop.index }}. {{item}}</li>
+{% endfor %}
+</ul>
+{% endcomponent %}

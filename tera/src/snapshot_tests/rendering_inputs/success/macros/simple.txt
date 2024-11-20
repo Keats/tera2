@@ -1,4 +1,0 @@
-$$ macros
-{% macro hello()%}Hello{% endmacro hello %}
-$$ tpl
-{% import "macros" as macros %}{% block hey %}{{macros::hello()}}{% endblock hey %}

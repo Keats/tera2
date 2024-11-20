@@ -1,0 +1,4 @@
+$$ components
+{% component hello(val)%}{{val}}{% endcomponent hello %}
+$$ tpl
+{{:hello(val=age + one)}}

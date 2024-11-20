@@ -53,7 +53,7 @@ fn parser_errors() {
     });
 }
 
-
+#[test]
 fn parser_components_definition_success() {
     insta::glob!("parser_inputs/success/components/def/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
@@ -69,6 +69,7 @@ fn parser_components_definition_success() {
 fn parser_components_render_success() {
     insta::glob!("parser_inputs/success/components/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
+        println!("{path:?}");
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
@@ -92,7 +93,6 @@ fn parser_tags_success() {
         let normalized_contents = normalize_line_endings(&contents);
         let nodes = &Parser::new(&normalized_contents).parse().unwrap().nodes;
         let mut res_nodes = Vec::with_capacity(nodes.len());
-        // println!("{:?}", nodes);
         for node in nodes {
             if matches!(
                 node,
@@ -138,6 +138,7 @@ fn parser_can_convert_array_to_const_when_possible() {
 #[test]
 fn parser_templates_success() {
     insta::glob!("parser_inputs/success/tpl/*.txt", |path| {
+        println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
         let normalized_contents = normalize_line_endings(&contents);
         let nodes = &Parser::new(&normalized_contents).parse().unwrap().nodes;

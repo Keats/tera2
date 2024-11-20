@@ -1,0 +1,13 @@
+$$ components
+{% component label_for(obj, sep) -%}
+  {%- if obj.parent -%}
+    {{ :label_for(obj=obj.parent, sep=sep) }}{{sep}}
+  {%- endif -%}
+  {{obj.label}}
+  {%- for i in obj.numbers -%}{{ i }}{%- endfor -%}
+{%- endcomponent label_for %}
+$$ tpl
+{%- for obj in objects -%}
+    {{ :label_for(obj=obj, sep="|") }}
+{%- endfor -%}
+{#- https://github.com/Keats/tera/issues/202 #}

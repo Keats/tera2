@@ -1,4 +1,0 @@
-$$ macros
-{% macro hello(val)%}{{val}}{% endmacro hello %}
-$$ tpl
-{% import "macros" as macros %}{{macros::hello(val=age + one)}}

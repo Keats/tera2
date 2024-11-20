@@ -1,0 +1,4 @@
+$$ components
+{% component hello()%}Hello{% endcomponent hello %}
+$$ tpl
+{% set my_var = :hello() %}{{my_var}}

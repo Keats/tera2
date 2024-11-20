@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/component_default_non_literal_in_array.txt
+---
+ Syntax error --> [component_default_non_literal_in_array.txt:1:25]
+  |
+1 | {% component array(array=[a]) %}{% endcomponent %}
+  |                          ^---
+  = Invalid default argument: this array should only contain literal values.

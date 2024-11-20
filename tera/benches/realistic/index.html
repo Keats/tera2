@@ -1,4 +1,3 @@
-{% import "macros.html" as macros %}
 <!DOCTYPE html>
 <html lang="en-gb">
 <head>
@@ -18,7 +17,7 @@
             <a href="https://docs.rs/tera" class="nav-link">API Docs</a>
         </nav>
 
-        {{ macros::unordered_list(items=items) }}
+        {{ :unordered_list(items=items) }}
 
         {% block hero %}
         <div class="hero">
@@ -59,7 +58,7 @@
 
 <footer>
     <div class="container">
-        {{- macros::copyright() -}}
+        {{- :copyright() -}}
     </div>
 </footer>
 </body>

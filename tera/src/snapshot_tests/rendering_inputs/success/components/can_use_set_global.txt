@@ -1,0 +1,4 @@
+$$ components
+{% component test_global() %}{% set_global value1 = "42" %}{% for i in [0, 1] %}{% set_global value2 = " is the truth." %}{% endfor %}{{ value1 }}{% endcomponent test_global %}
+$$ tpl
+{{ :test_global() }} {{ value1 or "context private to macro" }}
