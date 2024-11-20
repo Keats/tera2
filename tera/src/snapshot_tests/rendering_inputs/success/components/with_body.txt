@@ -1,0 +1,4 @@
+$$ components
+{% component hello()%}{{body}}{% endcomponent hello %}
+$$ tpl
+{% :hello() %}Hello {{name}}! {% endcomponent %}
