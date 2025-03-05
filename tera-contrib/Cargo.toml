@@ -8,3 +8,4 @@ tera = { version = "2", path = "../tera", default-features = false }
 
 regex = { version = "1.11.1", optional = true}
 slug = {version = "0.1", optional = true}
+rand = {version = "0.9", optional = true}

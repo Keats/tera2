@@ -1,3 +1,4 @@
+mod rand;
 #[cfg(feature = "regex")]
 pub mod regex;
 #[cfg(feature = "slug")]
