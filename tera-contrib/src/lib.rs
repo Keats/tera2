@@ -1,3 +1,5 @@
+#[cfg(feature = "date")]
+pub mod dates;
 mod rand;
 #[cfg(feature = "regex")]
 pub mod regex;
