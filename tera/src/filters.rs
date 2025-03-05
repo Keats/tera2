@@ -717,13 +717,17 @@ mod tests {
     #[cfg(feature = "unicode")]
     #[test]
     fn can_truncate_graphemes() {
-        let tpl = r#"
-{{ "日本語" | truncate(length=2) }}
-{{ "👨‍👩‍👧‍👦 family" | truncate(length=5) }}"#;
-        let mut tera = Tera::default();
-        tera.add_raw_template("tpl", tpl).unwrap();
-        let out = tera.render("tpl", &Context::default()).unwrap();
+        let inputs = vec![
+            ("日本語", 2, "日本…"),
+            ("👨‍👩‍👧‍👦 family", 5, "👨‍👩‍👧‍👦 fam…"),
+        ];
 
-        insta::assert_snapshot!(&out);
+        for (s, len, expected) in inputs {
+            let tpl = format!("{{{{ '{}' | truncate(length={}) }}}}", s, len);
+            let mut tera = Tera::default();
+            tera.add_raw_template("tpl", &tpl).unwrap();
+            let out = tera.render("tpl", &Context::default()).unwrap();
+            assert_eq!(out, expected);
+        }
     }
 }
