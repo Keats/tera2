@@ -159,7 +159,7 @@ impl Error {
         }
     }
 
-    pub(crate) fn message(message: impl ToString) -> Self {
+    pub fn message(message: impl ToString) -> Self {
         Self {
             kind: ErrorKind::Msg(message.to_string()),
             source: None,

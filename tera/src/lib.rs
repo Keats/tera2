@@ -23,6 +23,8 @@ pub use utils::escape_html;
 pub use value::number::Number;
 pub use value::Value;
 pub use vm::state::State;
+pub use filters::Filter;
+pub use tests::Test;
 
 #[cfg(feature = "fast_hash")]
 pub(crate) use ahash::{AHashMap as HashMap, AHashSet as HashSet};
