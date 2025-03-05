@@ -142,6 +142,28 @@ pub(crate) fn title(val: &str, _: Kwargs, _: &State) -> String {
     res
 }
 
+pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+    let length = kwargs.must_get::<usize>("length")?;
+    let end = kwargs.get::<&str>("end")?.unwrap_or("…");
+
+    #[cfg(feature = "unicode")]
+    {
+        let graphemes = unic_segment::GraphemeIndices::new(&val).collect::<Vec<(usize, &str)>>();
+        if length >= graphemes.len() {
+            return Ok(val.to_string());
+        }
+        Ok(val[..graphemes[length].0].to_string() + &end)
+    }
+
+    #[cfg(not(feature = "unicode"))]
+    {
+        if length >= val.len() {
+            return Ok(val.to_string());
+        }
+        Ok(val[..length].to_string() + &end)
+    }
+}
+
 /// Return a copy of the string with each line indented by 4 spaces.
 /// The first line and blank lines are not indented by default.
 pub(crate) fn indent(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
@@ -499,89 +521,7 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 mod tests {
     use super::*;
     use crate::value::Map;
-    use crate::Context;
-
-    #[test]
-    fn test_upper() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(upper("hello", Kwargs::default(), &state), "HELLO");
-    }
-
-    #[test]
-    fn test_lower() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(lower("HELLO", Kwargs::default(), &state), "hello");
-    }
-
-    #[test]
-    fn test_trim() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(
-            trim("  hello  ", Kwargs::default(), &state).unwrap(),
-            "hello"
-        );
-        let mut map = Map::new();
-        map.insert("pat".into(), "$".into());
-        assert_eq!(
-            trim("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
-            " hello "
-        );
-    }
-
-    #[test]
-    fn test_trim_start() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(
-            trim_start("  hello  ", Kwargs::default(), &state).unwrap(),
-            "hello  "
-        );
-        let mut map = Map::new();
-        map.insert("pat".into(), "$".into());
-        assert_eq!(
-            trim_start("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
-            " hello $"
-        );
-    }
-
-    #[test]
-    fn test_trim_end() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(
-            trim_end("  hello  ", Kwargs::default(), &state).unwrap(),
-            "  hello"
-        );
-        let mut map = Map::new();
-        map.insert("pat".into(), "$".into());
-        assert_eq!(
-            trim_end("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
-            "$ hello "
-        );
-    }
-
-    #[test]
-    fn test_replace() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        let mut map = Map::new();
-        map.insert("from".into(), "$".into());
-        map.insert("to".into(), "€".into());
-        assert_eq!(
-            replace("$ hello $", Kwargs::new(Arc::new(map)), &state).unwrap(),
-            "€ hello €"
-        );
-    }
-
-    #[test]
-    fn test_capitalize() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        assert_eq!(capitalize("HELLO", Kwargs::default(), &state), "Hello");
-    }
+    use crate::{Context, Tera};
 
     #[test]
     fn test_title() {
@@ -772,5 +712,18 @@ mod tests {
                 expected.into_iter().map(|x| x.into()).collect::<Vec<_>>()
             );
         }
+    }
+
+    #[cfg(feature = "unicode")]
+    #[test]
+    fn can_truncate_graphemes() {
+        let tpl = r#"
+{{ "日本語" | truncate(length=2) }}
+{{ "👨‍👩‍👧‍👦 family" | truncate(length=5) }}"#;
+        let mut tera = Tera::default();
+        tera.add_raw_template("tpl", tpl).unwrap();
+        let out = tera.render("tpl", &Context::default()).unwrap();
+
+        insta::assert_snapshot!(&out);
     }
 }

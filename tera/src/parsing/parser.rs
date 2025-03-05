@@ -751,9 +751,7 @@ impl<'a> Parser<'a> {
                 expect_token!(self, Token::TagEnd(..), "%}")?;
                 self.parse_until(|tok| matches!(tok, Token::Ident("endif")))?
             }
-            Some(Ok((Token::Ident("endif"), _))) => {
-                Vec::new()
-            }
+            Some(Ok((Token::Ident("endif"), _))) => Vec::new(),
             Some(Ok((token, _))) => {
                 return Err(Error::syntax_error(
                     format!("Found {token} but was expecting `elif`, `else` or `endif`."),

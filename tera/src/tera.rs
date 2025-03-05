@@ -225,6 +225,7 @@ impl Tera {
         self.register_filter("replace", crate::filters::replace);
         self.register_filter("capitalize", crate::filters::capitalize);
         self.register_filter("title", crate::filters::title);
+        self.register_filter("truncate", crate::filters::truncate);
         self.register_filter("indent", crate::filters::indent);
         self.register_filter("str", crate::filters::as_str);
         self.register_filter("int", crate::filters::int);

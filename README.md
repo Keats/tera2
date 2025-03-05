@@ -93,4 +93,5 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `map`, `group_by` and `filter` filter will error if the attribute ends up being undefined on one of the value
 - `as_str` has been renamed to `str`
 - `object` test has been renamed `map`
+- `truncate` requires the `length` argument and does not default to 255 anymore
 - filters now always take kwargs

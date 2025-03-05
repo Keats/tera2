@@ -7,19 +7,26 @@ input_file: tera/src/snapshot_tests/rendering_inputs/success/filters.txt
 <html>
 B&amp;b
 B&b
+€ hello €
 should not print
 1
 Default val
 Default val
+Hello
 3
 ["abc", "efgh", "ijklm"]
 6
+HELLO
+hello
 HTML
 <html>
 &lt;HTML&gt;
 <HTML>
 &lt;HTML&gt;
 <HTML>
+ hello 
+ hello $
+$ hello 
 2
 2
 19
@@ -57,3 +64,6 @@ Bob
 Child
 ["Tchoupi", "Pilou", "Fanny"]
 [1]
+hello
+he…
+he^

@@ -2,19 +2,26 @@
 {{ "<html>" | safe}}
 {{ name | replace(from="o", to=to) }}
 {{ name | replace(from="o", to=to) | safe }}
+{{ "$ hello $" | replace(from="$", to="€") }}
 {{ existing | default(value="should not print") }}
 {{ undefined_val | default(value=1) }}
 {{ undefined_val | default(value="default val") | capitalize }}
 {{ product.undefined_field | default(value="default val") | capitalize }}
+{{ "HELLO" | capitalize }}
 {{ [1, 2, 3] | length }}
 {{ "abcdefghdijklm" | split(pat="d") | safe }}
 {{ 2.8 * 2 | round }}
+{{ "hello" | upper }}
+{{ "HELLO" | lower }}
 {{ " html " | upper | trim }}
 {{ malicious | safe }}
 {{ malicious | upper }}
 {{ malicious | upper | safe }}
 {{ malicious | safe | upper }}
 {{ malicious | safe | upper | safe }}
+{{ "$ hello $" | trim(pat="$") }}
+{{ "$ hello $" | trim_start(pat="$") }}
+{{ "$ hello $" | trim_end(pat="$") }}
 {{ reviews | length }}
 {{ data | length }}
 {{ (1.9 + age) | round - 1 }}
@@ -45,3 +52,6 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "objects.0.label" | read_ctx }}
 {{ data | get(key="names") | safe }}
 {{ data | get(key="ages", default=[1]) }}
+{{ "hello" | truncate(length=255) }}
+{{ "hello" | truncate(length=2) }}
+{{ "hello" | truncate(length=2, end="^") }}
