@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/parser_inputs/errors/extends_not_first.txt
   |
 3 | {% extends "a" %}
   |            ^---
-  = `extends` needs to be the first tag of the template, with the exception of macro imports that are allowed before.
+  = `extends` needs to be the first tag of the template

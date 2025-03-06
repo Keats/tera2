@@ -89,8 +89,8 @@ three' indent{})
 ["up", "down", "left", "right"][1]
 {"hello": "world"}['hello']
 {"hel\nlo": "world"}
-macros::input{label='Name', type='text'}
-(| macros::input{} safe{})
-macros::input{n=(- a 1)}
-macros::input{label=null}
+:input{label='Name', type='text'}
+(| :input{} safe{})
+:input{n=(- a 1)}
+:input{label=null}
 (== a null)
