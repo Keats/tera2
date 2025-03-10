@@ -11,7 +11,9 @@ slug = {version = "0.1", optional = true}
 rand = {version = "0.9", optional = true}
 jiff = {version = "0.2.1", optional = true}
 percent-encoding = {version = "2.2", optional = true}
+serde_json = {version = "1.0.140", optional = true}
 
 [features]
 date = ["dep:jiff"]
 urlencode = ["dep:percent-encoding"]
+json = ["dep:serde_json"]

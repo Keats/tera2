@@ -1,5 +1,7 @@
 #[cfg(feature = "date")]
 pub mod dates;
+#[cfg(feature = "json")]
+pub mod json;
 #[cfg(feature = "rand")]
 pub mod rand;
 #[cfg(feature = "regex")]
