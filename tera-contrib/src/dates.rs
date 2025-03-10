@@ -1,10 +1,6 @@
-use std::borrow::Cow;
-use std::str::FromStr;
-
-use jiff::civil::Date;
 use jiff::fmt::temporal::DateTimeParser;
 use jiff::tz::TimeZone;
-use jiff::{fmt::rfc2822, fmt::strtime, Timestamp, Zoned};
+use jiff::{Timestamp, Zoned};
 use tera::{Kwargs, State, TeraResult, Value};
 
 static PARSER: DateTimeParser = DateTimeParser::new();

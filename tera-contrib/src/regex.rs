@@ -10,16 +10,16 @@ static STRIPTAGS_RE: LazyLock<Regex> =
 
 static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unwrap());
 
-pub(crate) fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
+pub fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
     STRIPTAGS_RE.replace_all(&val, "")
 }
 
-pub(crate) fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
+pub fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
     SPACELESS_RE.replace_all(&val, "><")
 }
 
 #[derive(Debug, Default)]
-struct Matching {
+pub struct Matching {
     cache: RwLock<HashMap<String, Regex>>,
 }
 
@@ -54,7 +54,7 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use tera::value::Map;
-    use tera::{Context, Tera};
+    use tera::Context;
 
     #[test]
     fn test_striptags() {
