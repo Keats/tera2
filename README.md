@@ -95,3 +95,4 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `object` test has been renamed `map`
 - `truncate` requires the `length` argument and does not default to 255 anymore
 - filters now always take kwargs
+- ISO 8601 dates using format `1996-12-19T16:39:57-08:00` are not supported anymore for the input of date filter, you can use `1996-12-19T16:39:57[-08:00]` instead

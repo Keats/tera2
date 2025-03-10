@@ -13,6 +13,7 @@ static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unw
 pub(crate) fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
     STRIPTAGS_RE.replace_all(&val, "")
 }
+
 pub(crate) fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
     SPACELESS_RE.replace_all(&val, "><")
 }
