@@ -15,7 +15,7 @@ pub fn split_multi_templates(body: &str) -> Vec<(String, String)> {
         let content = chars.collect::<String>().trim().to_string();
         tpls.push((filename, content));
     }
-    return tpls;
+    tpls
 }
 
 /// Splits the body into multiple templates ans
