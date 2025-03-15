@@ -9,7 +9,6 @@ use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
 use crate::args::Kwargs;
-use crate::parsing::ast::{ComponentCall, ComponentDefinition};
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
@@ -127,29 +126,36 @@ impl<'tera> VirtualMachine<'tera> {
 
         macro_rules! component {
             ($name:expr, $span:expr, $has_body:expr) => {{
-                    let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
-                    let mut context = Context::new();
-                    let (component_def, component_chunk) = &self.tera.components[$name];
-                    for (key, value) in &component_def.kwargs {
-                        match kwargs.get(&Key::Str(key)) {
+                let (kwargs, span) = state.stack.pop();
+                let kwargs = kwargs.into_map().expect("to have kwargs");
+                let mut context = Context::new();
+                let (component_def, component_chunk) = &self.tera.components[$name];
+                for (key, value) in &component_def.kwargs {
+                    match kwargs.get(&Key::Str(key)) {
+                        Some(kwarg_val) => {
+                            if value.type_matches(&kwarg_val) {
+                                context.insert(key, kwarg_val);
+                            } else {
+                                // TODO: we need to pass the span of each element in the map somehow
+                                // so we can point exactly where the issue is
+                                rendering_error!(format!("Component argument (type {}) does not match expected type: {}", kwarg_val.name(), value.typ.unwrap().as_str()), $span);
+                            }
+                        }
+                        None => match &value.default {
                             Some(kwarg_val) => {
                                 context.insert(key, kwarg_val);
                             }
-                            None => match &value.default {
-                                Some(kwarg_val) => {
-                                    context.insert(key, kwarg_val);
-                                }
-                                None => todo!("Missing arg macro error"),
-                            },
-                        }
+                            None => todo!("Missing arg macro error"),
+                        },
                     }
-                    if $has_body {
-                        context.insert("body", &state.stack.pop().0);
-                    }
-                    let val = self.render_component(&component_chunk, context)?;
-                    state
-                        .stack
-                        .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
+                }
+                if $has_body {
+                    context.insert("body", &state.stack.pop().0);
+                }
+                let val = self.render_component(&component_chunk, context)?;
+                state
+                    .stack
+                    .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
             }};
         }
 

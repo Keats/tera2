@@ -6,7 +6,6 @@ use crate::parsing::parser::Parser;
 use crate::template::Template;
 use crate::utils::Spanned;
 use crate::value::Value;
-use crate::HashMap;
 
 struct Expressions(pub Vec<Expression>);
 
@@ -110,7 +109,6 @@ fn parser_tags_success() {
         insta::assert_debug_snapshot!(&res_nodes);
     });
 }
-
 
 #[test]
 fn parser_extends_success() {

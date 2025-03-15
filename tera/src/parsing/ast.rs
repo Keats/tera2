@@ -636,12 +636,38 @@ impl Type {
             Type::Map => "map",
         }
     }
+
+    #[inline]
+    pub fn matches_value(&self, value: &Value) -> bool {
+        match (value, self) {
+            (Value::String(_, _), Type::String) => true,
+            (Value::Bool(_), Type::Bool) => true,
+            (Value::I64(_), Type::Integer)
+            | (Value::I128(_), Type::Integer)
+            | (Value::U64(_), Type::Integer)
+            | (Value::U128(_), Type::Integer) => true,
+            (Value::F64(_), Type::Float) => true,
+            (v, Type::Number) if v.is_number() => true,
+            (Value::Map(_), Type::Map) => true,
+            (Value::Array(_), Type::Array) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ComponentArgument {
     pub default: Option<Value>,
     pub typ: Option<Type>,
+}
+
+impl ComponentArgument {
+    #[inline]
+    pub fn type_matches(&self, value: &Value) -> bool {
+        self.typ
+            .and_then(|t| Some(t.matches_value(value)))
+            .unwrap_or(true)
+    }
 }
 
 /// A component definition `{% component hello() %}...{% endcomponent %}`

@@ -167,7 +167,6 @@ fn rendering_inheritance_ok() {
     });
 }
 
-
 #[test]
 fn rendering_errors() {
     insta::glob!("rendering_inputs/errors/*.txt", |path| {
@@ -189,6 +188,28 @@ fn rendering_inheritance_errors() {
         let normalized_contents = normalize_line_endings(&contents);
         let (tera, tpl_name) = create_multi_templates_tera(&normalized_contents);
         let err = tera.render(&tpl_name, &get_context()).unwrap_err();
+        insta::assert_snapshot!(&err);
+    });
+}
+
+#[test]
+fn rendering_components_errors() {
+    insta::glob!("rendering_inputs/errors/components/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let err = tera.render(&tpl_name, &get_context()).unwrap_err();
+        insta::assert_snapshot!(&err);
+    });
+}
+
+#[test]
+fn rendering_errors() {
+    insta::glob!("rendering_inputs/errors/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let p = format!("{}", path.file_name().unwrap().to_string_lossy());
+        let mut tera = Tera::default();
+        tera.add_raw_templates(vec![(&p, contents)]).unwrap();
+        let err = tera.render(&p, &get_context()).unwrap_err();
         insta::assert_snapshot!(&err);
     });
 }
