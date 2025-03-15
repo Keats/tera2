@@ -683,6 +683,12 @@ pub struct ComponentDefinition {
     pub body: Vec<Node>,
 }
 
+impl ComponentDefinition {
+    pub fn kwargs_list(&self) -> Vec<&str> {
+        self.kwargs.keys().map(|k| k.as_str()).collect()
+    }
+}
+
 /// A forloop: can be over values or key/values
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForLoop {

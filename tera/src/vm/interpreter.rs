@@ -126,10 +126,27 @@ impl<'tera> VirtualMachine<'tera> {
 
         macro_rules! component {
             ($name:expr, $span:expr, $has_body:expr) => {{
-                let (kwargs, span) = state.stack.pop();
+                let (kwargs, _) = state.stack.pop();
                 let kwargs = kwargs.into_map().expect("to have kwargs");
                 let mut context = Context::new();
                 let (component_def, component_chunk) = &self.tera.components[$name];
+
+                for key in kwargs.keys() {
+                    if !component_def.kwargs.contains_key(key.as_str().unwrap()) {
+                        let kwargs_list = component_def.kwargs_list();
+                        let kwargs_msg = if kwargs_list.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" Possible argument(s) are: {}",
+                                kwargs_list.iter()
+                                .map(|s| format!("`{}`", s))
+                                .collect::<Vec<_>>()
+                                .join(", "))
+                        };
+                        rendering_error!(format!("Argument `{key}` not found in definition.{kwargs_msg}"), $span)
+                    }
+                }
+
                 for (key, value) in &component_def.kwargs {
                     match kwargs.get(&Key::Str(key)) {
                         Some(kwarg_val) => {
@@ -138,17 +155,26 @@ impl<'tera> VirtualMachine<'tera> {
                             } else {
                                 // TODO: we need to pass the span of each element in the map somehow
                                 // so we can point exactly where the issue is
-                                rendering_error!(format!("Component argument (type {}) does not match expected type: {}", kwarg_val.name(), value.typ.unwrap().as_str()), $span);
+                                rendering_error!(format!("Component argument `{key}` (type: `{}`) does not match expected type: `{}`", kwarg_val.name(), value.typ.unwrap().as_str()), $span);
                             }
                         }
                         None => match &value.default {
                             Some(kwarg_val) => {
                                 context.insert(key, kwarg_val);
                             }
-                            None => todo!("Missing arg macro error"),
+                            None => {
+                                // Missing argument that doesn't have a default
+                                let typ_msg = if let Some(t) = value.typ.and_then(|t| Some(t.as_str())) {
+                                    format!("(type: `{t}`)")
+                                } else {
+                                    String::new()
+                                };
+                                rendering_error!(format!("Argument `{key}` {typ_msg} missing."), $span)
+                            }
                         },
                     }
                 }
+
                 if $has_body {
                     context.insert("body", &state.stack.pop().0);
                 }
