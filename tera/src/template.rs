@@ -57,8 +57,8 @@ impl Template {
         let components = parser_output
             .component_definitions
             .into_iter()
-            .map(|c| {
-                let mut compiler = Compiler::new(&c.name, source);
+            .map(|mut c| {
+                let mut compiler = Compiler::new(&tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
                 (c.name.clone(), (c, compiler.chunk))
