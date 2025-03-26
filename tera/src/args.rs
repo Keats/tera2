@@ -175,7 +175,7 @@ pub struct Kwargs {
 }
 
 impl Kwargs {
-    pub(crate) fn new(map: Arc<Map>) -> Self {
+    pub fn new(map: Arc<Map>) -> Self {
         Self { values: map }
     }
 

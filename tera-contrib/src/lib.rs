@@ -1,14 +1,12 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+#[cfg(feature = "date")]
+pub mod dates;
+#[cfg(feature = "json")]
+pub mod json;
+#[cfg(feature = "rand")]
+pub mod rand;
+#[cfg(feature = "regex")]
+pub mod regex;
+#[cfg(feature = "slug")]
+pub mod slug;
+#[cfg(feature = "urlencode")]
+pub mod urlencode;

@@ -717,10 +717,7 @@ mod tests {
     #[cfg(feature = "unicode")]
     #[test]
     fn can_truncate_graphemes() {
-        let inputs = vec![
-            ("日本語", 2, "日本…"),
-            ("👨‍👩‍👧‍👦 family", 5, "👨‍👩‍👧‍👦 fam…"),
-        ];
+        let inputs = vec![("日本語", 2, "日本…"), ("👨‍👩‍👧‍👦 family", 5, "👨‍👩‍👧‍👦 fam…")];
 
         for (s, len, expected) in inputs {
             let tpl = format!("{{{{ '{}' | truncate(length={}) }}}}", s, len);

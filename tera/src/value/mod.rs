@@ -280,7 +280,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn as_number(&self) -> Option<Number> {
+    pub fn as_number(&self) -> Option<Number> {
         // TODO: this might be problematic to convert u128 to i128
         // We should probably expand the Number Enum
         match self {
@@ -599,7 +599,7 @@ impl Value {
 
     /// Returns a string name for the current enum member.
     /// Used in error messages
-    pub(crate) fn name(&self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             Value::Undefined => "undefined",
             Value::Null => "null",
