@@ -8,3 +8,4 @@
 {% for name in data.names %}{% set_global counter = loop.index0 + 1 %}{{counter}}{% endfor %} -> {{counter}}
 {% for i in empty %}{{i}}{% else %}Empty forloop{% endfor %}
 {% for i in empty %}{{i}}{% endfor %}
+{% for x in [1, ] %}{{loop.index0}} -> {% if loop.first %}First{% endif %}-{% if loop.last %}Last{% endif %}{% endfor %}

@@ -127,7 +127,7 @@ impl ForLoop {
             index: 1,
             index0: 0,
             first: true,
-            last: length == 0,
+            last: length == 1,
             length,
         };
 
