@@ -31,12 +31,11 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
     },
     Set {
         name: "a",
-        value: MacroCall {
-            namespace: "macros",
-            filename: None,
+        value: ComponentCall {
             name: "something",
             kwargs: {},
-        } @ 4:11-4:30 (76..95),
+            body: [],
+        } @ 4:11-4:23 (76..88),
         global: false,
     },
     Set {
@@ -44,7 +43,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
         value: FunctionCall {
             name: "utcnow",
             kwargs: {},
-        } @ 5:11-5:19 (110..118),
+        } @ 5:11-5:19 (103..111),
         global: false,
     },
     Set {
@@ -60,7 +59,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
                 "hello",
                 Normal,
             ),
-        ] @ 6:11-6:29 (133..151),
+        ] @ 6:11-6:29 (126..144),
         global: false,
     },
     Set {
@@ -82,22 +81,22 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
                     ),
                 ],
             ),
-        ] @ 7:11-7:27 (166..182),
+        ] @ 7:11-7:27 (159..175),
         global: false,
     },
     Set {
         name: "a",
-        value: 1 @ 8:18-8:19 (204..205),
+        value: 1 @ 8:18-8:19 (197..198),
         global: true,
     },
     BlockSet {
         name: "body",
         filters: [
             Filter {
-                expr: () @ 9:12-9:13 (221..222),
+                expr: () @ 9:12-9:13 (214..215),
                 name: "upper",
                 kwargs: {},
-            } @ 9:14-9:19 (223..228),
+            } @ 9:14-9:19 (216..221),
         ],
         body: [
             "Hello",
@@ -108,19 +107,19 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
         name: "body",
         filters: [
             Filter {
-                expr: () @ 10:19-10:20 (268..269),
+                expr: () @ 10:19-10:20 (261..262),
                 name: "upper",
                 kwargs: {
-                    "with": 1 @ 10:32-10:33 (281..282),
+                    "with": 1 @ 10:32-10:33 (274..275),
                 },
-            } @ 10:21-10:34 (270..283),
+            } @ 10:21-10:34 (263..276),
             Filter {
-                expr: () @ 10:35-10:36 (284..285),
+                expr: () @ 10:35-10:36 (277..278),
                 name: "trans",
                 kwargs: {
-                    "lang": "fr" @ 10:48-10:52 (297..301),
+                    "lang": "fr" @ 10:48-10:52 (290..294),
                 },
-            } @ 10:37-10:53 (286..302),
+            } @ 10:37-10:53 (279..295),
         ],
         body: [
             "Hello",
@@ -135,7 +134,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
             ): I64(
                 0,
             ),
-        } @ 11:15-11:27 (338..350),
+        } @ 11:15-11:27 (331..343),
         global: false,
     },
     Set {
@@ -146,9 +145,9 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
                     "hello",
                 ): Var {
                     name: "data",
-                } @ 12:25-12:29 (379..383),
+                } @ 12:25-12:29 (372..376),
             },
-        } @ 12:15-12:30 (369..384),
+        } @ 12:15-12:30 (362..377),
         global: false,
     },
     Set {
@@ -159,9 +158,9 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
                     1,
                 ): Var {
                     name: "data",
-                } @ 13:19-13:23 (407..411),
+                } @ 13:19-13:23 (400..404),
             },
-        } @ 13:15-13:24 (403..412),
+        } @ 13:15-13:24 (396..405),
         global: false,
     },
     Set {
@@ -172,9 +171,9 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
                     true,
                 ): Var {
                     name: "data",
-                } @ 14:22-14:26 (438..442),
+                } @ 14:22-14:26 (431..435),
             },
-        } @ 14:15-14:27 (431..443),
+        } @ 14:15-14:27 (424..436),
         global: false,
     },
 ]

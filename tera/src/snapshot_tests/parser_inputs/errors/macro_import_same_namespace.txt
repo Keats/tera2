@@ -1,2 +1,0 @@
-{% import "macros.html" as macros %}
-{% import "macros2.html" as macros %}

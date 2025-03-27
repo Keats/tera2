@@ -1,6 +1,0 @@
-$$ macros
-{% macro my_macro() %}my macro{% endmacro %}
-$$ included
-{% import "macros" as macros %}{{ macros::my_macro() }}
-$$ tpl
-{% include "included" %}{# https://github.com/Keats/tera/issues/250 #}

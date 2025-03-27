@@ -1,0 +1,5 @@
+$$ components
+{% component another_one() %}{% set_global value2 = "1312" %}{% endcomponent another_one %}
+{% component test_global() %}{% set_global value1 = "A" %}{{ :another_one() }}{{ value1 }}-{{ value2 or "B" }}{% endcomponent test_global %}
+$$ tpl
+{{ :test_global() }}
