@@ -1,9 +1,8 @@
 use crate::errors::{Error, TeraResult};
 use std::fmt;
-use std::sync::Arc;
 
 use crate::utils::{Span, Spanned};
-use crate::value::{format_map, Key, Value};
+use crate::value::{format_map, Key, Value, ValueInner};
 use crate::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,14 +176,14 @@ impl fmt::Debug for Expression {
         use Expression::*;
 
         match self {
-            Const(i) => match i.node() {
-                Value::Bool(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
-                Value::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
-                Value::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
-                Value::String(j, _) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
-                Value::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
-                Value::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
-                Value::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
+            Const(i) => match &i.node().inner {
+                ValueInner::Bool(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                ValueInner::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                ValueInner::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
+                ValueInner::String(j, _) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                ValueInner::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                ValueInner::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                ValueInner::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
                 _ => unreachable!("{self} is not implemented"),
             },
             Map(i) => fmt::Debug::fmt(i, f),
@@ -209,31 +208,31 @@ impl fmt::Display for Expression {
         use Expression::*;
 
         match self {
-            Const(i) => match i.node() {
-                Value::String(s, _) => write!(f, "'{}'", *s),
-                Value::I64(s) => write!(f, "{}", *s),
-                Value::F64(s) => write!(f, "{}", *s),
-                Value::U64(s) => write!(f, "{}", *s),
-                Value::U128(s) => write!(f, "{}", *s),
-                Value::I128(s) => write!(f, "{}", *s),
-                Value::Bool(s) => write!(f, "{}", *s),
-                Value::Array(s) => {
+            Const(i) => match &i.node().inner {
+                ValueInner::String(s, _) => write!(f, "'{}'", *s),
+                ValueInner::I64(s) => write!(f, "{}", *s),
+                ValueInner::F64(s) => write!(f, "{}", *s),
+                ValueInner::U64(s) => write!(f, "{}", *s),
+                ValueInner::U128(s) => write!(f, "{}", *s),
+                ValueInner::I128(s) => write!(f, "{}", *s),
+                ValueInner::Bool(s) => write!(f, "{}", *s),
+                ValueInner::Array(s) => {
                     write!(f, "[")?;
                     for (i, elem) in s.iter().enumerate() {
                         if i > 0 && i != s.len() {
                             write!(f, ", ")?;
                         }
-                        match elem {
-                            Value::String(t, _) => write!(f, r#""{t}""#),
+                        match &elem.inner {
+                            ValueInner::String(t, _) => write!(f, r#""{t}""#),
                             _ => write!(f, "{elem}"),
                         }?;
                     }
                     write!(f, "]")
                 }
-                Value::Null => write!(f, "null"),
-                Value::Undefined => write!(f, "undefined"),
-                Value::Bytes(_) => write!(f, "<bytes>"),
-                Value::Map(s) => {
+                ValueInner::Null => write!(f, "null"),
+                ValueInner::Undefined => write!(f, "undefined"),
+                ValueInner::Bytes(_) => write!(f, "<bytes>"),
+                ValueInner::Map(s) => {
                     let mut buf: Vec<u8> = Vec::new();
                     format_map(s, &mut buf).expect("failed to write map to vec");
                     write!(
@@ -363,7 +362,7 @@ impl Array {
                 _ => return None,
             }
         }
-        Some(Value::Array(Arc::new(res)))
+        Some(Value::from(res))
     }
 }
 #[derive(Clone, Debug, PartialEq)]

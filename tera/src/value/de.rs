@@ -1,4 +1,5 @@
 use crate::value::utils::DeserializationFailed;
+use crate::value::ValueInner;
 use crate::Value;
 use serde::de::{self, Unexpected, Visitor};
 use serde::{forward_to_deserialize_any, Deserializer};
@@ -21,20 +22,20 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Value::Bool(v) => visitor.visit_bool(v),
-            Value::I64(v) => visitor.visit_i64(v),
-            Value::U64(v) => visitor.visit_u64(v),
-            Value::I128(v) => visitor.visit_i128(v),
-            Value::U128(v) => visitor.visit_u128(v),
-            Value::F64(v) => visitor.visit_f64(v),
-            Value::String(v, _) => visitor.visit_str(&v),
-            Value::Bytes(v) => visitor.visit_bytes(&v),
-            Value::Undefined | Value::Null => visitor.visit_unit(),
-            Value::Array(v) => visitor.visit_seq(de::value::SeqDeserializer::new(
+        match self.value.inner {
+            ValueInner::Bool(v) => visitor.visit_bool(v),
+            ValueInner::I64(v) => visitor.visit_i64(v),
+            ValueInner::U64(v) => visitor.visit_u64(v),
+            ValueInner::I128(v) => visitor.visit_i128(*v),
+            ValueInner::U128(v) => visitor.visit_u128(*v),
+            ValueInner::F64(v) => visitor.visit_f64(v),
+            ValueInner::String(v, _) => visitor.visit_str(v.as_str()),
+            ValueInner::Bytes(v) => visitor.visit_bytes(&v),
+            ValueInner::Undefined | ValueInner::Null => visitor.visit_unit(),
+            ValueInner::Array(v) => visitor.visit_seq(de::value::SeqDeserializer::new(
                 v.iter().map(|v| ValueDeserializer::from_value(v.clone())),
             )),
-            Value::Map(v) => {
+            ValueInner::Map(v) => {
                 visitor.visit_map(de::value::MapDeserializer::new(v.iter().map(|(k, v)| {
                     (
                         ValueDeserializer::from_value(k.as_value()),
@@ -49,8 +50,8 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
     where
         V: Visitor<'de>,
     {
-        match self.value {
-            Value::Undefined | Value::Null => visitor.visit_unit(),
+        match self.value.inner {
+            ValueInner::Undefined | ValueInner::Null => visitor.visit_unit(),
             _ => visitor.visit_some(self),
         }
     }
@@ -64,8 +65,8 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
     where
         V: Visitor<'de>,
     {
-        let (variant, params) = match self.value {
-            Value::Map(m) => {
+        let (variant, params) = match self.value.inner {
+            ValueInner::Map(m) => {
                 if let Some((k, v)) = m.iter().next() {
                     (k.as_value(), Some(v.clone()))
                 } else {
@@ -75,7 +76,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
                     ));
                 }
             }
-            Value::String(_, _) => (self.value.clone(), None),
+            ValueInner::String(_, _) => (self.value.clone(), None),
             _ => {
                 return Err(de::Error::invalid_type(
                     Unexpected::Other(self.value.name()),
@@ -147,10 +148,8 @@ impl<'de> de::VariantAccess<'de> for VariantDeserializer {
         _len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        match self.params {
-            Some(Value::Array(m)) => {
-                ValueDeserializer::from_value(Value::Array(m)).deserialize_any(visitor)
-            }
+        match self.params.filter(|x| x.is_array()) {
+            Some(val) => ValueDeserializer::from_value(val).deserialize_any(visitor),
             _ => Err(de::Error::invalid_type(
                 Unexpected::UnitVariant,
                 &"tuple variant",
@@ -163,10 +162,8 @@ impl<'de> de::VariantAccess<'de> for VariantDeserializer {
         _fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        match self.params {
-            Some(Value::Map(m)) => {
-                ValueDeserializer::from_value(Value::Map(m)).deserialize_any(visitor)
-            }
+        match self.params.filter(|x| x.is_map()) {
+            Some(val) => ValueDeserializer::from_value(val).deserialize_any(visitor),
             _ => Err(de::Error::invalid_type(
                 Unexpected::UnitVariant,
                 &"struct variant",

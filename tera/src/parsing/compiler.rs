@@ -110,7 +110,7 @@ impl<'s> Compiler<'s> {
                 if let Some(end) = slice.end {
                     self.compile_expr(end);
                 } else {
-                    self.chunk.add(Instruction::LoadConst(Value::Null), None);
+                    self.chunk.add(Instruction::LoadConst(Value::null()), None);
                 }
 
                 if let Some(step) = slice.step {

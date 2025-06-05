@@ -2,3 +2,5 @@ target/
 .idea/
 .DS_STORE
 out*
+.claude
+CLAUDE.md

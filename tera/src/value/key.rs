@@ -1,4 +1,3 @@
-use crate::value::StringKind;
 use crate::Value;
 use serde::{Serialize, Serializer};
 use std::cmp::Ordering;
@@ -28,11 +27,11 @@ impl<'a> Key<'a> {
 
     pub fn as_value(&self) -> Value {
         match self {
-            Key::Bool(b) => Value::Bool(*b),
-            Key::U64(b) => Value::U64(*b),
-            Key::I64(b) => Value::I64(*b),
-            Key::String(b) => Value::String(b.clone(), StringKind::Normal),
-            Key::Str(b) => Value::String(Arc::from(*b), StringKind::Normal),
+            Key::Bool(b) => Value::from(*b),
+            Key::U64(b) => Value::from(*b),
+            Key::I64(b) => Value::from(*b),
+            Key::String(b) => Value::normal_string(b.as_ref()),
+            Key::Str(b) => Value::normal_string(*b),
         }
     }
 

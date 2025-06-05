@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::value::{FunctionResult, Key, Map, StringKind};
+use crate::value::{FunctionResult, Key, Map, ValueKind};
 use crate::vm::state::State;
 use crate::{HashMap, Value};
 
@@ -58,14 +58,14 @@ impl StoredFilter {
 }
 
 pub(crate) fn safe(val: Cow<'_, str>, _: Kwargs, _: &State) -> Value {
-    Value::String(Arc::from(val), StringKind::Safe)
+    Value::safe_string(&val)
 }
 
 pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
 
-    match val {
-        Value::Undefined => Ok(default_val),
+    match val.kind() {
+        ValueKind::Undefined => Ok(default_val),
         _ => Ok(val),
     }
 }
@@ -211,9 +211,9 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
         }
     };
 
-    match val {
-        Value::String(s, _) => {
-            let s = s.trim();
+    match val.kind() {
+        ValueKind::String => {
+            let s = val.as_str().unwrap().trim();
             let s = match base {
                 2 => s.trim_start_matches("0b"),
                 8 => s.trim_start_matches("0o"),
@@ -238,11 +238,26 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
                 }
             }
         }
-        Value::U64(v) => Ok(v.into()),
-        Value::I64(v) => Ok(v.into()),
-        Value::I128(v) => Ok(v.into()),
-        Value::U128(v) => Ok(v.into()),
-        Value::F64(v) => handle_f64(v),
+        ValueKind::U64 => {
+            let v = val.as_i128().unwrap() as u64;
+            Ok(v.into())
+        }
+        ValueKind::I64 => {
+            let v = val.as_i128().unwrap();
+            Ok(v.into())
+        }
+        ValueKind::I128 => {
+            let v = val.as_i128().unwrap();
+            Ok(v.into())
+        }
+        ValueKind::U128 => {
+            let v = val.as_i128().unwrap() as u128;
+            Ok(v.into())
+        }
+        ValueKind::F64 => {
+            let v = val.as_f64().unwrap();
+            handle_f64(v)
+        }
         _ => Err(Error::message(format!(
             "Value of type {} cannot be converted to an int",
             val.name()
@@ -251,9 +266,9 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
 }
 
 pub(crate) fn float(val: Value, _: Kwargs, _: &State) -> TeraResult<f64> {
-    match val {
-        Value::String(s, _) => {
-            let s = s.trim();
+    match val.kind() {
+        ValueKind::String => {
+            let s = val.as_str().unwrap().trim();
             if let Ok(num) = s.parse::<f64>() {
                 Ok(num)
             } else {
@@ -299,19 +314,28 @@ pub(crate) fn split(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
 }
 
 pub(crate) fn abs(val: Value, _: Kwargs, _: &State) -> TeraResult<Value> {
-    match val {
-        Value::U64(_) | Value::U128(_) => Ok(val),
-        Value::F64(v) => Ok(v.abs().into()),
-        Value::I64(v) => match v.checked_abs() {
-            Some(v) => Ok(v.into()),
-            None => Ok((v as i128).abs().into()),
-        },
-        Value::I128(v) => match v.checked_abs() {
-            Some(v) => Ok(v.into()),
-            None => Err(Error::message(
-                "Errored while getting absolute value: it is i128::MIN value.".to_string(),
-            )),
-        },
+    match val.kind() {
+        ValueKind::U64 | ValueKind::U128 => Ok(val),
+        ValueKind::F64 => {
+            let v = val.as_f64().unwrap();
+            Ok(v.abs().into())
+        }
+        ValueKind::I64 => {
+            let v = val.as_i128().unwrap() as i64;
+            match v.checked_abs() {
+                Some(v) => Ok(v.into()),
+                None => Ok((v as i128).abs().into()),
+            }
+        }
+        ValueKind::I128 => {
+            let v = val.as_i128().unwrap();
+            match v.checked_abs() {
+                Some(v) => Ok(v.into()),
+                None => Err(Error::message(
+                    "Errored while getting absolute value: it is i128::MIN value.".to_string(),
+                )),
+            }
+        }
         _ => Err(Error::message(format!(
             "This filter can only be used on a number, received `{}`.",
             val.name()
@@ -343,20 +367,20 @@ pub(crate) fn round(val: f64, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
 /// Returns the first element of an array. Null if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.first().cloned().unwrap_or(Value::Null))
+    Ok(val.first().cloned().unwrap_or(Value::null()))
 }
 
 /// Returns the last element of an array. Null if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.last().cloned().unwrap_or(Value::Null))
+    Ok(val.last().cloned().unwrap_or(Value::null()))
 }
 
 /// Returns the nth element of an array. Null if there isn't an element at that index.
 /// and errors if the value is not an array
 pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
-    Ok(val.into_iter().nth(n).unwrap_or(Value::Null))
+    Ok(val.into_iter().nth(n).unwrap_or(Value::null()))
 }
 
 /// Joins the elements
@@ -429,7 +453,7 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<
     for v in val {
         match v.get_from_path(attribute) {
             // TODO: should we error or not?
-            Value::Undefined => {
+            x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path; {attribute}"
                 )));
@@ -460,7 +484,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
         return Ok(val);
     }
     let attribute = kwargs.must_get::<&str>("attribute")?;
-    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::Null);
+    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::null());
     let mut res = Vec::with_capacity(val.len());
 
     // TODO: filter with filters? Eg filter all elements where attribute | length == 3 for example
@@ -468,7 +492,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
     for v in val {
         match v.get_from_path(attribute) {
             // TODO: should we error or not?
-            Value::Undefined => {
+            x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path: {attribute}"
                 )));
@@ -494,12 +518,12 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
     for v in val {
         match v.get_from_path(attribute) {
             // TODO: should we error or not?
-            Value::Undefined => {
+            x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path; {attribute}"
                 )));
             }
-            Value::Null => (),
+            x if x.is_null() => (),
             x => {
                 let key = x.as_key()?;
                 if let Some(arr) = grouped.get_mut(&key) {

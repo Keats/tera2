@@ -136,7 +136,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::LoadName(n) => state.load_name(n, span),
                 Instruction::LoadAttr(attr) => {
                     let (a, a_span) = state.stack.pop();
-                    if a == Value::Undefined {
+                    if a.is_undefined() {
                         rendering_error!(format!("Container is not defined"), a_span);
                     }
                     state
@@ -146,7 +146,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::BinarySubscript => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
-                    if val == Value::Undefined {
+                    if val.is_undefined() {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
 
@@ -165,7 +165,7 @@ impl<'tera> VirtualMachine<'tera> {
                     let (end, _) = state.stack.pop();
                     let (start, _) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
-                    if val == Value::Undefined {
+                    if val.is_undefined() {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
 
@@ -190,7 +190,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::WriteTop => {
                     let (top, top_span) = state.stack.pop();
-                    if top == Value::Undefined {
+                    if top.is_undefined() {
                         rendering_error!(
                             format!("Tried to render a variable that is not defined"),
                             top_span
@@ -268,7 +268,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
                         res?;
-                        state.stack.push(Value::Null, None);
+                        state.stack.push(Value::null(), None);
                     } else if let Some(f) = self.tera.functions.get(name.as_str()) {
                         let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
                             Ok(v) => v,
@@ -422,7 +422,7 @@ impl<'tera> VirtualMachine<'tera> {
                         );
                     }
 
-                    if *is_key_value && !matches!(container, Value::Map(..)) {
+                    if *is_key_value && !container.is_map() {
                         rendering_error!(
                             format!(
                                 "Key/value iteration is not possible on type `{}`, only on maps.",
@@ -451,7 +451,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
                 Instruction::StoreDidNotIterate => {
                     if let Some(for_loop) = state.for_loops.last() {
-                        state.stack.push(Value::Bool(!for_loop.iterated()), None);
+                        state.stack.push(Value::from(!for_loop.iterated()), None);
                     }
                 }
                 Instruction::Break => {
@@ -490,7 +490,7 @@ impl<'tera> VirtualMachine<'tera> {
                     let (needle, _) = state.stack.pop();
                     match container.contains(&needle) {
                         Ok(b) => {
-                            state.stack.push(Value::Bool(b), None);
+                            state.stack.push(Value::from(b), None);
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), container_span);
