@@ -1,10 +1,5 @@
-use crate::value::Key;
-#[cfg(not(feature = "unicode"))]
-use crate::value::StringKind;
+use crate::value::{Key, ValueKind};
 use crate::{HashMap, Value};
-
-#[cfg(not(feature = "unicode"))]
-use std::sync::Arc;
 
 /// Enumerates on the types of values to be iterated, scalars and pairs
 #[derive(Debug)]
@@ -25,12 +20,12 @@ impl ForLoopValues {
     #[inline(always)]
     pub fn pop_front(&mut self) -> (Value, Value) {
         match self {
-            ForLoopValues::Array(a) => (Value::Null, a.next().unwrap()),
-            ForLoopValues::Bytes(a) => (Value::Null, Value::U64(a.next().unwrap() as u64)),
+            ForLoopValues::Array(a) => (Value::null(), a.next().unwrap()),
+            ForLoopValues::Bytes(a) => (Value::null(), Value::from(a.next().unwrap() as u64)),
             #[cfg(not(feature = "unicode"))]
             ForLoopValues::String(a) => (
-                Value::Null,
-                Value::String(Arc::from(a.next().unwrap().to_string()), StringKind::Normal),
+                Value::null(),
+                Value::normal_string(&a.next().unwrap().to_string()),
             ),
             #[cfg(feature = "unicode")]
             ForLoopValues::Graphemes(a) => (Value::Null, a.next().unwrap()),
@@ -91,12 +86,14 @@ pub(crate) struct ForLoop {
 
 impl ForLoop {
     pub fn new(container: Value) -> Self {
-        let values = match container {
-            Value::Map(map) => {
+        let values = match container.kind() {
+            ValueKind::Map => {
+                let map = container.as_map().unwrap();
                 let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
                 ForLoopValues::Object(vals.into_iter())
             }
-            Value::String(s, _) => {
+            ValueKind::String => {
+                let s = container.as_str().unwrap();
                 #[cfg(feature = "unicode")]
                 {
                     let graphemes: Vec<&str> = unic_segment::Graphemes::new(&*s).collect();
@@ -110,12 +107,14 @@ impl ForLoop {
                     ForLoopValues::String(chars.into_iter())
                 }
             }
-            Value::Bytes(b) => {
+            ValueKind::Bytes => {
+                let b = container.as_bytes().unwrap();
                 let bytes: Vec<_> = b.iter().copied().collect();
                 // TODO: add tests to loops on bytes
                 ForLoopValues::Bytes(bytes.into_iter())
             }
-            Value::Array(arr) => {
+            ValueKind::Array => {
+                let arr = container.as_vec().unwrap();
                 let vals: Vec<_> = arr.iter().cloned().collect();
                 ForLoopValues::Array(vals.into_iter())
             }
@@ -138,7 +137,7 @@ impl ForLoop {
             context: HashMap::new(),
             value_name: None,
             key_name: None,
-            current_values: (Value::Null, Value::Null),
+            current_values: (Value::null(), Value::null()),
         }
     }
 
@@ -179,11 +178,11 @@ impl ForLoop {
     pub(crate) fn get(&self, name: &str) -> Option<Value> {
         // Special casing the loop variable
         match name {
-            "__tera_loop_index" => Some(Value::U64(self.loop_data.index as u64)),
-            "__tera_loop_index0" => Some(Value::U64(self.loop_data.index0 as u64)),
-            "__tera_loop_first" => Some(Value::Bool(self.loop_data.first)),
-            "__tera_loop_last" => Some(Value::Bool(self.loop_data.last)),
-            "__tera_loop_length" => Some(Value::U64(self.loop_data.length as u64)),
+            "__tera_loop_index" => Some(Value::from(self.loop_data.index as u64)),
+            "__tera_loop_index0" => Some(Value::from(self.loop_data.index0 as u64)),
+            "__tera_loop_first" => Some(Value::from(self.loop_data.first)),
+            "__tera_loop_last" => Some(Value::from(self.loop_data.last)),
+            "__tera_loop_length" => Some(Value::from(self.loop_data.length as u64)),
             _ => {
                 if self.value_name.as_deref() == Some(name) {
                     return Some(self.current_values.1.clone());

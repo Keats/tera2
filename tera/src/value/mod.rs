@@ -44,8 +44,8 @@ pub(crate) fn format_map(map: &Map, f: &mut impl std::io::Write) -> std::io::Res
         }
 
         f.write_all(b": ")?;
-        match value {
-            Value::String(v, _) => write!(f, "{v:?}")?,
+        match &value.inner {
+            ValueInner::String(smart_str, _) => write!(f, "{:?}", smart_str.as_str())?,
             _ => value.format(f)?,
         }
     }
@@ -58,22 +58,97 @@ pub enum StringKind {
     Safe,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ValueKind {
+    Undefined,
+    Null,
+    Bool,
+    U64,
+    I64,
+    U128,
+    I128,
+    F64,
+    String,
+    Array,
+    Map,
+    Bytes,
+}
+
+#[derive(Clone)]
+pub(crate) enum SmartString {
+    // Inline storage for strings ≤22 chars, should cover most of the template strings
+    // 22 chars chosen to fit within reasonable Value enum size while maximizing inline storage
+    Small { len: u8, data: [u8; 22] },
+    // Arc for longer strings (>22 chars)
+    Large(Arc<str>),
+}
+
+impl SmartString {
+    fn new(s: &str) -> Self {
+        if s.len() <= 22 {
+            let mut data = [0; 22];
+            data[..s.len()].copy_from_slice(s.as_bytes());
+            Self::Small {
+                len: s.len() as u8,
+                data,
+            }
+        } else {
+            Self::Large(Arc::from(s))
+        }
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        match self {
+            Self::Small { len, data } => {
+                // SAFETY: We know this is valid UTF-8 since we constructed it from a &str
+                unsafe { std::str::from_utf8_unchecked(&data[..*len as usize]) }
+            }
+            Self::Large(s) => s,
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Self::Small { len, .. } => *len as usize,
+            Self::Large(s) => s.len(),
+        }
+    }
+}
+
+impl fmt::Display for SmartString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl fmt::Debug for SmartString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\"", self)
+    }
+}
+
+// Internal implementation - can optimize freely
 #[derive(Debug, Clone)]
-pub enum Value {
+pub(crate) enum ValueInner {
     Undefined,
     Null,
     Bool(bool),
     U64(u64),
     I64(i64),
     F64(f64),
-    U128(u128),
-    I128(i128),
+    // Box large integers since they are not used very often
+    U128(Box<u128>),
+    I128(Box<i128>),
+    // Small string optimization for frequent short strings
+    String(SmartString, StringKind),
     Array(Arc<Vec<Value>>),
-    // TODO: do we want bytes? Do we assume they are utf8?
-    Bytes(Arc<Vec<u8>>),
-    // TODO: string interning?
-    String(Arc<str>, StringKind),
     Map(Arc<Map>),
+    Bytes(Arc<Vec<u8>>),
+}
+
+#[derive(Clone)]
+pub struct Value {
+    pub(crate) inner: ValueInner,
 }
 
 impl fmt::Display for Value {
@@ -91,32 +166,38 @@ impl fmt::Display for Value {
     }
 }
 
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
+        match (&self.inner, &other.inner) {
             // First the easy ones
-            (Value::Undefined, Value::Undefined) => true,
-            (Value::Null, Value::Null) => true,
-            (Value::Bool(v), Value::Bool(v2)) => v == v2,
-            (Value::Array(v), Value::Array(v2)) => v == v2,
-            (Value::Bytes(v), Value::Bytes(v2)) => v == v2,
+            (ValueInner::Undefined, ValueInner::Undefined) => true,
+            (ValueInner::Null, ValueInner::Null) => true,
+            (ValueInner::Bool(v), ValueInner::Bool(v2)) => v == v2,
+            (ValueInner::Array(v), ValueInner::Array(v2)) => v == v2,
+            (ValueInner::Bytes(v), ValueInner::Bytes(v2)) => v == v2,
             // TODO: should string kind be used for partialeq? They might be equal now but
             // different later if one needs to be escape
-            (Value::String(v, _), Value::String(v2, _)) => v == v2,
-            (Value::Map(v), Value::Map(v2)) => v == v2,
+            (ValueInner::String(v, _), ValueInner::String(v2, _)) => v.as_str() == v2.as_str(),
+            (ValueInner::Map(v), ValueInner::Map(v2)) => v == v2,
             // Then the numbers
             // First if there's a float we need to convert to float
-            (Value::F64(v), _) => Some(*v) == other.as_f64(),
-            (_, Value::F64(v)) => Some(*v) == self.as_f64(),
+            (ValueInner::F64(v), _) => Some(*v) == other.as_f64(),
+            (_, ValueInner::F64(v)) => Some(*v) == self.as_f64(),
             // Then integers
-            (Value::U64(_), _)
-            | (Value::I64(_), _)
-            | (Value::U128(_), _)
-            | (Value::I128(_), _)
-            | (_, Value::U64(_))
-            | (_, Value::I64(_))
-            | (_, Value::U128(_))
-            | (_, Value::I128(_)) => self.as_i128() == other.as_i128(),
+            (ValueInner::U64(_), _)
+            | (ValueInner::I64(_), _)
+            | (ValueInner::U128(_), _)
+            | (ValueInner::I128(_), _)
+            | (_, ValueInner::U64(_))
+            | (_, ValueInner::I64(_))
+            | (_, ValueInner::U128(_))
+            | (_, ValueInner::I128(_)) => self.as_i128() == other.as_i128(),
             (_, _) => false,
         }
     }
@@ -126,27 +207,30 @@ impl Eq for Value {}
 
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
+        match (&self.inner, &other.inner) {
             // First the easy ones
-            (Value::Undefined, Value::Undefined) => Some(Ordering::Equal),
-            (Value::Null, Value::Null) => Some(Ordering::Equal),
-            (Value::Bool(v), Value::Bool(v2)) => v.partial_cmp(v2),
-            (Value::Array(v), Value::Array(v2)) => v.partial_cmp(v2),
-            (Value::Bytes(v), Value::Bytes(v2)) => v.partial_cmp(v2),
-            (Value::String(v, _), Value::String(v2, _)) => v.partial_cmp(v2),
+            (ValueInner::Undefined, ValueInner::Undefined) => Some(Ordering::Equal),
+            (ValueInner::Null, ValueInner::Null) => Some(Ordering::Equal),
+            (ValueInner::Bool(v), ValueInner::Bool(v2)) => v.partial_cmp(v2),
+            (ValueInner::Array(v), ValueInner::Array(v2)) => v.partial_cmp(v2),
+            (ValueInner::Bytes(v), ValueInner::Bytes(v2)) => v.partial_cmp(v2),
+            (ValueInner::String(v, _), ValueInner::String(v2, _)) => {
+                v.as_str().partial_cmp(v2.as_str())
+            }
             // Then the numbers
             // First if there's a float we need to convert to float
-            (Value::F64(v), _) => v.partial_cmp(&other.as_f64()?),
-            (_, Value::F64(v)) => v.partial_cmp(&self.as_f64()?),
+            (ValueInner::F64(v), _) => v.partial_cmp(&other.as_f64()?),
+            (_, ValueInner::F64(v)) => v.partial_cmp(&self.as_f64()?),
+
             // Then integers
-            (Value::U64(_), _)
-            | (Value::I64(_), _)
-            | (Value::U128(_), _)
-            | (Value::I128(_), _)
-            | (_, Value::U64(_))
-            | (_, Value::I64(_))
-            | (_, Value::U128(_))
-            | (_, Value::I128(_)) => self.as_i128()?.partial_cmp(&other.as_i128()?),
+            (ValueInner::U64(_), _)
+            | (ValueInner::I64(_), _)
+            | (ValueInner::U128(_), _)
+            | (ValueInner::I128(_), _)
+            | (_, ValueInner::U64(_))
+            | (_, ValueInner::I64(_))
+            | (_, ValueInner::U128(_))
+            | (_, ValueInner::I128(_)) => self.as_i128()?.partial_cmp(&other.as_i128()?),
             (_, _) => None,
         }
     }
@@ -165,16 +249,18 @@ impl Ord for Value {
 
 impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Value::Undefined | Value::Null => 0.hash(state),
-            Value::Bool(v) => v.hash(state),
-            Value::U64(_) | Value::I64(_) | Value::U128(_) | Value::I128(_) | Value::F64(_) => {
-                self.as_number().hash(state)
-            }
-            Value::Bytes(v) => v.hash(state),
-            Value::String(v, _) => v.hash(state),
-            Value::Array(v) => v.hash(state),
-            Value::Map(v) => v.iter().for_each(|(k, v)| {
+        match &self.inner {
+            ValueInner::Undefined | ValueInner::Null => 0.hash(state),
+            ValueInner::Bool(v) => v.hash(state),
+            ValueInner::U64(_)
+            | ValueInner::I64(_)
+            | ValueInner::U128(_)
+            | ValueInner::I128(_)
+            | ValueInner::F64(_) => self.as_number().hash(state),
+            ValueInner::Bytes(v) => v.hash(state),
+            ValueInner::String(v, _) => v.as_str().hash(state),
+            ValueInner::Array(v) => v.hash(state),
+            ValueInner::Map(v) => v.iter().for_each(|(k, v)| {
                 k.hash(state);
                 v.hash(state);
             }),
@@ -183,13 +269,68 @@ impl Hash for Value {
 }
 
 impl Value {
+    pub fn null() -> Self {
+        Value {
+            inner: ValueInner::Null,
+        }
+    }
+
+    pub fn undefined() -> Self {
+        Value {
+            inner: ValueInner::Undefined,
+        }
+    }
+
+    pub fn kind(&self) -> ValueKind {
+        match &self.inner {
+            ValueInner::Undefined => ValueKind::Undefined,
+            ValueInner::Null => ValueKind::Null,
+            ValueInner::Bool(_) => ValueKind::Bool,
+            ValueInner::U64(_) => ValueKind::U64,
+            ValueInner::I64(_) => ValueKind::I64,
+            ValueInner::F64(_) => ValueKind::F64,
+            ValueInner::U128(_) => ValueKind::U128,
+            ValueInner::I128(_) => ValueKind::I128,
+            ValueInner::String(_, _) => ValueKind::String,
+            ValueInner::Array(_) => ValueKind::Array,
+            ValueInner::Map(_) => ValueKind::Map,
+            ValueInner::Bytes(_) => ValueKind::Bytes,
+        }
+    }
+
+    // Type checks
+    pub fn is_undefined(&self) -> bool {
+        matches!(self.kind(), ValueKind::Undefined)
+    }
+    pub fn is_null(&self) -> bool {
+        matches!(self.kind(), ValueKind::Null)
+    }
+    pub fn is_bool(&self) -> bool {
+        matches!(self.kind(), ValueKind::Bool)
+    }
+    pub fn is_string(&self) -> bool {
+        matches!(self.kind(), ValueKind::String)
+    }
+    pub fn is_i128(&self) -> bool {
+        matches!(self.kind(), ValueKind::I128)
+    }
+    pub fn is_u128(&self) -> bool {
+        matches!(self.kind(), ValueKind::U128)
+    }
+    pub fn is_array(&self) -> bool {
+        matches!(self.kind(), ValueKind::Array)
+    }
+    pub fn is_map(&self) -> bool {
+        matches!(self.kind(), ValueKind::Map)
+    }
+
     pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
-        match self {
-            Value::Null | Value::Undefined => Ok(()),
-            Value::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
-            Value::Bytes(v) => f.write_all(v),
-            Value::String(v, _) => f.write_all(v.as_bytes()),
-            Value::Array(v) => {
+        match &self.inner {
+            ValueInner::Null | ValueInner::Undefined => Ok(()),
+            ValueInner::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
+            ValueInner::Bytes(v) => f.write_all(v),
+            ValueInner::String(v, _) => f.write_all(v.as_str().as_bytes()),
+            ValueInner::Array(v) => {
                 f.write_all(b"[")?;
 
                 for (idx, elem) in v.iter().enumerate() {
@@ -197,20 +338,20 @@ impl Value {
                         f.write_all(b", ")?;
                     }
 
-                    match elem {
-                        Value::String(v, _) => write!(f, "{v:?}")?,
+                    match &elem.inner {
+                        ValueInner::String(v, _) => write!(f, "{:?}", v.as_str())?,
                         _ => elem.format(f)?,
                     }
                 }
                 f.write_all(b"]")
             }
-            Value::Map(v) => format_map(v, f),
-            Value::F64(v) => {
+            ValueInner::Map(v) => format_map(v, f),
+            ValueInner::F64(v) => {
                 // We could use ryu to print floats but it doesn't match the output from
                 // the std so tests become annoying.
                 write!(f, "{v}")
             }
-            Value::U64(v) => {
+            ValueInner::U64(v) => {
                 #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
@@ -219,7 +360,7 @@ impl Value {
                 #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
-            Value::I64(v) => {
+            ValueInner::I64(v) => {
                 #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
@@ -228,23 +369,23 @@ impl Value {
                 #[cfg(not(feature = "no_fmt"))]
                 write!(f, "{v}")
             }
-            Value::U128(v) => {
+            ValueInner::U128(v) => {
                 #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
+                    f.write_all(buf.format(**v).as_bytes())
                 }
                 #[cfg(not(feature = "no_fmt"))]
-                write!(f, "{v}")
+                write!(f, "{}", **v)
             }
-            Value::I128(v) => {
+            ValueInner::I128(v) => {
                 #[cfg(feature = "no_fmt")]
                 {
                     let mut buf = itoa::Buffer::new();
-                    f.write_all(buf.format(*v).as_bytes())
+                    f.write_all(buf.format(**v).as_bytes())
                 }
                 #[cfg(not(feature = "no_fmt"))]
-                write!(f, "{v}")
+                write!(f, "{}", **v)
             }
         }
     }
@@ -253,29 +394,37 @@ impl Value {
         Serialize::serialize(value, ser::ValueSerializer).unwrap()
     }
 
+    pub fn normal_string(val: &str) -> Value {
+        Value {
+            inner: ValueInner::String(SmartString::new(val), StringKind::Normal),
+        }
+    }
+
     pub fn safe_string(val: &str) -> Value {
-        Value::String(Arc::from(val), StringKind::Safe)
+        Value {
+            inner: ValueInner::String(SmartString::new(val), StringKind::Safe),
+        }
     }
 
     pub(crate) fn as_i128(&self) -> Option<i128> {
-        match self {
-            Value::U64(v) => Some(*v as i128),
-            Value::I64(v) => Some(*v as i128),
+        match &self.inner {
+            ValueInner::U64(v) => Some(*v as i128),
+            ValueInner::I64(v) => Some(*v as i128),
             // TODO: in theory this cannot necessarily fit in i128
-            Value::U128(v) => Some(*v as i128),
-            Value::I128(v) => Some(*v),
+            ValueInner::U128(v) => Some(**v as i128),
+            ValueInner::I128(v) => Some(**v),
             _ => None,
         }
     }
 
-    fn as_f64(&self) -> Option<f64> {
+    pub(crate) fn as_f64(&self) -> Option<f64> {
         // TODO: make sure we only cast to f64 if the value can fit in it
-        match self {
-            Value::U64(v) => Some(*v as f64),
-            Value::I64(v) => Some(*v as f64),
-            Value::F64(v) => Some(*v),
-            Value::U128(v) => Some(*v as f64),
-            Value::I128(v) => Some(*v as f64),
+        match &self.inner {
+            ValueInner::U64(v) => Some(*v as f64),
+            ValueInner::I64(v) => Some(*v as f64),
+            ValueInner::F64(v) => Some(*v),
+            ValueInner::U128(v) => Some(**v as f64),
+            ValueInner::I128(v) => Some(**v as f64),
             _ => None,
         }
     }
@@ -283,71 +432,91 @@ impl Value {
     pub fn as_number(&self) -> Option<Number> {
         // TODO: this might be problematic to convert u128 to i128
         // We should probably expand the Number Enum
-        match self {
-            Value::U64(v) => Some(Number::Integer(*v as i128)),
-            Value::I64(v) => Some(Number::Integer(*v as i128)),
-            Value::F64(v) => Some(Number::Float(*v)),
-            Value::U128(v) => Some(Number::Integer(*v as i128)),
-            Value::I128(v) => Some(Number::Integer(*v)),
+        match &self.inner {
+            ValueInner::U64(v) => Some(Number::Integer(*v as i128)),
+            ValueInner::I64(v) => Some(Number::Integer(*v as i128)),
+            ValueInner::F64(v) => Some(Number::Float(*v)),
+            ValueInner::U128(v) => Some(Number::Integer(**v as i128)),
+            ValueInner::I128(v) => Some(Number::Integer(**v)),
             _ => None,
         }
     }
 
     pub(crate) fn is_number(&self) -> bool {
         matches!(
-            self,
-            Value::U64(..) | Value::I64(..) | Value::F64(..) | Value::U128(..) | Value::I128(..)
+            &self.inner,
+            ValueInner::U64(..)
+                | ValueInner::I64(..)
+                | ValueInner::F64(..)
+                | ValueInner::U128(..)
+                | ValueInner::I128(..)
         )
     }
 
     pub fn as_str(&self) -> Option<&str> {
-        match self {
-            Value::String(s, _) => Some(s),
+        match &self.inner {
+            ValueInner::String(s, _) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match &self.inner {
+            ValueInner::Bool(b) => Some(*b),
             _ => None,
         }
     }
 
     #[inline]
     pub fn is_safe(&self) -> bool {
-        match self {
-            Value::String(_, kind) => *kind == StringKind::Safe,
-            Value::Array(_) | Value::Map(_) | Value::Bytes(_) => false,
+        match &self.inner {
+            ValueInner::String(_, kind) => *kind == StringKind::Safe,
+            ValueInner::Array(_) | ValueInner::Map(_) | ValueInner::Bytes(_) => false,
             _ => true,
         }
     }
 
     #[inline]
     pub fn mark_safe(self) -> Self {
-        match self {
-            Value::String(s, _) => Value::String(s, StringKind::Safe),
+        match self.inner {
+            ValueInner::String(s, _) => Value {
+                inner: ValueInner::String(s, StringKind::Safe),
+            },
             _ => self,
         }
     }
 
     pub fn as_map(&self) -> Option<&Map> {
-        match self {
-            Value::Map(s) => Some(s),
+        match &self.inner {
+            ValueInner::Map(s) => Some(s),
             _ => None,
         }
     }
 
     pub fn as_vec(&self) -> Option<&Vec<Value>> {
-        match self {
-            Value::Array(s) => Some(s),
+        match &self.inner {
+            ValueInner::Array(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        match &self.inner {
+            ValueInner::Bytes(s) => Some(s),
             _ => None,
         }
     }
 
     pub fn into_map(self) -> Option<Arc<Map>> {
-        match self {
-            Value::Map(s) => Some(s),
+        match self.inner {
+            ValueInner::Map(s) => Some(s),
             _ => None,
         }
     }
 
     /// Returns the Value at the given path, or Undefined if there's nothing there.
     pub fn get_from_path(&self, path: &str) -> Value {
-        if self == &Value::Undefined || self == &Value::Null {
+        if matches!(&self.inner, ValueInner::Undefined | ValueInner::Null) {
             return self.clone();
         }
 
@@ -355,25 +524,37 @@ impl Value {
 
         for elem in path.split('.') {
             match elem.parse::<usize>() {
-                Ok(idx) => match res {
-                    Value::Array(arr) => {
+                Ok(idx) => match &res.inner {
+                    ValueInner::Array(arr) => {
                         if let Some(v) = arr.get(idx) {
                             res = v.clone();
                         } else {
-                            return Value::Undefined;
+                            return Value {
+                                inner: ValueInner::Undefined,
+                            };
                         }
                     }
-                    _ => return Value::Undefined,
+                    _ => {
+                        return Value {
+                            inner: ValueInner::Undefined,
+                        }
+                    }
                 },
-                Err(_) => match res {
-                    Value::Map(map) => {
+                Err(_) => match &res.inner {
+                    ValueInner::Map(map) => {
                         if let Some(v) = map.get(&Key::Str(elem)) {
                             res = v.clone();
                         } else {
-                            return Value::Undefined;
+                            return Value {
+                                inner: ValueInner::Undefined,
+                            };
                         }
                     }
-                    _ => return Value::Undefined,
+                    _ => {
+                        return Value {
+                            inner: ValueInner::Undefined,
+                        }
+                    }
                 },
             }
         }
@@ -382,41 +563,41 @@ impl Value {
     }
 
     pub fn is_truthy(&self) -> bool {
-        match self {
-            Value::Undefined => false,
-            Value::Null => false,
-            Value::Bool(v) => *v,
-            Value::U64(v) => *v != 0,
-            Value::I64(v) => *v != 0,
-            Value::F64(v) => *v != 0.0,
-            Value::U128(v) => *v != 0,
-            Value::I128(v) => *v != 0,
-            Value::Array(v) => !v.is_empty(),
-            Value::Bytes(v) => !v.is_empty(),
-            Value::String(v, _) => !v.is_empty(),
-            Value::Map(v) => !v.is_empty(),
+        match &self.inner {
+            ValueInner::Undefined => false,
+            ValueInner::Null => false,
+            ValueInner::Bool(v) => *v,
+            ValueInner::U64(v) => *v != 0,
+            ValueInner::I64(v) => *v != 0,
+            ValueInner::F64(v) => *v != 0.0,
+            ValueInner::U128(v) => **v != 0,
+            ValueInner::I128(v) => **v != 0,
+            ValueInner::Array(v) => !v.is_empty(),
+            ValueInner::Bytes(v) => !v.is_empty(),
+            ValueInner::String(v, _) => !v.as_str().is_empty(),
+            ValueInner::Map(v) => !v.is_empty(),
         }
     }
 
     pub fn len(&self) -> Option<usize> {
-        match self {
-            Value::Map(v) => Some(v.len()),
-            Value::Array(v) => Some(v.len()),
-            Value::Bytes(v) => Some(v.len()),
-            Value::String(v, _) => Some(v.chars().count()),
+        match &self.inner {
+            ValueInner::Map(v) => Some(v.len()),
+            ValueInner::Array(v) => Some(v.len()),
+            ValueInner::Bytes(v) => Some(v.len()),
+            ValueInner::String(v, _) => Some(v.as_str().chars().count()),
             _ => None,
         }
     }
 
     pub fn reverse(&self) -> TeraResult<Value> {
-        match self {
-            Value::Array(v) => {
+        match &self.inner {
+            ValueInner::Array(v) => {
                 let mut rev = (**v).clone();
                 rev.reverse();
                 Ok(Self::from(rev))
             }
-            Value::Bytes(v) => Ok(Self::from(v.iter().rev().copied().collect::<Vec<_>>())),
-            Value::String(v, _) => Ok(Self::from(String::from_iter(v.chars().rev()))),
+            ValueInner::Bytes(v) => Ok(Self::from(v.iter().rev().copied().collect::<Vec<_>>())),
+            ValueInner::String(v, _) => Ok(Self::from(String::from_iter(v.as_str().chars().rev()))),
             _ => Err(Error::message(format!(
                 "Value of type {} cannot be reversed",
                 self.name()
@@ -437,34 +618,37 @@ impl Value {
 
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         matches!(
-            self,
-            Value::Map(..) | Value::Array(..) | Value::Bytes(..) | Value::String(..)
+            &self.inner,
+            ValueInner::Map(..)
+                | ValueInner::Array(..)
+                | ValueInner::Bytes(..)
+                | ValueInner::String(..)
         )
     }
 
     pub(crate) fn as_key(&self) -> TeraResult<Key<'static>> {
-        let key = match self {
-            Value::Bool(v) => Key::Bool(*v),
-            Value::U64(v) => Key::U64(*v),
-            Value::I64(v) => Key::I64(*v),
-            Value::String(v, _) => Key::String(v.clone()),
+        let key = match &self.inner {
+            ValueInner::Bool(v) => Key::Bool(*v),
+            ValueInner::U64(v) => Key::U64(*v),
+            ValueInner::I64(v) => Key::I64(*v),
+            ValueInner::String(v, _) => Key::String(Arc::from(v.as_str())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
         Ok(key)
     }
 
     pub(crate) fn contains(&self, needle: &Value) -> TeraResult<bool> {
-        match self {
-            Value::Array(arr) => Ok(arr.contains(needle)),
-            Value::String(s, _) => {
+        match &self.inner {
+            ValueInner::Array(arr) => Ok(arr.contains(needle)),
+            ValueInner::String(s, _) => {
                 if let Some(needle_str) = needle.as_str() {
-                    Ok(s.contains(needle_str))
+                    Ok(s.as_str().contains(needle_str))
                 } else {
                     Ok(false)
                 }
             }
             // If they needle cannot index a map, then it can contain it
-            Value::Map(m) => match &needle.as_key() {
+            ValueInner::Map(m) => match &needle.as_key() {
                 Ok(k) => Ok(m.contains_key(k)),
                 Err(_) => Ok(false),
             },
@@ -476,24 +660,28 @@ impl Value {
 
     /// When doing hello.name, name is the attr
     pub(crate) fn get_attr(&self, attr: &str) -> Value {
-        match self {
-            Value::Map(m) => m.get(&Key::Str(attr)).cloned().unwrap_or(Value::Undefined),
-            _ => Value::Undefined,
+        match &self.inner {
+            ValueInner::Map(m) => m.get(&Key::Str(attr)).cloned().unwrap_or(Value {
+                inner: ValueInner::Undefined,
+            }),
+            _ => Value {
+                inner: ValueInner::Undefined,
+            },
         }
     }
 
     /// When doing hello[0], hello[name] etc, item is the value in the brackets
     pub(crate) fn get_item(&self, item: Value) -> TeraResult<Value> {
-        match self {
-            Value::Map(m) => {
+        match &self.inner {
+            ValueInner::Map(m) => {
                 match item.as_key() {
-                    Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value::Undefined)),
+                    Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value { inner: ValueInner::Undefined })),
                     Err(_) => Err(Error::message(
                         format!("`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed", item.name()),
                     ))
                 }
             }
-            Value::Array(arr) => {
+            ValueInner::Array(arr) => {
                 match item.as_i128() {
                     Some(idx) => {
                         let correct_idx = if idx < 0 {
@@ -501,14 +689,14 @@ impl Value {
                         } else {
                             idx
                         } as usize;
-                        Ok(arr.get(correct_idx).cloned().unwrap_or(Value::Undefined))
+                        Ok(arr.get(correct_idx).cloned().unwrap_or(Value { inner: ValueInner::Undefined }))
                     },
                     None =>  Err(Error::message(
                         format!("Array indices can only be integers, not `{}`.", item.name()),
                     ))
                 }
             }
-            _ => Ok(Value::Undefined),
+            _ => Ok(Value { inner: ValueInner::Undefined }),
         }
     }
 
@@ -533,8 +721,8 @@ impl Value {
             }
         };
 
-        match self {
-            Value::Array(arr) => {
+        match &self.inner {
+            ValueInner::Array(arr) => {
                 let mut input = Vec::with_capacity(arr.len());
                 let mut out = Vec::with_capacity(arr.len());
                 let start = get_actual_idx(arr.len() as i128, start);
@@ -556,13 +744,13 @@ impl Value {
 
                 Ok(out.into())
             }
-            Value::String(s, kind) => {
+            ValueInner::String(s, kind) => {
                 let mut out = Vec::with_capacity(s.len());
 
                 #[cfg(feature = "unicode")]
-                let mut input: Vec<&str> = unic_segment::Graphemes::new(&*s).collect();
+                let mut input: Vec<&str> = unic_segment::Graphemes::new(s.as_str()).collect();
                 #[cfg(not(feature = "unicode"))]
-                let mut input: Vec<char> = s.chars().collect();
+                let mut input: Vec<char> = s.as_str().chars().collect();
 
                 let start = get_actual_idx(input.len() as i128, start);
                 let end = get_actual_idx(input.len() as i128, end);
@@ -579,15 +767,16 @@ impl Value {
 
                 #[cfg(feature = "unicode")]
                 {
-                    Ok(Value::String(Arc::from(out.join("")), *kind))
+                    Ok(Value {
+                        inner: ValueInner::String(SmartString::new(&out.join("")), *kind),
+                    })
                 }
 
                 #[cfg(not(feature = "unicode"))]
                 {
-                    Ok(Value::String(
-                        Arc::from(String::from_iter(out).as_str()),
-                        *kind,
-                    ))
+                    Ok(Value {
+                        inner: ValueInner::String(SmartString::new(&String::from_iter(out)), *kind),
+                    })
                 }
             }
             _ => Err(Error::message(format!(
@@ -600,19 +789,19 @@ impl Value {
     /// Returns a string name for the current enum member.
     /// Used in error messages
     pub fn name(&self) -> &'static str {
-        match self {
-            Value::Undefined => "undefined",
-            Value::Null => "null",
-            Value::Bool(_) => "bool",
-            Value::U64(_) => "u64",
-            Value::I64(_) => "i64",
-            Value::F64(_) => "f64",
-            Value::U128(_) => "u128",
-            Value::I128(_) => "i128",
-            Value::Array(_) => "array",
-            Value::Bytes(_) => "bytes",
-            Value::String(_, _) => "string",
-            Value::Map(_) => "map/struct",
+        match &self.inner {
+            ValueInner::Undefined => "undefined",
+            ValueInner::Null => "null",
+            ValueInner::Bool(_) => "bool",
+            ValueInner::U64(_) => "u64",
+            ValueInner::I64(_) => "i64",
+            ValueInner::F64(_) => "f64",
+            ValueInner::U128(_) => "u128",
+            ValueInner::I128(_) => "i128",
+            ValueInner::Array(_) => "array",
+            ValueInner::Bytes(_) => "bytes",
+            ValueInner::String(_, _) => "string",
+            ValueInner::Map(_) => "map/struct",
         }
     }
 }
@@ -622,24 +811,24 @@ impl Serialize for Value {
     where
         S: Serializer,
     {
-        match self {
-            Value::Null | Value::Undefined => serializer.serialize_unit(),
-            Value::Bool(b) => serializer.serialize_bool(*b),
-            Value::U64(u) => serializer.serialize_u64(*u),
-            Value::I64(i) => serializer.serialize_i64(*i),
-            Value::F64(f) => serializer.serialize_f64(*f),
-            Value::U128(u) => serializer.serialize_u128(*u),
-            Value::I128(i) => serializer.serialize_i128(*i),
-            Value::Bytes(b) => serializer.serialize_bytes(b),
-            Value::String(s, _) => serializer.serialize_str(s),
-            Value::Array(arr) => {
+        match &self.inner {
+            ValueInner::Null | ValueInner::Undefined => serializer.serialize_unit(),
+            ValueInner::Bool(b) => serializer.serialize_bool(*b),
+            ValueInner::U64(u) => serializer.serialize_u64(*u),
+            ValueInner::I64(i) => serializer.serialize_i64(*i),
+            ValueInner::F64(f) => serializer.serialize_f64(*f),
+            ValueInner::U128(u) => serializer.serialize_u128(**u),
+            ValueInner::I128(i) => serializer.serialize_i128(**i),
+            ValueInner::Bytes(b) => serializer.serialize_bytes(b),
+            ValueInner::String(s, _) => serializer.serialize_str(s.as_str()),
+            ValueInner::Array(arr) => {
                 let mut seq = serializer.serialize_seq(Some(arr.len()))?;
                 for val in arr.iter() {
                     seq.serialize_element(val)?;
                 }
                 seq.end()
             }
-            Value::Map(map) => {
+            ValueInner::Map(map) => {
                 let mut m = serializer.serialize_map(Some(map.len()))?;
                 for (key, val) in map.iter() {
                     m.serialize_entry(key, val)?;
@@ -650,117 +839,167 @@ impl Serialize for Value {
     }
 }
 
+impl From<ValueInner> for Value {
+    fn from(inner: ValueInner) -> Self {
+        Value { inner }
+    }
+}
+
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
-        Value::Bool(value)
+        Value {
+            inner: ValueInner::Bool(value),
+        }
     }
 }
 
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
-        Value::String(Arc::from(value), StringKind::Normal)
+        Value {
+            inner: ValueInner::String(SmartString::new(value), StringKind::Normal),
+        }
     }
 }
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::String(Arc::from(value), StringKind::Normal)
+        Value {
+            inner: ValueInner::String(SmartString::new(&value), StringKind::Normal),
+        }
     }
 }
 
 impl From<u8> for Value {
     fn from(value: u8) -> Self {
-        Value::U64(value as u64)
+        Value {
+            inner: ValueInner::U64(value as u64),
+        }
     }
 }
 
 impl From<i8> for Value {
     fn from(value: i8) -> Self {
-        Value::I64(value as i64)
+        Value {
+            inner: ValueInner::I64(value as i64),
+        }
     }
 }
 
 impl From<u32> for Value {
     fn from(value: u32) -> Self {
-        Value::U64(value as u64)
+        Value {
+            inner: ValueInner::U64(value as u64),
+        }
     }
 }
 
 impl From<u64> for Value {
     fn from(value: u64) -> Self {
-        Value::U64(value)
+        Value {
+            inner: ValueInner::U64(value),
+        }
     }
 }
 
 impl From<usize> for Value {
     fn from(value: usize) -> Self {
-        Value::U64(value as u64)
+        Value {
+            inner: ValueInner::U64(value as u64),
+        }
     }
 }
 
 impl From<u128> for Value {
     fn from(value: u128) -> Self {
-        Value::U128(value)
+        Value {
+            inner: ValueInner::U128(Box::new(value)),
+        }
     }
 }
 
 impl From<i32> for Value {
     fn from(value: i32) -> Self {
-        Value::I64(value as i64)
+        Value {
+            inner: ValueInner::I64(value as i64),
+        }
     }
 }
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Value::I64(value)
+        Value {
+            inner: ValueInner::I64(value),
+        }
     }
 }
 
 impl From<isize> for Value {
     fn from(value: isize) -> Self {
-        Value::I64(value as i64)
+        Value {
+            inner: ValueInner::I64(value as i64),
+        }
     }
 }
 
 impl From<i128> for Value {
     fn from(value: i128) -> Self {
-        Value::I128(value)
+        Value {
+            inner: ValueInner::I128(Box::new(value)),
+        }
     }
 }
 
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
-        Value::F64(value)
+        Value {
+            inner: ValueInner::F64(value),
+        }
     }
 }
 
 impl From<Key<'static>> for Value {
     fn from(value: Key<'static>) -> Self {
         match value {
-            Key::Bool(b) => Value::Bool(b),
-            Key::U64(u) => Value::U64(u),
-            Key::I64(i) => Value::I64(i),
-            Key::String(s) => Value::String(s, StringKind::Normal),
-            Key::Str(s) => Value::String(Arc::from(s), StringKind::Normal),
+            Key::Bool(b) => Value {
+                inner: ValueInner::Bool(b),
+            },
+            Key::U64(u) => Value {
+                inner: ValueInner::U64(u),
+            },
+            Key::I64(i) => Value {
+                inner: ValueInner::I64(i),
+            },
+            Key::String(s) => Value {
+                inner: ValueInner::String(SmartString::new(&s), StringKind::Normal),
+            },
+            Key::Str(s) => Value {
+                inner: ValueInner::String(SmartString::new(s), StringKind::Normal),
+            },
         }
     }
 }
 
 impl From<&[Value]> for Value {
     fn from(value: &[Value]) -> Self {
-        Value::Array(Arc::new(value.to_vec()))
+        Value {
+            inner: ValueInner::Array(Arc::new(value.to_vec())),
+        }
     }
 }
 
 impl<T: Into<Value>> From<Vec<T>> for Value {
     fn from(value: Vec<T>) -> Self {
-        Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
+        Value {
+            inner: ValueInner::Array(Arc::new(value.into_iter().map(|v| v.into()).collect())),
+        }
     }
 }
 
 impl<T: Into<Value>> From<BTreeSet<T>> for Value {
     fn from(value: BTreeSet<T>) -> Self {
-        Value::Array(Arc::new(value.into_iter().map(|v| v.into()).collect()))
+        Value {
+            inner: ValueInner::Array(Arc::new(value.into_iter().map(|v| v.into()).collect())),
+        }
     }
 }
 
@@ -770,7 +1009,9 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<HashMap<K, T>> for Value {
         for (key, value) in input {
             map.insert(key.into(), value.into());
         }
-        Value::Map(Arc::new(map))
+        Value {
+            inner: ValueInner::Map(Arc::new(map)),
+        }
     }
 }
 
@@ -780,7 +1021,9 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<BTreeMap<K, T>> for Value {
         for (key, value) in input {
             map.insert(key.into(), value.into());
         }
-        Value::Map(Arc::new(map))
+        Value {
+            inner: ValueInner::Map(Arc::new(map)),
+        }
     }
 }
 
@@ -791,7 +1034,9 @@ impl<K: Into<Key<'static>>, T: Into<Value>> From<indexmap::IndexMap<K, T>> for V
         for (key, value) in input {
             map.insert(key.into(), value.into());
         }
-        Value::Map(Arc::new(map))
+        Value {
+            inner: ValueInner::Map(Arc::new(map)),
+        }
     }
 }
 

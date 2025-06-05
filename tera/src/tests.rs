@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::value::Key;
+use crate::value::{Key, ValueKind};
 use crate::vm::state::State;
 use crate::Value;
 
@@ -64,7 +64,7 @@ impl StoredTest {
 }
 
 pub(crate) fn is_string(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::String(..))
+    val.is_string()
 }
 
 pub(crate) fn is_number(val: &Value, _: Kwargs, _: &State) -> bool {
@@ -72,24 +72,23 @@ pub(crate) fn is_number(val: &Value, _: Kwargs, _: &State) -> bool {
 }
 
 pub(crate) fn is_map(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::Map(..))
+    val.is_map()
 }
 
 pub(crate) fn is_bool(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::Bool(..))
+    val.is_bool()
 }
 
 pub(crate) fn is_array(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::Array(..))
+    val.is_array()
 }
 
 pub(crate) fn is_null(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::Null)
+    val.is_null()
 }
 
-// TODO: check whether we need that
 pub(crate) fn is_undefined(val: &Value, _: Kwargs, _: &State) -> bool {
-    matches!(val, Value::Null)
+    val.is_undefined()
 }
 
 pub(crate) fn is_integer(val: &Value, _: Kwargs, _: &State) -> bool {
@@ -151,15 +150,15 @@ pub(crate) fn is_ending_with(val: &str, kwargs: Kwargs, _: &State) -> TeraResult
 
 pub(crate) fn is_containing(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
     let pat = kwargs.must_get::<&Value>("pat")?;
-    match val {
-        Value::String(v, _) => {
+    match val.kind() {
+        ValueKind::String => {
             let s = <&str as ArgFromValue>::from_value(pat)?;
-            Ok(v.contains(s))
+            Ok(val.as_str().unwrap().contains(s))
         }
-        Value::Array(v) => Ok(v.contains(pat)),
-        Value::Map(v) => {
+        ValueKind::Array => Ok(val.as_vec().unwrap().contains(pat)),
+        ValueKind::Map => {
             let s = <&str as ArgFromValue>::from_value(pat)?;
-            Ok(v.contains_key(&Key::Str(s)))
+            Ok(val.as_map().unwrap().contains_key(&Key::Str(s)))
         }
         _ => Err(Error::message(format!(
             "Value `{val}` is not a container; cannot check for containment"

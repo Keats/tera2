@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::value::{Key, Map};
+use crate::value::{Key, Map, ValueInner};
 use crate::Value;
 
 pub trait ArgFromValue<'k> {
@@ -25,7 +25,7 @@ macro_rules! impl_for_literal {
             type Error = Error;
 
             fn try_from(value: Value) -> Result<Self, Self::Error> {
-                let res = match value {
+                let res = match &value.inner {
                     $($pat $(if $if_expr)? => TryFrom::try_from($expr).ok(),)*
                     _ => None
                 };
@@ -45,11 +45,11 @@ macro_rules! impl_for_literal {
 macro_rules! impl_for_int {
     ($ty:ident) => {
         impl_for_literal!($ty, {
-            Value::I64(v) => v,
-            Value::I128(v) => v,
-            Value::U64(v) => v,
-            Value::U128(v) => v,
-            Value::F64(v) if (v == v as i64 as f64) => v as i64,
+            ValueInner::I64(v) => *v,
+            ValueInner::I128(v) => **v,
+            ValueInner::U64(v) => *v,
+            ValueInner::U128(v) => **v,
+            ValueInner::F64(v) if (*v == *v as i64 as f64) => *v as i64,
         });
     }
 }
@@ -67,23 +67,23 @@ impl_for_int!(i128);
 impl_for_int!(isize);
 
 impl_for_literal!(bool, {
-    Value::Bool(b) => b,
+    ValueInner::Bool(b) => *b,
 });
 
 // TODO: test when value doesn't fit in f32
 impl_for_literal!(f32, {
-    Value::I64(b) => b as f32,
-    Value::I128(b) => b as f32,
-    Value::U64(b) => b as f32,
-    Value::U128(b) => b as f32,
-    Value::F64(b) => b as f32,
+    ValueInner::I64(b) => *b as f32,
+    ValueInner::I128(b) => **b as f32,
+    ValueInner::U64(b) => *b as f32,
+    ValueInner::U128(b) => **b as f32,
+    ValueInner::F64(b) => *b as f32,
 });
 impl_for_literal!(f64, {
-    Value::I64(b) => b as f64,
-    Value::I128(b) => b as f64,
-    Value::U64(b) => b as f64,
-    Value::U128(b) => b as f64,
-    Value::F64(b) => b,
+    ValueInner::I64(b) => *b as f64,
+    ValueInner::I128(b) => **b as f64,
+    ValueInner::U64(b) => *b as f64,
+    ValueInner::U128(b) => **b as f64,
+    ValueInner::F64(b) => *b,
 });
 
 impl<'k> ArgFromValue<'k> for String {
@@ -108,8 +108,8 @@ impl<'k> ArgFromValue<'k> for Cow<'_, str> {
     type Output = Cow<'k, str>;
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
-        match value {
-            Value::String(s, _) => Ok(Cow::Borrowed(s)),
+        match &value.inner {
+            ValueInner::String(s, _) => Ok(Cow::Borrowed(s.as_str())),
             _ => Ok(Cow::Owned(format!("{value}"))),
         }
     }
@@ -156,8 +156,8 @@ impl<'k, T: ArgFromValue<'k, Output = T>> ArgFromValue<'k> for Vec<T> {
     type Output = Vec<T>;
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
-        match value {
-            Value::Array(arr) => {
+        match &value.inner {
+            ValueInner::Array(arr) => {
                 let mut res = Vec::with_capacity(arr.len());
                 for v in arr.iter() {
                     res.push(T::from_value(v)?);
@@ -180,8 +180,10 @@ impl Kwargs {
     }
 
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> TeraResult<T> {
-        T::deserialize(&Value::Map(self.values.clone()))
-            .map_err(|_| Error::message("Failed to deserialize"))
+        T::deserialize(&Value {
+            inner: ValueInner::Map(self.values.clone()),
+        })
+        .map_err(|_| Error::message("Failed to deserialize"))
     }
 
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>

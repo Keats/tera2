@@ -21,12 +21,8 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/for.txt
         key: None,
         value: "v",
         target: [
-            I64(
-                1,
-            ),
-            I64(
-                2,
-            ),
+            I64(1),
+            I64(2),
         ] @ 2:12-2:19 (58..65),
         body: [
             Var {
@@ -86,12 +82,8 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/for.txt
         key: None,
         value: "v",
         target: [
-            I64(
-                1,
-            ),
-            I64(
-                2,
-            ),
+            I64(1),
+            I64(2),
         ] @ 6:12-6:19 (275..282),
         body: [
             If {

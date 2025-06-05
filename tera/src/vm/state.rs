@@ -93,7 +93,7 @@ impl<'t> State<'t> {
         if let Some(parent) = self.include_parent {
             parent.get(name)
         } else {
-            Value::Undefined
+            Value::undefined()
         }
     }
 
