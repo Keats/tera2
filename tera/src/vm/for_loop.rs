@@ -65,6 +65,7 @@ struct Loop {
 }
 
 impl Loop {
+    #[inline(always)]
     fn advance(&mut self) {
         self.index += 1;
         self.index0 += 1;
@@ -151,6 +152,7 @@ impl ForLoop {
 
     /// Advance the counter only after the end ip has been set (eg we start incrementing only from the
     /// second time we see the loop)
+    #[inline(always)]
     pub(crate) fn advance(&mut self) {
         if self.end_ip == 0 {
             self.current_values = self.values.pop_front();
@@ -175,6 +177,7 @@ impl ForLoop {
         self.context.insert(name.to_string(), value);
     }
 
+    #[inline(always)]
     pub(crate) fn get(&self, name: &str) -> Option<Value> {
         // Special casing the loop variable
         match name {
