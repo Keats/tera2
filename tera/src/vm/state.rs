@@ -108,7 +108,9 @@ impl<'t> State<'t> {
 
     fn dump_context(&self) -> Value {
         let mut context = crate::HashMap::new();
-        context.extend(self.context.data.clone());
+        for (k, v) in &self.context.data {
+            context.insert(k.to_string(), v.clone());
+        }
         context.extend(self.set_variables.clone());
 
         for forloop in &self.for_loops {

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -10,8 +11,7 @@ use crate::value::Value;
 /// values
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Context {
-    // TODO: have keys be Cow<'static, str>?
-    pub(crate) data: BTreeMap<String, Value>,
+    pub(crate) data: BTreeMap<Cow<'static, str>, Value>,
 }
 
 impl Context {
@@ -27,12 +27,12 @@ impl Context {
     /// let mut context = tera::Context::new();
     /// context.insert("number_users", &42);
     /// ```
-    pub fn insert<S: Into<String>, T: Serialize + ?Sized>(&mut self, key: S, val: &T) {
+    pub fn insert<S: Into<Cow<'static, str>>, T: Serialize + ?Sized>(&mut self, key: S, val: &T) {
         self.data.insert(key.into(), Value::from_serializable(val));
     }
 
     /// In case you already have a `Value` you want to insert
-    pub fn insert_value<S: Into<String>>(&mut self, key: S, val: Value) {
+    pub fn insert_value<S: Into<Cow<'static, str>>>(&mut self, key: S, val: Value) {
         self.data.insert(key.into(), val);
     }
 
