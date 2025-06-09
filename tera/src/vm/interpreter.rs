@@ -342,11 +342,11 @@ impl<'tera> VirtualMachine<'tera> {
                     for (key, value) in &compiled_macro_def.kwargs {
                         match kwargs.get(&Key::Str(key)) {
                             Some(kwarg_val) => {
-                                context.insert(key, kwarg_val);
+                                context.insert(key.to_string(), kwarg_val);
                             }
                             None => match value {
                                 Some(kwarg_val) => {
-                                    context.insert(key, kwarg_val);
+                                    context.insert(key.to_string(), kwarg_val);
                                 }
                                 None => todo!("Missing arg macro error"),
                             },

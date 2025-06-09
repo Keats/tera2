@@ -1,5 +1,6 @@
 use crate::Value;
 use serde::{Serialize, Serializer};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::Formatter;
@@ -130,5 +131,14 @@ impl From<&'static str> for Key<'static> {
 impl From<String> for Key<'static> {
     fn from(value: String) -> Self {
         Key::String(Arc::from(value))
+    }
+}
+
+impl<'a> From<Cow<'a, str>> for Key<'static> {
+    fn from(value: Cow<'a, str>) -> Self {
+        match value {
+            Cow::Borrowed(s) => Key::String(Arc::from(s)),
+            Cow::Owned(s) => Key::String(Arc::from(s)),
+        }
     }
 }
