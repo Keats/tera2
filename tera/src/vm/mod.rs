@@ -1,4 +1,4 @@
-mod for_loop;
+pub(crate) mod for_loop;
 mod stack;
 pub(crate) mod state;
 

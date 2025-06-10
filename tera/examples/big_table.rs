@@ -1,4 +1,4 @@
-use tera::{Context, Tera};
+use tera::{Context, Tera, TeraResult};
 
 static BIG_TABLE_TEMPLATE: &str = "
 <table>
@@ -8,7 +8,7 @@ static BIG_TABLE_TEMPLATE: &str = "
 </table>
 ";
 
-fn main() {
+fn setup() -> (Tera, Context) {
     let length = 100;
     let mut table = Vec::with_capacity(length);
     for _ in 0..length {
@@ -19,11 +19,22 @@ fn main() {
         table.push(inner);
     }
 
+    let mut ctx = Context::new();
+    ctx.insert("table", &table);
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![("big-table.html", BIG_TABLE_TEMPLATE)])
         .unwrap();
     let mut ctx = Context::new();
     ctx.insert("table", &table);
-    let res = tera.render("big-table.html", &ctx);
+    (tera, ctx)
+}
+
+fn render(tera: Tera, ctx: Context) -> TeraResult<String> {
+    tera.render("big-table.html", &ctx)
+}
+
+fn main() {
+    let (tera, ctx) = setup();
+    let res = render(tera, ctx);
     println!("{:?}", res.is_ok());
 }

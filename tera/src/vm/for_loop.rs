@@ -1,57 +1,197 @@
-use crate::value::{Key, ValueKind};
+use crate::value::{Key, Map, ValueInner};
 use crate::{HashMap, Value};
+use std::sync::Arc;
 
-/// Enumerates on the types of values to be iterated, scalars and pairs
+/// Lazy iterator for for-loop values that only clones the current item
 #[derive(Debug)]
-pub enum ForLoopValues {
-    /// Values for an array style iteration
-    Array(std::vec::IntoIter<Value>),
-    Bytes(std::vec::IntoIter<u8>),
+pub(crate) enum ForLoopIterator {
+    Array {
+        arr: Arc<Vec<Value>>,
+        index: usize,
+        len: usize,
+    },
+    Map {
+        map: Arc<Map>,
+        keys: Vec<Key<'static>>,
+        index: usize,
+    },
+    String {
+        content: Arc<str>,
+        char_indices: Vec<usize>,
+        index: usize,
+    },
+    Bytes {
+        bytes: Arc<Vec<u8>>,
+        index: usize,
+        len: usize,
+    },
     #[cfg(feature = "unicode")]
-    Graphemes(std::vec::IntoIter<Value>),
-    /// Values for a per-character iteration on a string
-    #[cfg(not(feature = "unicode"))]
-    String(std::vec::IntoIter<char>),
-    /// Values for an object style iteration
-    Object(std::vec::IntoIter<(Key<'static>, Value)>),
+    Graphemes {
+        content: Arc<str>,
+        grapheme_indices: Vec<usize>,
+        index: usize,
+    },
 }
 
-impl ForLoopValues {
-    #[inline(always)]
-    pub fn pop_front(&mut self) -> (Value, Value) {
+impl Iterator for ForLoopIterator {
+    type Item = (Option<Value>, Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
         match self {
-            ForLoopValues::Array(a) => (Value::null(), a.next().unwrap()),
-            ForLoopValues::Bytes(a) => (Value::null(), Value::from(a.next().unwrap() as u64)),
-            #[cfg(not(feature = "unicode"))]
-            ForLoopValues::String(a) => (
-                Value::null(),
-                Value::normal_string(&a.next().unwrap().to_string()),
-            ),
+            ForLoopIterator::Array { arr, index, len } => {
+                if *index < *len {
+                    let value = arr[*index].clone();
+                    *index += 1;
+                    Some((None, value))
+                } else {
+                    None
+                }
+            }
+
+            ForLoopIterator::Map { map, keys, index } => {
+                if *index < keys.len() {
+                    let key = &keys[*index];
+                    let value = map[key].clone();
+                    let key_value = key.clone().into();
+                    *index += 1;
+                    // Key is present only for maps
+                    Some((Some(key_value), value))
+                } else {
+                    None
+                }
+            }
+
+            ForLoopIterator::String {
+                content,
+                char_indices,
+                index,
+            } => {
+                if *index < char_indices.len() {
+                    let start = char_indices[*index];
+                    let end = char_indices
+                        .get(*index + 1)
+                        .copied()
+                        .unwrap_or(content.len());
+
+                    let char_str = &content[start..end];
+                    let value = Value::from(char_str);
+                    *index += 1;
+                    Some((None, value))
+                } else {
+                    None
+                }
+            }
+
+            ForLoopIterator::Bytes { bytes, index, len } => {
+                if *index < *len {
+                    let value = Value::from(bytes[*index] as u64);
+                    *index += 1;
+                    Some((None, value))
+                } else {
+                    None
+                }
+            }
+
             #[cfg(feature = "unicode")]
-            ForLoopValues::Graphemes(a) => (Value::Null, a.next().unwrap()),
-            ForLoopValues::Object(a) => {
-                let (key, value) = a.next().unwrap();
-                (key.into(), value)
+            ForLoopIterator::Graphemes {
+                content,
+                grapheme_indices,
+                index,
+            } => {
+                if *index < grapheme_indices.len() {
+                    let start = grapheme_indices[*index];
+                    let end = grapheme_indices
+                        .get(*index + 1)
+                        .copied()
+                        .unwrap_or(content.len());
+
+                    let grapheme_str = &content[start..end];
+                    let value = Value::from(grapheme_str);
+                    *index += 1;
+                    Some((None, value))
+                } else {
+                    None
+                }
             }
         }
     }
 
-    #[inline(always)]
-    pub fn len(&self) -> usize {
-        match self {
-            ForLoopValues::Array(a) => a.len(),
-            ForLoopValues::Bytes(a) => a.len(),
-            #[cfg(not(feature = "unicode"))]
-            ForLoopValues::String(a) => a.len(),
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = match self {
+            ForLoopIterator::Array { index, len, .. } => len - index,
+            ForLoopIterator::Map { keys, index, .. } => keys.len() - index,
+            ForLoopIterator::String {
+                char_indices,
+                index,
+                ..
+            } => char_indices.len() - index,
+            ForLoopIterator::Bytes { index, len, .. } => len - index,
             #[cfg(feature = "unicode")]
-            ForLoopValues::Graphemes(a) => a.len(),
-            ForLoopValues::Object(a) => a.len(),
-        }
+            ForLoopIterator::Graphemes {
+                grapheme_indices,
+                index,
+                ..
+            } => grapheme_indices.len() - index,
+        };
+        (remaining, Some(remaining))
     }
+}
 
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
+/// Create a lazy iterator for for-loop iteration that only clones the current item
+pub(crate) fn create_for_loop_iterator(value: &Value) -> Option<ForLoopIterator> {
+    match &value.inner {
+        ValueInner::Array(arr) => Some(ForLoopIterator::Array {
+            arr: Arc::clone(arr),
+            index: 0,
+            len: arr.len(),
+        }),
+
+        ValueInner::Map(map) => {
+            let keys: Vec<_> = map.keys().cloned().collect();
+            Some(ForLoopIterator::Map {
+                map: Arc::clone(map),
+                keys,
+                index: 0,
+            })
+        }
+
+        ValueInner::String(smart_str, _) => {
+            let content = smart_str.clone().into_arc_str();
+            #[cfg(feature = "unicode")]
+            {
+                let grapheme_indices: Vec<_> = unic_segment::Graphemes::new(&content)
+                    .map(|_| 0) // We'll compute actual indices
+                    .collect();
+                let mut indices = Vec::with_capacity(grapheme_indices.len());
+                let mut pos = 0;
+                for grapheme in unic_segment::Graphemes::new(&content) {
+                    indices.push(pos);
+                    pos += grapheme.len();
+                }
+                Some(ForLoopIterator::Graphemes {
+                    content,
+                    grapheme_indices: indices,
+                    index: 0,
+                })
+            }
+            #[cfg(not(feature = "unicode"))]
+            {
+                let char_indices: Vec<_> = content.char_indices().map(|(i, _)| i).collect();
+                Some(ForLoopIterator::String {
+                    content,
+                    char_indices,
+                    index: 0,
+                })
+            }
+        }
+
+        ValueInner::Bytes(bytes) => Some(ForLoopIterator::Bytes {
+            bytes: Arc::clone(bytes),
+            index: 0,
+            len: bytes.len(),
+        }),
+
+        _ => None,
     }
 }
 
@@ -76,53 +216,21 @@ impl Loop {
 
 #[derive(Debug)]
 pub(crate) struct ForLoop {
-    values: ForLoopValues,
+    iterator: ForLoopIterator,
     loop_data: Loop,
     pub(crate) end_ip: usize,
     pub(crate) context: HashMap<String, Value>,
     value_name: Option<String>,
     key_name: Option<String>,
-    current_values: (Value, Value),
+    current_values: (Option<Value>, Value),
 }
 
 impl ForLoop {
     pub fn new(container: Value) -> Self {
-        let values = match container.kind() {
-            ValueKind::Map => {
-                let map = container.as_map().unwrap();
-                let vals: Vec<_> = map.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-                ForLoopValues::Object(vals.into_iter())
-            }
-            ValueKind::String => {
-                let s = container.as_str().unwrap();
-                #[cfg(feature = "unicode")]
-                {
-                    let graphemes: Vec<&str> = unic_segment::Graphemes::new(&*s).collect();
-                    let graphemes: Vec<_> = graphemes.into_iter().map(|x| Value::from(x)).collect();
-                    ForLoopValues::Graphemes(graphemes.into_iter())
-                }
+        let iterator = create_for_loop_iterator(&container)
+            .expect("Should only be called on iterable values");
 
-                #[cfg(not(feature = "unicode"))]
-                {
-                    let chars: Vec<_> = s.chars().collect();
-                    ForLoopValues::String(chars.into_iter())
-                }
-            }
-            ValueKind::Bytes => {
-                let b = container.as_bytes().unwrap();
-                let bytes: Vec<_> = b.iter().copied().collect();
-                // TODO: add tests to loops on bytes
-                ForLoopValues::Bytes(bytes.into_iter())
-            }
-            ValueKind::Array => {
-                let arr = container.as_vec().unwrap();
-                let vals: Vec<_> = arr.iter().cloned().collect();
-                ForLoopValues::Array(vals.into_iter())
-            }
-            _ => unreachable!("Should be handled in the interpreter"),
-        };
-
-        let length = values.len();
+        let length = iterator.size_hint().1.unwrap_or(0);
         let loop_data = Loop {
             index: 1,
             index0: 0,
@@ -132,13 +240,13 @@ impl ForLoop {
         };
 
         Self {
-            values,
+            iterator,
             loop_data,
             end_ip: 0,
             context: HashMap::new(),
             value_name: None,
             key_name: None,
-            current_values: (Value::null(), Value::null()),
+            current_values: (None, Value::null()),
         }
     }
 
@@ -154,19 +262,19 @@ impl ForLoop {
     /// second time we see the loop)
     #[inline(always)]
     pub(crate) fn advance(&mut self) {
-        if self.end_ip == 0 {
-            self.current_values = self.values.pop_front();
-        } else {
-            self.loop_data.advance();
-            self.context.clear();
-            self.current_values = self.values.pop_front();
+        if let Some((key, value)) = self.iterator.next() {
+            self.current_values = (key, value);
+            if self.end_ip != 0 {
+                self.loop_data.advance();
+                self.context.clear();
+            }
         }
     }
 
     #[inline(always)]
     pub(crate) fn is_over(&self) -> bool {
-        self.values.is_empty()
-            || (self.end_ip != 0 && self.loop_data.index0 == self.loop_data.length - 1)
+        self.iterator.size_hint().0 == 0
+            || (self.end_ip != 0 && self.loop_data.index0 >= self.loop_data.length)
     }
 
     pub(crate) fn iterated(&self) -> bool {
@@ -192,7 +300,11 @@ impl ForLoop {
                 }
 
                 if self.key_name.as_deref() == Some(name) {
-                    return Some(self.current_values.0.clone());
+                    return self
+                        .current_values
+                        .0
+                        .clone()
+                        .or_else(|| Some(Value::null()));
                 }
 
                 self.context.get(name).cloned()
