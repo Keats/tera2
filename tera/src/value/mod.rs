@@ -113,6 +113,14 @@ impl SmartString {
             Self::Large(s) => s.len(),
         }
     }
+
+    /// Get string content as Arc<str>, cloning only for small strings
+    pub(crate) fn into_arc_str(self) -> Arc<str> {
+        match self {
+            Self::Small { .. } => Arc::from(self.as_str()),
+            Self::Large(arc) => arc,
+        }
+    }
 }
 
 impl fmt::Display for SmartString {
@@ -625,6 +633,7 @@ impl Value {
                 | ValueInner::String(..)
         )
     }
+
 
     pub(crate) fn as_key(&self) -> TeraResult<Key<'static>> {
         let key = match &self.inner {
