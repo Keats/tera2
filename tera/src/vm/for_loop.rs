@@ -8,28 +8,23 @@ pub(crate) enum ForLoopIterator {
     Array {
         arr: Arc<Vec<Value>>,
         index: usize,
-        len: usize,
     },
     Map {
         map: Arc<Map>,
-        keys: Vec<Key<'static>>,
-        index: usize,
+        keys: std::vec::IntoIter<Key<'static>>,
     },
     String {
         content: Arc<str>,
-        char_indices: Vec<usize>,
-        index: usize,
+        current_pos: usize,
     },
     Bytes {
         bytes: Arc<Vec<u8>>,
         index: usize,
-        len: usize,
     },
     #[cfg(feature = "unicode")]
     Graphemes {
         content: Arc<str>,
-        grapheme_indices: Vec<usize>,
-        index: usize,
+        current_pos: usize,
     },
 }
 
@@ -38,8 +33,8 @@ impl Iterator for ForLoopIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            ForLoopIterator::Array { arr, index, len } => {
-                if *index < *len {
+            ForLoopIterator::Array { arr, index } => {
+                if *index < arr.len() {
                     let value = arr[*index].clone();
                     *index += 1;
                     Some((None, value))
@@ -48,42 +43,35 @@ impl Iterator for ForLoopIterator {
                 }
             }
 
-            ForLoopIterator::Map { map, keys, index } => {
-                if *index < keys.len() {
-                    let key = &keys[*index];
-                    let value = map[key].clone();
-                    let key_value = key.clone().into();
-                    *index += 1;
-                    // Key is present only for maps
-                    Some((Some(key_value), value))
-                } else {
-                    None
-                }
-            }
+            ForLoopIterator::Map { map, keys } => keys.next().map(|key| {
+                let value = map[&key].clone();
+                let key_value = key.into();
+                (Some(key_value), value)
+            }),
 
             ForLoopIterator::String {
                 content,
-                char_indices,
-                index,
+                current_pos,
             } => {
-                if *index < char_indices.len() {
-                    let start = char_indices[*index];
-                    let end = char_indices
-                        .get(*index + 1)
-                        .copied()
-                        .unwrap_or(content.len());
+                if *current_pos >= content.len() {
+                    return None;
+                }
 
-                    let char_str = &content[start..end];
-                    let value = Value::from(char_str);
-                    *index += 1;
-                    Some((None, value))
+                let remaining = &content[*current_pos..];
+                if let Some((char_end, _)) = remaining.char_indices().nth(1) {
+                    let char_str = &remaining[..char_end];
+                    *current_pos += char_end;
+                    Some((None, Value::from(char_str)))
                 } else {
-                    None
+                    // Last character
+                    let char_str = remaining;
+                    *current_pos = content.len();
+                    Some((None, Value::from(char_str)))
                 }
             }
 
-            ForLoopIterator::Bytes { bytes, index, len } => {
-                if *index < *len {
+            ForLoopIterator::Bytes { bytes, index } => {
+                if *index < bytes.len() {
                     let value = Value::from(bytes[*index] as u64);
                     *index += 1;
                     Some((None, value))
@@ -95,20 +83,16 @@ impl Iterator for ForLoopIterator {
             #[cfg(feature = "unicode")]
             ForLoopIterator::Graphemes {
                 content,
-                grapheme_indices,
-                index,
+                current_pos,
             } => {
-                if *index < grapheme_indices.len() {
-                    let start = grapheme_indices[*index];
-                    let end = grapheme_indices
-                        .get(*index + 1)
-                        .copied()
-                        .unwrap_or(content.len());
+                if *current_pos >= content.len() {
+                    return None;
+                }
 
-                    let grapheme_str = &content[start..end];
-                    let value = Value::from(grapheme_str);
-                    *index += 1;
-                    Some((None, value))
+                let remaining = &content[*current_pos..];
+                if let Some(grapheme) = unic_segment::Graphemes::new(remaining).next() {
+                    *current_pos += grapheme.len();
+                    Some((None, Value::from(grapheme)))
                 } else {
                     None
                 }
@@ -117,23 +101,38 @@ impl Iterator for ForLoopIterator {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = match self {
-            ForLoopIterator::Array { index, len, .. } => len - index,
-            ForLoopIterator::Map { keys, index, .. } => keys.len() - index,
-            ForLoopIterator::String {
-                char_indices,
-                index,
-                ..
-            } => char_indices.len() - index,
-            ForLoopIterator::Bytes { index, len, .. } => len - index,
+        match self {
+            ForLoopIterator::Array { arr, index } => Self::indexed_size_hint(arr.len(), *index),
+            ForLoopIterator::Map { keys, .. } => keys.size_hint(),
+            ForLoopIterator::String { .. } => (0, None),
+            ForLoopIterator::Bytes { bytes, index } => Self::indexed_size_hint(bytes.len(), *index),
             #[cfg(feature = "unicode")]
-            ForLoopIterator::Graphemes {
-                grapheme_indices,
-                index,
-                ..
-            } => grapheme_indices.len() - index,
-        };
+            ForLoopIterator::Graphemes { .. } => (0, None),
+        }
+    }
+}
+
+impl ForLoopIterator {
+    fn indexed_size_hint(len: usize, index: usize) -> (usize, Option<usize>) {
+        let remaining = len - index;
         (remaining, Some(remaining))
+    }
+
+    fn create_string_iterator(content: Arc<str>) -> ForLoopIterator {
+        #[cfg(feature = "unicode")]
+        {
+            ForLoopIterator::Graphemes {
+                content,
+                current_pos: 0,
+            }
+        }
+        #[cfg(not(feature = "unicode"))]
+        {
+            ForLoopIterator::String {
+                content,
+                current_pos: 0,
+            }
+        }
     }
 }
 
@@ -143,52 +142,24 @@ pub(crate) fn create_for_loop_iterator(value: &Value) -> Option<ForLoopIterator>
         ValueInner::Array(arr) => Some(ForLoopIterator::Array {
             arr: Arc::clone(arr),
             index: 0,
-            len: arr.len(),
         }),
 
         ValueInner::Map(map) => {
             let keys: Vec<_> = map.keys().cloned().collect();
             Some(ForLoopIterator::Map {
                 map: Arc::clone(map),
-                keys,
-                index: 0,
+                keys: keys.into_iter(),
             })
         }
 
         ValueInner::String(smart_str, _) => {
             let content = smart_str.clone().into_arc_str();
-            #[cfg(feature = "unicode")]
-            {
-                let grapheme_indices: Vec<_> = unic_segment::Graphemes::new(&content)
-                    .map(|_| 0) // We'll compute actual indices
-                    .collect();
-                let mut indices = Vec::with_capacity(grapheme_indices.len());
-                let mut pos = 0;
-                for grapheme in unic_segment::Graphemes::new(&content) {
-                    indices.push(pos);
-                    pos += grapheme.len();
-                }
-                Some(ForLoopIterator::Graphemes {
-                    content,
-                    grapheme_indices: indices,
-                    index: 0,
-                })
-            }
-            #[cfg(not(feature = "unicode"))]
-            {
-                let char_indices: Vec<_> = content.char_indices().map(|(i, _)| i).collect();
-                Some(ForLoopIterator::String {
-                    content,
-                    char_indices,
-                    index: 0,
-                })
-            }
+            Some(ForLoopIterator::create_string_iterator(content))
         }
 
         ValueInner::Bytes(bytes) => Some(ForLoopIterator::Bytes {
             bytes: Arc::clone(bytes),
             index: 0,
-            len: bytes.len(),
         }),
 
         _ => None,
@@ -197,7 +168,6 @@ pub(crate) fn create_for_loop_iterator(value: &Value) -> Option<ForLoopIterator>
 
 #[derive(Debug, Eq, PartialEq)]
 struct Loop {
-    index: usize,
     index0: usize,
     first: bool,
     last: bool,
@@ -205,12 +175,17 @@ struct Loop {
 }
 
 impl Loop {
+    /// // 1-based index derived from 0-based
+    #[inline(always)]
+    fn index(&self) -> usize {
+        self.index0 + 1
+    }
+
     #[inline(always)]
     fn advance(&mut self) {
-        self.index += 1;
         self.index0 += 1;
         self.first = false;
-        self.last = self.index == self.length;
+        self.last = self.index() == self.length;
     }
 }
 
@@ -220,19 +195,18 @@ pub(crate) struct ForLoop {
     loop_data: Loop,
     pub(crate) end_ip: usize,
     pub(crate) context: HashMap<String, Value>,
-    value_name: Option<String>,
+    value_name: String,
     key_name: Option<String>,
     current_values: (Option<Value>, Value),
 }
 
 impl ForLoop {
     pub fn new(container: Value) -> Self {
-        let iterator = create_for_loop_iterator(&container)
-            .expect("Should only be called on iterable values");
+        let iterator =
+            create_for_loop_iterator(&container).expect("Should only be called on iterable values");
 
         let length = iterator.size_hint().1.unwrap_or(0);
         let loop_data = Loop {
-            index: 1,
             index0: 0,
             first: true,
             last: length == 1,
@@ -244,17 +218,19 @@ impl ForLoop {
             loop_data,
             end_ip: 0,
             context: HashMap::new(),
-            value_name: None,
+            value_name: String::new(), // Will be set by store_local
             key_name: None,
-            current_values: (None, Value::null()),
+            current_values: (None, Value::undefined()), // Will be set by first advance()
         }
     }
 
     pub(crate) fn store_local(&mut self, name: &str) {
-        if self.value_name.is_none() {
-            self.value_name = Some(name.to_string());
-        } else if self.key_name.is_none() {
+        if self.key_name.is_none() && !self.value_name.is_empty() {
+            // Second call - this is the key name
             self.key_name = Some(name.to_string());
+        } else {
+            // First call - this is the value name
+            self.value_name = name.to_string();
         }
     }
 
@@ -274,7 +250,6 @@ impl ForLoop {
     #[inline(always)]
     pub(crate) fn is_over(&self) -> bool {
         self.iterator.size_hint().0 == 0
-            || (self.end_ip != 0 && self.loop_data.index0 >= self.loop_data.length)
     }
 
     pub(crate) fn iterated(&self) -> bool {
@@ -289,22 +264,20 @@ impl ForLoop {
     pub(crate) fn get(&self, name: &str) -> Option<Value> {
         // Special casing the loop variable
         match name {
-            "__tera_loop_index" => Some(Value::from(self.loop_data.index as u64)),
+            "__tera_loop_index" => Some(Value::from(self.loop_data.index() as u64)),
             "__tera_loop_index0" => Some(Value::from(self.loop_data.index0 as u64)),
             "__tera_loop_first" => Some(Value::from(self.loop_data.first)),
             "__tera_loop_last" => Some(Value::from(self.loop_data.last)),
             "__tera_loop_length" => Some(Value::from(self.loop_data.length as u64)),
             _ => {
-                if self.value_name.as_deref() == Some(name) {
+                // Check if this is the value variable
+                if self.value_name == name {
                     return Some(self.current_values.1.clone());
                 }
 
+                // Check if this is the key variable
                 if self.key_name.as_deref() == Some(name) {
-                    return self
-                        .current_values
-                        .0
-                        .clone()
-                        .or_else(|| Some(Value::null()));
+                    return Some(self.current_values.0.clone().unwrap_or(Value::null()));
                 }
 
                 self.context.get(name).cloned()
