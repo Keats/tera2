@@ -634,7 +634,6 @@ impl Value {
         )
     }
 
-
     pub(crate) fn as_key(&self) -> TeraResult<Key<'static>> {
         let key = match &self.inner {
             ValueInner::Bool(v) => Key::Bool(*v),
