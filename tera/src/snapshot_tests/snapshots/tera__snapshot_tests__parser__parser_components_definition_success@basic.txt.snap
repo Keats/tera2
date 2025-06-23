@@ -8,35 +8,19 @@ ComponentDefinition {
     kwargs: {
         "array": ComponentArgument {
             default: Some(
-                Array(
-                    [],
-                ),
+                Array([]),
             ),
             typ: None,
         },
         "array_of_maps": ComponentArgument {
             default: Some(
-                Array(
-                    [
-                        Map(
-                            {
-                                String(
-                                    "hello",
-                                ): I64(
-                                    1,
-                                ),
-                            },
-                        ),
-                    ],
-                ),
+                Array([Map({String("hello"): I64(1)})]),
             ),
             typ: None,
         },
         "map": ComponentArgument {
             default: Some(
-                Map(
-                    {},
-                ),
+                Map({}),
             ),
             typ: None,
         },

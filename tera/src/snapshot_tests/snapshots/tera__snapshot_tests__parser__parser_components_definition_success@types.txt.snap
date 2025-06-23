@@ -14,9 +14,7 @@ ComponentDefinition {
         },
         "data": ComponentArgument {
             default: Some(
-                Map(
-                    {},
-                ),
+                Map({}),
             ),
             typ: Some(
                 Map,

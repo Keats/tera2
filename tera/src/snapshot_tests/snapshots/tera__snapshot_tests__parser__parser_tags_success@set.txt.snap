@@ -49,53 +49,19 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
     Set {
         name: "a",
         value: [
-<<<<<<< HEAD
             I64(1),
             Bool(true),
             String("hello", Normal),
-        ] @ 6:11-6:29 (133..151),
-=======
-            I64(
-                1,
-            ),
-            Bool(
-                true,
-            ),
-            String(
-                "hello",
-                Normal,
-            ),
         ] @ 6:11-6:29 (126..144),
->>>>>>> eae290b (Fix tests)
         global: false,
     },
     Set {
         name: "a",
         value: [
-<<<<<<< HEAD
             I64(1),
             Bool(true),
             Array([I64(1), I64(2)]),
-        ] @ 7:11-7:27 (166..182),
-=======
-            I64(
-                1,
-            ),
-            Bool(
-                true,
-            ),
-            Array(
-                [
-                    I64(
-                        1,
-                    ),
-                    I64(
-                        2,
-                    ),
-                ],
-            ),
         ] @ 7:11-7:27 (159..175),
->>>>>>> eae290b (Fix tests)
         global: false,
     },
     Set {
@@ -145,15 +111,8 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
         value: {
             String(
                 "hello",
-<<<<<<< HEAD
             ): I64(0),
-        } @ 11:15-11:27 (338..350),
-=======
-            ): I64(
-                0,
-            ),
         } @ 11:15-11:27 (331..343),
->>>>>>> eae290b (Fix tests)
         global: false,
     },
     Set {

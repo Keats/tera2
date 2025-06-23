@@ -1,4 +1,4 @@
-use crate::errors::{Error, TeraResult};
+use crate::errors::Error;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
@@ -639,18 +639,18 @@ impl Type {
 
     #[inline]
     pub fn matches_value(&self, value: &Value) -> bool {
-        match (value, self) {
-            (Value::String(_, _), Type::String) => true,
-            (Value::Bool(_), Type::Bool) => true,
-            (Value::I64(_), Type::Integer)
-            | (Value::I128(_), Type::Integer)
-            | (Value::U64(_), Type::Integer)
-            | (Value::U128(_), Type::Integer) => true,
-            (Value::F64(_), Type::Float) => true,
-            (v, Type::Number) if v.is_number() => true,
-            (Value::Map(_), Type::Map) => true,
-            (Value::Array(_), Type::Array) => true,
-            _ => false,
+        use crate::value::ValueKind;
+        match self {
+            Type::String => value.is_string(),
+            Type::Bool => value.is_bool(),
+            Type::Integer => matches!(
+                value.kind(),
+                ValueKind::I64 | ValueKind::U64 | ValueKind::I128 | ValueKind::U128
+            ),
+            Type::Float => matches!(value.kind(), ValueKind::F64),
+            Type::Number => value.is_number(),
+            Type::Map => value.is_map(),
+            Type::Array => value.is_array(),
         }
     }
 }

@@ -151,7 +151,7 @@ impl<'tera> VirtualMachine<'tera> {
                     match kwargs.get(&Key::Str(key)) {
                         Some(kwarg_val) => {
                             if value.type_matches(&kwarg_val) {
-                                context.insert(key, kwarg_val);
+                                context.insert_value(key.clone(), kwarg_val.clone());
                             } else {
                                 // TODO: we need to pass the span of each element in the map somehow
                                 // so we can point exactly where the issue is
@@ -160,7 +160,7 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         None => match &value.default {
                             Some(kwarg_val) => {
-                                context.insert(key, kwarg_val);
+                                context.insert_value(key.clone(), kwarg_val.clone());
                             }
                             None => {
                                 // Missing argument that doesn't have a default
@@ -176,7 +176,7 @@ impl<'tera> VirtualMachine<'tera> {
                 }
 
                 if $has_body {
-                    context.insert("body", &state.stack.pop().0);
+                    context.insert_value("body", state.stack.pop().0);
                 }
                 let val = self.render_component(&component_chunk, context)?;
                 state
