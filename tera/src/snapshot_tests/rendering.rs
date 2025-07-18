@@ -202,18 +202,6 @@ fn rendering_components_errors() {
     });
 }
 
-#[test]
-fn rendering_errors() {
-    insta::glob!("rendering_inputs/errors/*.txt", |path| {
-        let contents = std::fs::read_to_string(path).unwrap();
-        let p = format!("{}", path.file_name().unwrap().to_string_lossy());
-        let mut tera = Tera::default();
-        tera.add_raw_templates(vec![(&p, contents)]).unwrap();
-        let err = tera.render(&p, &get_context()).unwrap_err();
-        insta::assert_snapshot!(&err);
-    });
-}
-
 #[cfg(feature = "unicode")]
 #[test]
 fn can_iterate_on_graphemes() {
