@@ -13,6 +13,7 @@ pub(crate) enum ForLoopIterator {
         map: Arc<Map>,
         keys: std::vec::IntoIter<Key<'static>>,
     },
+    #[cfg(not(feature = "unicode"))]
     String {
         content: Arc<str>,
         current_pos: usize,
@@ -49,6 +50,7 @@ impl Iterator for ForLoopIterator {
                 (Some(key_value), value)
             }),
 
+            #[cfg(not(feature = "unicode"))]
             ForLoopIterator::String {
                 content,
                 current_pos,
@@ -96,6 +98,7 @@ impl Iterator for ForLoopIterator {
         match self {
             ForLoopIterator::Array { arr, index } => Self::indexed_size_hint(arr.len(), *index),
             ForLoopIterator::Map { keys, .. } => keys.size_hint(),
+            #[cfg(not(feature = "unicode"))]
             ForLoopIterator::String {
                 content,
                 current_pos,

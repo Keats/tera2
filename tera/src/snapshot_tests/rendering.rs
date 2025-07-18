@@ -1,9 +1,13 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
-use crate::args::Kwargs;
 use crate::snapshot_tests::utils::create_multi_templates_tera;
 use crate::tera::Tera;
+
+#[cfg(not(feature = "preserve_order"))]
+use crate::args::Kwargs;
+
+#[cfg(not(feature = "preserve_order"))]
 use crate::vm::state::State;
 use crate::{Context, Value};
 
