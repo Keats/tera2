@@ -1,9 +1,9 @@
-use std::error::Error;
-use tera::{Context, Kwargs, State, Tera, Value};
-
-pub fn do_nothing_filter(value: Value, _: Kwargs, _: &State) -> Value {
-    value
-}
+// use std::error::Error;
+// use tera::{Context, Kwargs, State, Tera, Value};
+//
+// pub fn do_nothing_filter(value: Value, _: Kwargs, _: &State) -> Value {
+//     value
+// }
 
 // TODO: move examples folder to root of the repo to be able to select features
 fn main() {

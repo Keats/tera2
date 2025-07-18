@@ -226,7 +226,7 @@ fn inline_map_preserve_order() {
 "#;
     let mut tera = Tera::default();
     tera.add_raw_template("tpl", tpl).unwrap();
-    let mut context = Context::default();
+    let context = Context::default();
     let out = tera.render("tpl", &context).unwrap();
 
     insta::assert_snapshot!(&out);

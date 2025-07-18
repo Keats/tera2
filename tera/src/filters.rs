@@ -545,7 +545,9 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 mod tests {
     use super::*;
     use crate::value::Map;
-    use crate::{Context, Tera};
+    use crate::Context;
+    #[cfg(feature = "unicode")]
+    use crate::Tera;
 
     #[test]
     fn test_title() {
