@@ -1,7 +1,7 @@
 use jiff::fmt::temporal::DateTimeParser;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
-use tera::{Kwargs, State, TeraResult, Value};
+use tera::{Kwargs, Number, State, TeraResult, Value};
 
 static PARSER: DateTimeParser = DateTimeParser::new();
 
@@ -31,20 +31,20 @@ pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
         None => None,
     };
 
-    let zoned = match val {
-        Value::String(s, _) => {
+    let zoned = match val.as_str() {
+        Some(s) => {
             let res = PARSER
-                .parse_timestamp(&**s)
+                .parse_timestamp(s)
                 .map(|t| t.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
-                .or_else(|_| PARSER.parse_zoned(&**s))
+                .or_else(|_| PARSER.parse_zoned(s))
                 .or_else(|_| {
                     PARSER
-                        .parse_datetime(&**s)
+                        .parse_datetime(s)
                         .and_then(|d| d.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
                 })
                 .or_else(|_| {
                     PARSER
-                        .parse_date(&**s)
+                        .parse_date(s)
                         .and_then(|d| d.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
                 });
 
@@ -61,18 +61,20 @@ pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
             }
             zoned
         }
-        Value::I64(ts) => {
-            let time = match Timestamp::new(*ts, 0) {
-                Ok(t) => t,
-                Err(e) => return Err(tera::Error::message(format!("Invalid timestamp: {e}"))),
-            };
-            time.to_zoned(timezone.unwrap_or(TimeZone::UTC))
-        }
-        _ => {
-            return Err(tera::Error::message(format!(
-                "Invalid value: the date filter can only be used on strings or i64, this is a {}",
-                val.name()
-            )))
+        None => {
+            // Try to get as i64 for timestamp
+            if let Some(Number::Integer(ts)) = val.as_number() {
+                let time = match Timestamp::new(ts as i64, 0) {
+                    Ok(t) => t,
+                    Err(e) => return Err(tera::Error::message(format!("Invalid timestamp: {e}"))),
+                };
+                time.to_zoned(timezone.unwrap_or(TimeZone::UTC))
+            } else {
+                return Err(tera::Error::message(format!(
+                    "Invalid value: the date filter can only be used on strings or i64, this is a {}",
+                    val.name()
+                )));
+            }
         }
     };
 
