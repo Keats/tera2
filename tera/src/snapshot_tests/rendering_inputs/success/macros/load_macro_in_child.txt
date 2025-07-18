@@ -1,6 +1,0 @@
-$$ macros
-{% macro hello()%}1{% endmacro hello %}
-$$ parent
-{% block bob %}{% endblock bob %}
-$$ child
-{% extends "parent" %}{% import "macros" as macros %}{% block bob %}{{ macros::hello() }}{% endblock bob %}

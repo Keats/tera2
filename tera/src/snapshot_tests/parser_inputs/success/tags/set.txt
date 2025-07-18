@@ -1,7 +1,7 @@
 {% set a = 1 %}
 {% set a = (b + 1) | round %}
 {% set a = 'hi' %}
-{% set a = macros::something() %}
+{% set a = :something() %}
 {% set a = utcnow() %}
 {% set a = [1, true, 'hello'] %}
 {% set a = [1, true, [1,2]] %}

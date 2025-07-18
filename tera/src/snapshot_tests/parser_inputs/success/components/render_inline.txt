@@ -1,0 +1,1 @@
+{{ :button(with=arg, and=1) }}

@@ -25,7 +25,6 @@ pub fn normalize_line_endings(content: &str) -> String {
     content.replace("\r\n", "\n")
 }
 
-
 /// Splits the body into multiple templates ans
 /// returns the tera instance as well as the last template name.
 /// To be used when the templates are valid only

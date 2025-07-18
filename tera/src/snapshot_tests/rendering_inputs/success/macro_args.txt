@@ -1,6 +1,0 @@
-{% macro picture(sources=[], alt="Description of image") -%}
-{% for src in sources %}
-{{src.path}}
-{%- endfor %}
-{%- endmacro %}
-{{- self::picture(sources=[{"path": "person_square.jpg"}, {"path": "person.jpg"}]) }}
