@@ -1,3 +1,4 @@
+use super::utils::normalize_line_endings;
 use crate::parsing::parser::Parser;
 use crate::parsing::Compiler;
 
@@ -5,7 +6,8 @@ use crate::parsing::Compiler;
 fn compiler_ok() {
     insta::glob!("compiler_inputs/success/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = Parser::new(&contents).parse().unwrap().nodes;
+        let normalized_contents = normalize_line_endings(&contents);
+        let nodes = Parser::new(&normalized_contents).parse().unwrap().nodes;
         let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");
         compiler.compile(nodes);
 
@@ -17,7 +19,8 @@ fn compiler_ok() {
 fn compiler_blocks() {
     insta::glob!("compiler_inputs/blocks/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let nodes = Parser::new(&contents).parse().unwrap().nodes;
+        let normalized_contents = normalize_line_endings(&contents);
+        let nodes = Parser::new(&normalized_contents).parse().unwrap().nodes;
         let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");
         compiler.compile(nodes);
 

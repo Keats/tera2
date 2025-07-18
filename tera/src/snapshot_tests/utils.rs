@@ -15,14 +15,23 @@ pub fn split_multi_templates(body: &str) -> Vec<(String, String)> {
         let content = chars.collect::<String>().trim().to_string();
         tpls.push((filename, content));
     }
-    return tpls;
+    tpls
 }
+
+/// Normalizes line endings by converting Windows CRLF (\r\n) to Unix LF (\n).
+/// This ensures cross-platform compatibility for snapshot tests.
+/// Only used in test code - no performance impact on production.
+pub fn normalize_line_endings(content: &str) -> String {
+    content.replace("\r\n", "\n")
+}
+
 
 /// Splits the body into multiple templates ans
 /// returns the tera instance as well as the last template name.
 /// To be used when the templates are valid only
 pub fn create_multi_templates_tera(body: &str) -> (Tera, String) {
-    let tpls = split_multi_templates(body);
+    let normalized_body = normalize_line_endings(body);
+    let tpls = split_multi_templates(&normalized_body);
     let last_filename = tpls.last().unwrap().0.clone();
     let mut tera = Tera::default();
     tera.add_raw_templates(tpls).unwrap();

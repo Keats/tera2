@@ -165,13 +165,3 @@ pub(crate) fn is_containing(val: &Value, kwargs: Kwargs, _: &State) -> TeraResul
         ))),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn can_do_divisible_by() {
-        // TODO
-    }
-}

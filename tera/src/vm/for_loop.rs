@@ -13,6 +13,7 @@ pub(crate) enum ForLoopIterator {
         map: Arc<Map>,
         keys: std::vec::IntoIter<Key<'static>>,
     },
+    #[cfg(not(feature = "unicode"))]
     String {
         content: Arc<str>,
         current_pos: usize,
@@ -23,8 +24,8 @@ pub(crate) enum ForLoopIterator {
     },
     #[cfg(feature = "unicode")]
     Graphemes {
-        content: Arc<str>,
-        current_pos: usize,
+        graphemes: Vec<String>,
+        index: usize,
     },
 }
 
@@ -49,6 +50,7 @@ impl Iterator for ForLoopIterator {
                 (Some(key_value), value)
             }),
 
+            #[cfg(not(feature = "unicode"))]
             ForLoopIterator::String {
                 content,
                 current_pos,
@@ -81,21 +83,13 @@ impl Iterator for ForLoopIterator {
             }
 
             #[cfg(feature = "unicode")]
-            ForLoopIterator::Graphemes {
-                content,
-                current_pos,
-            } => {
-                if *current_pos >= content.len() {
+            ForLoopIterator::Graphemes { graphemes, index } => {
+                if *index >= graphemes.len() {
                     return None;
                 }
-
-                let remaining = &content[*current_pos..];
-                if let Some(grapheme) = unic_segment::Graphemes::new(remaining).next() {
-                    *current_pos += grapheme.len();
-                    Some((None, Value::from(grapheme)))
-                } else {
-                    None
-                }
+                let grapheme = &graphemes[*index];
+                *index += 1;
+                Some((None, Value::from(grapheme.clone())))
             }
         }
     }
@@ -104,10 +98,20 @@ impl Iterator for ForLoopIterator {
         match self {
             ForLoopIterator::Array { arr, index } => Self::indexed_size_hint(arr.len(), *index),
             ForLoopIterator::Map { keys, .. } => keys.size_hint(),
-            ForLoopIterator::String { .. } => (0, None),
+            #[cfg(not(feature = "unicode"))]
+            ForLoopIterator::String {
+                content,
+                current_pos,
+            } => {
+                let remaining = content[*current_pos..].chars().count();
+                (remaining, Some(remaining))
+            }
             ForLoopIterator::Bytes { bytes, index } => Self::indexed_size_hint(bytes.len(), *index),
             #[cfg(feature = "unicode")]
-            ForLoopIterator::Graphemes { .. } => (0, None),
+            ForLoopIterator::Graphemes { graphemes, index } => {
+                let remaining = graphemes.len() - *index;
+                (remaining, Some(remaining))
+            }
         }
     }
 }
@@ -121,9 +125,12 @@ impl ForLoopIterator {
     fn create_string_iterator(content: Arc<str>) -> ForLoopIterator {
         #[cfg(feature = "unicode")]
         {
+            let graphemes: Vec<String> = unic_segment::Graphemes::new(&*content)
+                .map(|g| g.to_string())
+                .collect();
             ForLoopIterator::Graphemes {
-                content,
-                current_pos: 0,
+                graphemes,
+                index: 0,
             }
         }
         #[cfg(not(feature = "unicode"))]
