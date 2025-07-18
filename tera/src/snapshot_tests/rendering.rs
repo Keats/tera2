@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
-use crate::snapshot_tests::utils::create_multi_templates_tera;
+use crate::snapshot_tests::utils::{create_multi_templates_tera, normalize_line_endings};
 use crate::tera::Tera;
 
 #[cfg(not(feature = "preserve_order"))]
@@ -128,15 +128,18 @@ fn get_context() -> Context {
 fn rendering_ok() {
     insta::glob!("rendering_inputs/success/*.txt*", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
+        let normalized_contents = normalize_line_endings(&contents);
         let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
         tera.autoescape_on(vec![".txt"]);
-        tera.add_raw_templates(vec![(&p, contents)]).unwrap();
+        tera.add_raw_templates(vec![(&p, normalized_contents)])
+            .unwrap();
         tera.register_filter("read_ctx", |x: &str, _: Kwargs, state: &State| {
             state.get_from_path(x)
         });
         let out = tera.render(&p, &get_context()).unwrap();
-        insta::assert_snapshot!(&out);
+        let normalized_out = normalize_line_endings(&out);
+        insta::assert_snapshot!(&normalized_out);
     });
 }
 
@@ -145,9 +148,11 @@ fn rendering_inheritance_ok() {
     insta::glob!("rendering_inputs/success/inheritance/*.txt", |path| {
         println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
-        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let normalized_contents = normalize_line_endings(&contents);
+        let (tera, tpl_name) = create_multi_templates_tera(&normalized_contents);
         let out = tera.render(&tpl_name, &get_context()).unwrap();
-        insta::assert_snapshot!(&out);
+        let normalized_out = normalize_line_endings(&out);
+        insta::assert_snapshot!(&normalized_out);
     });
 }
 
@@ -156,9 +161,11 @@ fn rendering_macros_ok() {
     insta::glob!("rendering_inputs/success/macros/*.txt", |path| {
         println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
-        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let normalized_contents = normalize_line_endings(&contents);
+        let (tera, tpl_name) = create_multi_templates_tera(&normalized_contents);
         let out = tera.render(&tpl_name, &get_context()).unwrap();
-        insta::assert_snapshot!(&out);
+        let normalized_out = normalize_line_endings(&out);
+        insta::assert_snapshot!(&normalized_out);
     });
 }
 
@@ -166,9 +173,11 @@ fn rendering_macros_ok() {
 fn rendering_errors() {
     insta::glob!("rendering_inputs/errors/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
+        let normalized_contents = normalize_line_endings(&contents);
         let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
-        tera.add_raw_templates(vec![(&p, contents)]).unwrap();
+        tera.add_raw_templates(vec![(&p, normalized_contents)])
+            .unwrap();
         let err = tera.render(&p, &get_context()).unwrap_err();
         insta::assert_snapshot!(&err);
     });
@@ -178,7 +187,8 @@ fn rendering_errors() {
 fn rendering_inheritance_errors() {
     insta::glob!("rendering_inputs/errors/inheritance/*.txt", |path| {
         let contents = std::fs::read_to_string(path).unwrap();
-        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let normalized_contents = normalize_line_endings(&contents);
+        let (tera, tpl_name) = create_multi_templates_tera(&normalized_contents);
         let err = tera.render(&tpl_name, &get_context()).unwrap_err();
         insta::assert_snapshot!(&err);
     });
@@ -197,8 +207,9 @@ fn can_iterate_on_graphemes() {
     // graphemes are ["न", "म", "स्", "ते"]
     context.insert("string", "नमस्ते");
     let out = tera.render("tpl", &context).unwrap();
+    let normalized_out = normalize_line_endings(&out);
 
-    insta::assert_snapshot!(&out);
+    insta::assert_snapshot!(&normalized_out);
 }
 
 #[cfg(feature = "unicode")]
@@ -214,8 +225,9 @@ fn can_slice_on_graphemes() {
     let mut context = Context::default();
     context.insert("string", "नमस्ते");
     let out = tera.render("tpl", &context).unwrap();
+    let normalized_out = normalize_line_endings(&out);
 
-    insta::assert_snapshot!(&out);
+    insta::assert_snapshot!(&normalized_out);
 }
 
 #[cfg(feature = "preserve_order")]
@@ -232,6 +244,7 @@ fn inline_map_preserve_order() {
     tera.add_raw_template("tpl", tpl).unwrap();
     let context = Context::default();
     let out = tera.render("tpl", &context).unwrap();
+    let normalized_out = normalize_line_endings(&out);
 
-    insta::assert_snapshot!(&out);
+    insta::assert_snapshot!(&normalized_out);
 }
