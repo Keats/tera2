@@ -1,1 +1,1 @@
-{% :button(with=arg, and=1) %}Hello{% endcomponent :button %}
+{% <button(with=arg, and=1)> %}Hello{% </button> %}

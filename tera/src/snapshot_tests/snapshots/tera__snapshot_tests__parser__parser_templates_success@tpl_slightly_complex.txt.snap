@@ -107,10 +107,11 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                 "title": "Buy now" @ 17:26-17:35 (490..499),
                             },
                             body: [],
-                        } @ 17:15-17:36 (479..500),
+                            self_closing: true,
+                        } @ 17:15-17:38 (479..502),
                         name: "safe",
                         kwargs: {},
-                    } @ 17:39-17:43 (503..507),
+                    } @ 17:41-17:45 (505..509),
                     "\n\n            ",
                     Include {
                         name: "sales.html",

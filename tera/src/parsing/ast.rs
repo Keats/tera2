@@ -400,12 +400,12 @@ pub struct ComponentCall {
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
     pub body: Vec<Node>,
+    pub self_closing: bool,
 }
 
 impl fmt::Display for ComponentCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, ":{}", self.name)?;
-        // TODO: print body
+        write!(f, "<{}", self.name)?;
         write!(f, "{{",)?;
         let mut keys = self.kwargs.keys().collect::<Vec<_>>();
         keys.sort();
@@ -418,12 +418,17 @@ impl fmt::Display for ComponentCall {
         }
         write!(f, "}}",)?;
 
-        if !self.body.is_empty() {
+        if self.self_closing {
+            write!(f, "/>")?;
+        } else {
+            write!(f, ">")?;
             write!(f, "[",)?;
             for node in &self.body {
                 write!(f, "{:?}", node)?;
             }
             write!(f, "]",)?;
+
+            write!(f, "<{}/>", self.name)?;
         }
 
         Ok(())

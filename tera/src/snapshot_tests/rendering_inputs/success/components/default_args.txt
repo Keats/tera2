@@ -1,4 +1,4 @@
 $$ components
 {% component hello(val=1) %}{{val}}{% endcomponent hello %}
 $$ tpl
-{{:hello()}}
+{{<hello()/>}}

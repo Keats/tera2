@@ -81,7 +81,6 @@ enum BodyContext {
     Block,
     If,
     ComponentDefinition,
-    ComponentCall,
     FilterSection,
 }
 
@@ -534,7 +533,21 @@ impl<'a> Parser<'a> {
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
-            Token::Colon => self.parse_component_call()?,
+            Token::LessThan => {
+                // We've consumed '<', now check if next token is an identifier for component call
+                match &self.next {
+                    Some(Ok((Token::Ident(_), _))) => {
+                        // This looks like an XML component call
+                        self.parse_inline_component_call()?
+                    }
+                    _ => {
+                        return Err(Error::syntax_error(
+                            "Found `<` but expected identifier after it for component call. Use `<` for comparisons in proper context.".to_string(),
+                            &self.current_span,
+                        ));
+                    }
+                }
+            }
             Token::LeftBrace => self.parse_map()?,
             Token::LeftBracket => self.parse_array()?,
             Token::LeftParen => {
@@ -545,7 +558,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::syntax_error(
-                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `{{`, `[` or `(`"),
+                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{{`, `[` or `(`"),
                     &self.current_span,
                 ));
             }
@@ -671,17 +684,101 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn parse_component_call(&mut self) -> TeraResult<Expression> {
+    fn parse_inline_component_call(&mut self) -> TeraResult<Expression> {
         let mut start_span = self.current_span.clone();
-        // First the component name
+        // The '<' token was already consumed in inner_parse_expression,
+        // so the next token should be the component name
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+
+        // Parse arguments: '(' kwargs ')' (handled by parse_kwargs)
         let kwargs = self.parse_kwargs()?;
+
+        // Check for self-closing '/>' or opening '>'
+        let is_self_closing = match &self.next {
+            Some(Ok((Token::Div, _))) => {
+                self.next_or_error()?; // consume '/'
+                expect_token!(self, Token::GreaterThan, ">")?;
+                true
+            }
+            Some(Ok((Token::GreaterThan, _))) => {
+                self.next_or_error()?; // consume '>'
+                false
+            }
+            Some(Ok((token, _))) => {
+                return Err(Error::syntax_error(
+                    format!("Found {token} but expected `/` or `>`"),
+                    &self.current_span,
+                ));
+            }
+            Some(Err(e)) => {
+                return Err(Error {
+                    kind: e.kind.clone(),
+                    source: None,
+                })
+            }
+            None => return Err(self.eoi()),
+        };
+
+        let body = Vec::new();
+
+        if !is_self_closing {
+            // In variable context {{ }}, only self-closing components are allowed
+            return Err(Error::syntax_error(
+                "Components with body content must use tag syntax: {% <component()> %}...{% </component> %}".to_string(),
+                &self.current_span,
+            ));
+        }
+
         start_span.expand(&self.current_span);
         let expr = Expression::ComponentCall(Spanned::new(
             ComponentCall {
                 name: name.to_string(),
                 kwargs,
-                body: Vec::new(),
+                body,
+                self_closing: true,
+            },
+            start_span,
+        ));
+        Ok(expr)
+    }
+
+    fn parse_component_with_body(&mut self) -> TeraResult<Expression> {
+        let mut start_span = self.current_span.clone();
+        // The '<' token was already consumed in parse_tag,
+        // so the next token should be the component name
+        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+
+        // Parse arguments: '(' kwargs ')' (handled by parse_kwargs)
+        let kwargs = self.parse_kwargs()?;
+
+        // Expect '>' (no self-closing allowed in tag context)
+        expect_token!(self, Token::GreaterThan, ">")?;
+
+        // Close the opening tag
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+
+        // Parse body content until {% </component> %}
+        let body = self.parse_until(|tok| matches!(tok, Token::LessThan))?;
+
+        // Parse the closing tag: </component>
+        expect_token!(self, Token::LessThan, "<")?;
+        expect_token!(self, Token::Div, "/")?;
+        let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        if end_name != name {
+            return Err(Error::syntax_error(
+                format!("Closing tag '{end_name}' doesn't match opening tag '{name}'"),
+                &self.current_span,
+            ));
+        }
+        expect_token!(self, Token::GreaterThan, ">")?;
+
+        start_span.expand(&self.current_span);
+        let expr = Expression::ComponentCall(Spanned::new(
+            ComponentCall {
+                name: name.to_string(),
+                kwargs,
+                body,
+                self_closing: false,
             },
             start_span,
         ));
@@ -1085,34 +1182,6 @@ impl<'a> Parser<'a> {
                 self.output.component_definitions.push(component_def);
                 Ok(None)
             }
-            Token::Colon => {
-                let (mut component, component_span) = match self.parse_component_call()? {
-                    Expression::ComponentCall(c) => c.into_parts(),
-                    _ => unreachable!(),
-                };
-                expect_token!(self, Token::TagEnd(..), "%}")?;
-                self.body_contexts.push(BodyContext::ComponentCall);
-                let body = self.parse_until(|tok| matches!(tok, Token::Ident("endcomponent")))?;
-                self.next_or_error()?;
-
-                if matches!(self.next, Some(Ok((Token::Colon, _)))) {
-                    expect_token!(self, Token::Colon, ":")?;
-                    let (end_name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
-                    if end_name != component.name {
-                        return Err(self.different_name_end_tag(
-                            &component.name,
-                            end_name,
-                            "component",
-                        ));
-                    }
-                }
-                self.body_contexts.pop();
-
-                component.body = body;
-                Ok(Some(Node::Expression(Expression::ComponentCall(
-                    Spanned::new(component, component_span),
-                ))))
-            }
             Token::Ident("break") | Token::Ident("continue") => {
                 let is_break = tag_token == Token::Ident("break");
                 if !self.is_in_loop() {
@@ -1130,6 +1199,21 @@ impl<'a> Parser<'a> {
                 } else {
                     Node::Continue
                 }))
+            }
+            Token::LessThan => {
+                // Handle React-like component calls in tag context: {% <component()> %}...{% </component> %}
+                match &self.next {
+                    Some(Ok((Token::Ident(_), _))) => {
+                        // This looks like an XML component call
+                        let component_expr = self.parse_component_with_body()?;
+                        Ok(Some(Node::Expression(component_expr)))
+                    }
+                    _ => Err(Error::syntax_error(
+                        "Found `<` but expected identifier after it for XML component call."
+                            .to_string(),
+                        &self.current_span,
+                    )),
+                }
             }
             _ => Err(Error::syntax_error(
                 "Unknown tag".to_string(),

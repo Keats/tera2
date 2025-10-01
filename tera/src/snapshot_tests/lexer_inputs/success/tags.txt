@@ -1,5 +1,5 @@
 {% for i in range(end=10) %}{{i}}{% endfor %}
 {% filter upper %}hello{% endfilter %}
-{% set txt = macro::call(arg="ho") %}
+{% set txt = <call(arg="ho")/> %}
 {% set txt | upper %}Hello{% endset %}
 {% set txt = none %}
