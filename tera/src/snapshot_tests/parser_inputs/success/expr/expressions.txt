@@ -110,10 +110,10 @@
 {{ {"hel\nlo": "world"} }}
 
 // Component calls
-{{ <input(label='Name', type='text')/> }}
-{{ <input()/> | safe }}
-{{ <input(n=a -1)/> }}
+{{ <input label="Name" type="text"/> }}
+{{ <input/> | safe }}
+{{ <input n={a -1}/> }}
 
 // null
-{{ <input(label=none)/> }}
+{{ <input label={none}/> }}
 {{ a == None }}

@@ -347,6 +347,62 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
+    fn parse_component_attributes(&mut self) -> TeraResult<HashMap<String, Expression>> {
+        let mut attrs = HashMap::new();
+
+        while matches!(self.next, Some(Ok((Token::Ident(_), _)))) {
+            let (name, name_span) = expect_token!(self, Token::Ident(id) => id, "attribute name")?;
+
+            let value = match &self.next {
+                // Check if there's an assignment
+                Some(Ok((Token::Assign, _))) => {
+                    self.next_or_error()?; // consume '='
+
+                    match self.next.as_ref() {
+                        // If it starts with quotes, it's a string literal
+                        Some(Ok((Token::Str(s), _))) => {
+                            let s_copy = *s;
+                            let span = self.current_span.clone();
+                            self.next_or_error()?;
+                            Expression::Const(Spanned::new(Value::from(s_copy), span))
+                        }
+                        // If it starts with {, parse as expression until matching }
+                        Some(Ok((Token::LeftBrace, _))) => {
+                            self.next_or_error()?; // consume '{'
+                            let expr = self.parse_expression(0)?;
+                            expect_token!(self, Token::RightBrace, "}")?;
+                            expr
+                        }
+                        Some(Ok((token, span))) => {
+                            return Err(Error::syntax_error(
+                                format!("Expected \"string\" or {{expression}} but found {token}"),
+                                span,
+                            ));
+                        }
+                        Some(Err(e)) => {
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
+                        None => return Err(self.eoi()),
+                    }
+                }
+                // No assignment - shorthand syntax: treat as {attributeName}
+                _ => {
+                    Expression::Var(Spanned::new(
+                        Var { name: name.to_string() },
+                        name_span,
+                    ))
+                }
+            };
+
+            attrs.insert(name.to_string(), value);
+        }
+
+        Ok(attrs)
+    }
+
     fn parse_filter(&mut self, expr: Expression) -> TeraResult<Expression> {
         let (name, mut span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
         let mut kwargs = HashMap::new();
@@ -690,8 +746,8 @@ impl<'a> Parser<'a> {
         // so the next token should be the component name
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
 
-        // Parse arguments: '(' kwargs ')' (handled by parse_kwargs)
-        let kwargs = self.parse_kwargs()?;
+        // Parse attributes: name="string" or name={expression}
+        let kwargs = self.parse_component_attributes()?;
 
         // Check for self-closing '/>' or opening '>'
         let is_self_closing = match &self.next {
@@ -748,8 +804,8 @@ impl<'a> Parser<'a> {
         // so the next token should be the component name
         let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
 
-        // Parse arguments: '(' kwargs ')' (handled by parse_kwargs)
-        let kwargs = self.parse_kwargs()?;
+        // Parse attributes: name="string" or name={expression}
+        let kwargs = self.parse_component_attributes()?;
 
         // Expect '>' (no self-closing allowed in tag context)
         expect_token!(self, Token::GreaterThan, ">")?;

@@ -1,3 +1,3 @@
-{% <footer()> %}
+{% <footer> %}
 Hello world.
 {% </footer> %}

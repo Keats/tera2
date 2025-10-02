@@ -1,2 +1,2 @@
 $$ parent
-{% <missing()> -%} hello {%- </missing> %}
+{% <missing> -%} hello {%- </missing> %}

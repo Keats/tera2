@@ -1,4 +1,4 @@
 $$ components
 {% component display_name(name: string) %}{{name}}{% endcomponent display_name %}
 $$ tpl
-{{ <display_name()/> }}
+{{ <display_name/> }}

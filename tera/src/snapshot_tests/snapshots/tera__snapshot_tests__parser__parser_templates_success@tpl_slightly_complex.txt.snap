@@ -104,14 +104,14 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                         expr: ComponentCall {
                             name: "cta",
                             kwargs: {
-                                "title": "Buy now" @ 17:26-17:35 (490..499),
+                                "title": "Buy now" @ 17:25-17:26 (489..490),
                             },
                             body: [],
                             self_closing: true,
-                        } @ 17:15-17:38 (479..502),
+                        } @ 17:15-17:37 (479..501),
                         name: "safe",
                         kwargs: {},
-                    } @ 17:41-17:45 (505..509),
+                    } @ 17:40-17:44 (504..508),
                     "\n\n            ",
                     Include {
                         name: "sales.html",

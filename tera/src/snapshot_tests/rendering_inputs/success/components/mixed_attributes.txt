@@ -1,0 +1,9 @@
+$$ components
+{% component card(name, age, priority: integer = 1, visible: bool = true) %}
+  <div class="card priority-{{priority}}" {% if not visible %}style="display:none"{% endif %}>
+    <h3>{{name}}</h3>
+    <p>Age: {{age}}</p>
+  </div>
+{% endcomponent card %}
+$$ tpl
+{{<card name age priority={5} visible={some_bool}/>}}

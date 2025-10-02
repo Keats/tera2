@@ -17,7 +17,7 @@
             <a href="https://docs.rs/tera" class="nav-link">API Docs</a>
         </nav>
 
-        {{ <unordered_list(items=items)/> }}
+        {{ <unordered_list items={items} /> }}
 
         {% block hero %}
         <div class="hero">
@@ -58,7 +58,7 @@
 
 <footer>
     <div class="container">
-        {{- <copyright()/> -}}
+        {{- <copyright/> -}}
     </div>
 </footer>
 </body>

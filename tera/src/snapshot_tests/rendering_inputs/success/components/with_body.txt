@@ -1,4 +1,4 @@
 $$ components
 {% component hello()%}{{body}}{% endcomponent hello %}
 $$ tpl
-{% <hello()> %}Hello {{name}}! {% </hello> %}
+{% <hello> %}Hello {{name}}! {% </hello> %}

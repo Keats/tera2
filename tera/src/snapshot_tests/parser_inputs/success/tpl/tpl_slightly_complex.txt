@@ -14,7 +14,7 @@
             {{ page.description | safe }}
             {% endfilter %}
 
-            {{ <cta(title="Buy now")/> | safe }}
+            {{ <cta title="Buy now"/> | safe }}
 
             {% include "sales.html" %}
         {%- else -%}

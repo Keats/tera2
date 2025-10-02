@@ -1,0 +1,4 @@
+$$ components
+{% component button(name, age) %}Hello {{name}}, you are {{age}}{% endcomponent button %}
+$$ tpl
+{{<button name age/>}}
