@@ -1,7 +1,0 @@
----
-source: tera/src/snapshot_tests/build_errors.rs
-assertion_line: 16
-expression: "&err"
-input_file: tera/src/snapshot_tests/build_errors/unknown_component.txt
----
-Failed to parse 'parent'

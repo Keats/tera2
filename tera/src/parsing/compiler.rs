@@ -141,6 +141,10 @@ impl<'s> Compiler<'s> {
             }
             Expression::ComponentCall(e) => {
                 let (component_call, span) = e.into_parts();
+
+                // Record the component call for validation
+                self.component_calls.push(component_call.clone());
+
                 let is_inline = component_call.body.is_empty();
                 if !is_inline {
                     self.chunk.add(Instruction::Capture, None);
