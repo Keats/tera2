@@ -265,10 +265,10 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.next {
-                Some(Ok((Token::Dot, _))) | Some(Ok((Token::OptionDot, _))) => {
-                    let is_optional = matches!(self.next, Some(Ok((Token::OptionDot, _))));
+                Some(Ok((Token::Dot, _))) | Some(Ok((Token::QuestionMarkDot, _))) => {
+                    let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkDot, _))));
                     if is_optional {
-                        expect_token!(self, Token::OptionDot, "?.")?;
+                        expect_token!(self, Token::QuestionMarkDot, "?.")?;
                     } else {
                         expect_token!(self, Token::Dot, ".")?;
                     }
