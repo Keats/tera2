@@ -9,3 +9,5 @@
 {% set_global world = 2 %}{{ world }}
 {{ [name, age, 10, "hello"] | safe }}
 {{ {"hello": name} | safe }}
+{{ product?.name }}
+{{ product?.id }}

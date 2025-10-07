@@ -83,7 +83,12 @@ impl<'s> Compiler<'s> {
             Expression::GetAttr(e) => {
                 let (attr, span) = e.into_parts();
                 self.compile_expr(attr.expr);
-                self.chunk.add(Instruction::LoadAttr(attr.name), Some(span));
+                if attr.optional {
+                    self.chunk
+                        .add(Instruction::LoadAttrOpt(attr.name), Some(span));
+                } else {
+                    self.chunk.add(Instruction::LoadAttr(attr.name), Some(span));
+                }
             }
             Expression::GetItem(e) => {
                 let (item, span) = e.into_parts();

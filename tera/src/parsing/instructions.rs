@@ -11,6 +11,8 @@ pub(crate) enum Instruction {
     LoadName(String),
     /// Get the named field of the top stack value (`person.name`)
     LoadAttr(String),
+    /// Safely get the named field of the top stack value (`person.name`)
+    LoadAttrOpt(String),
     /// Handles `a[b]`. `b` is the top stack value, `a` the one before
     BinarySubscript,
     /// Handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
