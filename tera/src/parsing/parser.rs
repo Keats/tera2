@@ -347,6 +347,20 @@ impl<'a> Parser<'a> {
         Ok(kwargs)
     }
 
+    fn parse_dotted_component_name(&mut self) -> TeraResult<String> {
+        let (first, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let mut name = first.to_string();
+
+        while matches!(self.next, Some(Ok((Token::Dot, _)))) {
+            self.next_or_error()?; // consume dot
+            let (part, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            name.push('.');
+            name.push_str(part);
+        }
+
+        Ok(name)
+    }
+
     fn parse_component_attributes(&mut self) -> TeraResult<HashMap<String, Expression>> {
         let mut attrs = HashMap::new();
 
@@ -389,12 +403,12 @@ impl<'a> Parser<'a> {
                     }
                 }
                 // No assignment - shorthand syntax: treat as {attributeName}
-                _ => {
-                    Expression::Var(Spanned::new(
-                        Var { name: name.to_string() },
-                        name_span,
-                    ))
-                }
+                _ => Expression::Var(Spanned::new(
+                    Var {
+                        name: name.to_string(),
+                    },
+                    name_span,
+                )),
             };
 
             attrs.insert(name.to_string(), value);
@@ -744,7 +758,7 @@ impl<'a> Parser<'a> {
         let mut start_span = self.current_span.clone();
         // The '<' token was already consumed in inner_parse_expression,
         // so the next token should be the component name
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let name = self.parse_dotted_component_name()?;
 
         // Parse attributes: name="string" or name={expression}
         let kwargs = self.parse_component_attributes()?;
@@ -802,7 +816,7 @@ impl<'a> Parser<'a> {
         let mut start_span = self.current_span.clone();
         // The '<' token was already consumed in parse_tag,
         // so the next token should be the component name
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let name = self.parse_dotted_component_name()?;
 
         // Parse attributes: name="string" or name={expression}
         let kwargs = self.parse_component_attributes()?;
@@ -819,7 +833,7 @@ impl<'a> Parser<'a> {
         // Parse the closing tag: </component>
         expect_token!(self, Token::LessThan, "<")?;
         expect_token!(self, Token::Div, "/")?;
-        let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let end_name = self.parse_dotted_component_name()?;
         if end_name != name {
             return Err(Error::syntax_error(
                 format!("Closing tag '{end_name}' doesn't match opening tag '{name}'"),
@@ -947,7 +961,7 @@ impl<'a> Parser<'a> {
             ));
         }
         self.body_contexts.push(BodyContext::ComponentDefinition);
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let name = self.parse_dotted_component_name()?;
         expect_token!(self, Token::LeftParen, "(")?;
         let mut kwargs = BTreeMap::new();
 
@@ -1061,9 +1075,9 @@ impl<'a> Parser<'a> {
         self.next_or_error()?;
 
         if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
-            let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            let end_name = self.parse_dotted_component_name()?;
             if name != end_name {
-                return Err(self.different_name_end_tag(name, end_name, "component"));
+                return Err(self.different_name_end_tag(&name, &end_name, "component"));
             }
         }
 

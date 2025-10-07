@@ -193,30 +193,6 @@ impl Error {
         }
     }
 
-    pub(crate) fn namespace_not_loaded(tpl: impl ToString, namespace: impl ToString) -> Self {
-        Self {
-            kind: ErrorKind::NamespaceNotLoaded {
-                tpl: tpl.to_string(),
-                namespace: namespace.to_string(),
-            },
-            source: None,
-        }
-    }
-
-    pub(crate) fn macro_not_found(
-        tpl: impl ToString,
-        namespace: impl ToString,
-        name: impl ToString,
-    ) -> Self {
-        Self {
-            kind: ErrorKind::MacroNotFound {
-                tpl: tpl.to_string(),
-                namespace: namespace.to_string(),
-                name: name.to_string(),
-            },
-            source: None,
-        }
-    }
     pub(crate) fn io_error(error: std::io::Error) -> Self {
         Self {
             kind: ErrorKind::Io(error.kind()),
