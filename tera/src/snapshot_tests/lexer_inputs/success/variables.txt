@@ -13,9 +13,9 @@
 {{ person[name].age }}
 {{ person['name'].age }}
 {{ persons[0].age }}
-{{ opt_person?.name }}
-{{ opt_person?.[name] }}
-{{ opt_person?.[name]?.age }}
-{{ opt_person?.['name']?.age }}
-{{ opt_persons?.[0]?.age }}
+{{ person?.name }}
+{{ person?.[name] }}
+{{ person?.[name]?.age }}
+{{ person?.['name']?.age }}
+{{ persons?.[0]?.age }}
 {{ <hello body="hey"/> }}

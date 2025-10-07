@@ -1,3 +1,6 @@
 {{ true and false }}
 {{ true or false }}
 {{ 1 and 0 }}
+{{ product.name or "should NOT print" }}
+{{ product.non_existent or "should print" }}
+{{ a?.b?.c or "should print" }}

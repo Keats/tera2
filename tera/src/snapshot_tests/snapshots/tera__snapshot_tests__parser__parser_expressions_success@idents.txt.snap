@@ -20,3 +20,5 @@ hey['ho']['hu']
 hey['ho']['hu']['hi']
 h['u'].x[0]
 h['u'].x[0].ah
+a?.b
+a?.b?.c
