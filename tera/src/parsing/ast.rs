@@ -492,11 +492,16 @@ impl fmt::Display for Var {
 pub struct GetAttr {
     pub expr: Expression,
     pub name: String,
+    pub optional: bool,
 }
 
 impl fmt::Display for GetAttr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.expr, self.name)
+        if self.optional {
+            write!(f, "{}?.{}", self.expr, self.name)
+        } else {
+            write!(f, "{}.{}", self.expr, self.name)
+        }
     }
 }
 

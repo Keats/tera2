@@ -265,8 +265,13 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.next {
-                Some(Ok((Token::Dot, _))) => {
-                    expect_token!(self, Token::Dot, ".")?;
+                Some(Ok((Token::Dot, _))) | Some(Ok((Token::OptionDot, _))) => {
+                    let is_optional = matches!(self.next, Some(Ok((Token::OptionDot, _))));
+                    if is_optional {
+                        expect_token!(self, Token::OptionDot, "?.")?;
+                    } else {
+                        expect_token!(self, Token::Dot, ".")?;
+                    }
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                     if ident == "loop" && self.is_in_loop() {
                         let new_name = match attr {
@@ -294,6 +299,7 @@ impl<'a> Parser<'a> {
                             GetAttr {
                                 expr,
                                 name: attr.to_string(),
+                                optional: is_optional,
                             },
                             span.clone(),
                         ));
@@ -389,12 +395,12 @@ impl<'a> Parser<'a> {
                     }
                 }
                 // No assignment - shorthand syntax: treat as {attributeName}
-                _ => {
-                    Expression::Var(Spanned::new(
-                        Var { name: name.to_string() },
-                        name_span,
-                    ))
-                }
+                _ => Expression::Var(Spanned::new(
+                    Var {
+                        name: name.to_string(),
+                    },
+                    name_span,
+                )),
             };
 
             attrs.insert(name.to_string(), value);
