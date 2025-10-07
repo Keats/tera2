@@ -108,6 +108,7 @@ pub enum Token<'a> {
 
     // Rest
     Dot,
+    OptionDot,
     Comma,
     Colon,
     Bang,
@@ -147,6 +148,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::Mod => write!(f, "MOD"),
             Token::Bang => write!(f, "BANG"),
             Token::Dot => write!(f, "DOT"),
+            Token::OptionDot => write!(f, "OPTION_DOT"),
             Token::Comma => write!(f, "COMMA"),
             Token::Colon => write!(f, "COLON"),
             Token::Tilde => write!(f, "TILDE"),
@@ -194,6 +196,7 @@ impl<'a> fmt::Display for Token<'a> {
             Token::Mod => write!(f, "`%`"),
             Token::Bang => write!(f, "`!`"),
             Token::Dot => write!(f, "`.`"),
+            Token::OptionDot => write!(f, "`?.`"),
             Token::Comma => write!(f, "`,`"),
             Token::Colon => write!(f, "`:`"),
             Token::Tilde => write!(f, "`~`"),
@@ -520,6 +523,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     Some(b"!=") => Some(Token::NotEqual),
                     Some(b">=") => Some(Token::GreaterThanOrEqual),
                     Some(b"<=") => Some(Token::LessThanOrEqual),
+                    Some(b"?.") => Some(Token::OptionDot),
                     _ => None,
                 };
                 if let Some(op) = op {
