@@ -13,9 +13,6 @@
 {{ person[name].age }}
 {{ person['name'].age }}
 {{ persons[0].age }}
-{{ person?.name }}
-{{ person?.[name] }}
-{{ person?.[name]?.age }}
-{{ person?.['name']?.age }}
-{{ persons?.[0]?.age }}
 {{ <hello body="hey"/> }}
+{{ person?.name }}
+{{ person?.address?.street }}
