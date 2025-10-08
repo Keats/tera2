@@ -239,6 +239,7 @@ impl<'a> Parser<'a> {
                     start,
                     end,
                     step,
+                    optional: is_optional,
                 },
                 span,
             ))
