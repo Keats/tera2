@@ -512,11 +512,16 @@ pub struct Slice {
     pub start: Option<Expression>,
     pub end: Option<Expression>,
     pub step: Option<Expression>,
+    pub optional: bool,
 }
 
 impl fmt::Display for Slice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.expr)?;
+        if self.optional {
+            write!(f, "{}?[", self.expr)?;
+        } else {
+            write!(f, "{}[", self.expr)?;
+        }
         if let Some(ref expr) = self.start {
             write!(f, "{}", expr)?;
         }
@@ -535,11 +540,16 @@ impl fmt::Display for Slice {
 pub struct GetItem {
     pub expr: Expression,
     pub sub_expr: Expression,
+    pub optional: bool,
 }
 
 impl fmt::Display for GetItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}]", self.expr, self.sub_expr)
+        if self.optional {
+            write!(f, "{}?[{}]", self.expr, self.sub_expr)
+        } else {
+            write!(f, "{}[{}]", self.expr, self.sub_expr)
+        }
     }
 }
 

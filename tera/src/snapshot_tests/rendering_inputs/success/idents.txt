@@ -10,3 +10,4 @@
 {{ [name, age, 10, "hello"] | safe }}
 {{ {"hello": name} | safe }}
 {{ product?.name }}
+{{ product?['name'] }}

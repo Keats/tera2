@@ -15,8 +15,12 @@ pub(crate) enum Instruction {
     LoadAttrOpt(String),
     /// Handles `a[b]`. `b` is the top stack value, `a` the one before
     BinarySubscript,
+    /// Safely handles `a[b]`. `b` is the top stack value, `a` the one before
+    BinarySubscriptOpt,
     /// Handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
     Slice,
+    /// Safely handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
+    SliceOpt,
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack

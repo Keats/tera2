@@ -94,7 +94,11 @@ impl<'s> Compiler<'s> {
                 let (item, span) = e.into_parts();
                 self.compile_expr(item.expr);
                 self.compile_expr(item.sub_expr);
-                self.chunk.add(Instruction::BinarySubscript, Some(span));
+                if item.optional {
+                    self.chunk.add(Instruction::BinarySubscriptOpt, Some(span));
+                } else {
+                    self.chunk.add(Instruction::BinarySubscript, Some(span));
+                }
             }
             Expression::Slice(e) => {
                 let (slice, span) = e.into_parts();
@@ -117,7 +121,11 @@ impl<'s> Compiler<'s> {
                     self.chunk.add(Instruction::LoadConst(1.into()), None);
                 }
 
-                self.chunk.add(Instruction::Slice, Some(span));
+                if slice.optional {
+                    self.chunk.add(Instruction::SliceOpt, Some(span));
+                } else {
+                    self.chunk.add(Instruction::Slice, Some(span));
+                }
             }
             Expression::Filter(e) => {
                 let (filter, span) = e.into_parts();

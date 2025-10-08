@@ -178,7 +178,12 @@ impl<'a> Parser<'a> {
 
     // Parse something in brackets [..] after an ident or a literal array/map
     fn parse_subscript(&mut self, expr: Expression) -> TeraResult<Expression> {
-        expect_token!(self, Token::LeftBracket, "[")?;
+        let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkLeftBracket, _))));
+        if is_optional {
+            expect_token!(self, Token::QuestionMarkLeftBracket, "?[")?;
+        } else {
+            expect_token!(self, Token::LeftBracket, "[")?;
+        }
         self.num_left_brackets += 1;
         if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
             return Err(Error::syntax_error(
@@ -234,6 +239,7 @@ impl<'a> Parser<'a> {
                     start,
                     end,
                     step,
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -242,6 +248,7 @@ impl<'a> Parser<'a> {
                 GetItem {
                     expr,
                     sub_expr: start.expect("to have an expr"),
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -306,7 +313,7 @@ impl<'a> Parser<'a> {
                     }
                 }
                 // Subscript
-                Some(Ok((Token::LeftBracket, _))) => {
+                Some(Ok((Token::LeftBracket, _)) | Ok((Token::QuestionMarkLeftBracket, _))) => {
                     expr = self.parse_subscript(expr)?;
                 }
                 // Function
