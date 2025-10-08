@@ -4,3 +4,5 @@
 {{ product.name or "should NOT print" }}
 {{ product.non_existent or "should print" }}
 {{ a?.b?.c or "should print" }}
+{{ a?[b] or "should print" }}
+{{ a?[b]?.c or "should print" }}

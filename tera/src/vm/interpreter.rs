@@ -214,6 +214,25 @@ impl<'tera> VirtualMachine<'tera> {
                             .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
                     }
                 }
+                Instruction::BinarySubscriptOpt => {
+                    let (subscript, subscript_span) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val.is_undefined() || val.is_null() {
+                        state
+                            .stack
+                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                    } else {
+                        let c_span = expand_span!(val_span, subscript_span);
+                        match val.get_item(subscript) {
+                            Ok(v) => {
+                                state.stack.push(v, Some(c_span));
+                            }
+                            Err(e) => {
+                                rendering_error!(e.to_string(), subscript_span);
+                            }
+                        }
+                    }
+                }
                 Instruction::BinarySubscript => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
