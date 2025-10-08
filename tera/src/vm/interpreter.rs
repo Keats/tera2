@@ -214,6 +214,23 @@ impl<'tera> VirtualMachine<'tera> {
                             .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
                     }
                 }
+                Instruction::BinarySubscript => {
+                    let (subscript, subscript_span) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val.is_undefined() {
+                        rendering_error!(format!("Container is not defined"), val_span);
+                    }
+
+                    let c_span = expand_span!(val_span, subscript_span);
+                    match val.get_item(subscript) {
+                        Ok(v) => {
+                            state.stack.push(v, Some(c_span));
+                        }
+                        Err(e) => {
+                            rendering_error!(e.to_string(), subscript_span);
+                        }
+                    }
+                }
                 Instruction::BinarySubscriptOpt => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
@@ -230,23 +247,6 @@ impl<'tera> VirtualMachine<'tera> {
                             Err(e) => {
                                 rendering_error!(e.to_string(), subscript_span);
                             }
-                        }
-                    }
-                }
-                Instruction::BinarySubscript => {
-                    let (subscript, subscript_span) = state.stack.pop();
-                    let (val, val_span) = state.stack.pop();
-                    if val.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), val_span);
-                    }
-
-                    let c_span = expand_span!(val_span, subscript_span);
-                    match val.get_item(subscript) {
-                        Ok(v) => {
-                            state.stack.push(v, Some(c_span));
-                        }
-                        Err(e) => {
-                            rendering_error!(e.to_string(), subscript_span);
                         }
                     }
                 }
@@ -268,6 +268,29 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), val_span);
+                        }
+                    }
+                }
+                Instruction::SliceOpt => {
+                    let (step, _) = state.stack.pop();
+                    let (end, _) = state.stack.pop();
+                    let (start, _) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val.is_undefined() {
+                        state
+                            .stack
+                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                    } else {
+                        // let mut slice_span = expand_span!(val_span, start_span);
+                        // This returns an error if the value is not an array/string so we don't need to
+                        // expand the span.
+                        match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
+                            Ok(v) => {
+                                state.stack.push(v, Some(val_span.unwrap()));
+                            }
+                            Err(e) => {
+                                rendering_error!(e.to_string(), val_span);
+                            }
                         }
                     }
                 }

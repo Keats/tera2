@@ -19,6 +19,8 @@ pub(crate) enum Instruction {
     BinarySubscriptOpt,
     /// Handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
     Slice,
+    /// Safely handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
+    SliceOpt,
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack

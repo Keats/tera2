@@ -6,3 +6,6 @@
 {{ a?.b?.c or "should print" }}
 {{ a?[b] or "should print" }}
 {{ a?[b]?.c or "should print" }}
+{{ undefined_array?[:1] or "should print" }}
+{{ numbers?[:3] or "should NOT print" }}
+{{ vectors?[6:4]?[0]?['abc'] or "should print" }}
