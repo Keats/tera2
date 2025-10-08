@@ -535,11 +535,16 @@ impl fmt::Display for Slice {
 pub struct GetItem {
     pub expr: Expression,
     pub sub_expr: Expression,
+    pub optional: bool,
 }
 
 impl fmt::Display for GetItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}]", self.expr, self.sub_expr)
+        if self.optional {
+            write!(f, "{}?[{}]", self.expr, self.sub_expr)
+        } else {
+            write!(f, "{}[{}]", self.expr, self.sub_expr)
+        }
     }
 }
 
