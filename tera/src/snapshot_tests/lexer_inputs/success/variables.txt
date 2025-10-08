@@ -16,3 +16,6 @@
 {{ <hello body="hey"/> }}
 {{ person?.name }}
 {{ person?.address?.street }}
+{{ person?[name] }}
+{{ person?['bob'] }}
+{{ persons?[123] }}
