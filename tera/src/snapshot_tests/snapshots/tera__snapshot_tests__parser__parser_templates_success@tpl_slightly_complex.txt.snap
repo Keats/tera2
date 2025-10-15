@@ -13,6 +13,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                     name: "product",
                 } @ 3:31-3:38 (47..54),
                 name: "name",
+                optional: false,
             } @ 3:39-3:43 (55..59),
         ],
     },
@@ -33,6 +34,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                 name: "item",
                             } @ 8:19-8:23 (189..193),
                             name: "show",
+                            optional: false,
                         } @ 8:24-8:28 (194..198),
                         body: [
                             GetAttr {
@@ -40,6 +42,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                     name: "item",
                                 } @ 8:34-8:38 (204..208),
                                 name: "name",
+                                optional: false,
                             } @ 8:39-8:43 (209..213),
                         ],
                         false_body: [
@@ -57,6 +60,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                         name: "item",
                                     } @ 9:23-9:27 (265..269),
                                     name: "price",
+                                    optional: false,
                                 } @ 9:28-9:33 (270..275),
                                 right: Var {
                                     name: "vat",
@@ -69,6 +73,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                         name: "item",
                                     } @ 9:43-9:47 (285..289),
                                     name: "price",
+                                    optional: false,
                                 } @ 9:48-9:53 (290..295),
                                 right: Var {
                                     name: "discount",
@@ -92,6 +97,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                                         name: "page",
                                     } @ 14:15-14:19 (408..412),
                                     name: "description",
+                                    optional: false,
                                 } @ 14:20-14:31 (413..424),
                                 name: "safe",
                                 kwargs: {},

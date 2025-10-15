@@ -178,7 +178,12 @@ impl<'a> Parser<'a> {
 
     // Parse something in brackets [..] after an ident or a literal array/map
     fn parse_subscript(&mut self, expr: Expression) -> TeraResult<Expression> {
-        expect_token!(self, Token::LeftBracket, "[")?;
+        let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkLeftBracket, _))));
+        if is_optional {
+            expect_token!(self, Token::QuestionMarkLeftBracket, "?[")?;
+        } else {
+            expect_token!(self, Token::LeftBracket, "[")?;
+        }
         self.num_left_brackets += 1;
         if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
             return Err(Error::syntax_error(
@@ -234,6 +239,7 @@ impl<'a> Parser<'a> {
                     start,
                     end,
                     step,
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -242,6 +248,7 @@ impl<'a> Parser<'a> {
                 GetItem {
                     expr,
                     sub_expr: start.expect("to have an expr"),
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -265,8 +272,13 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.next {
-                Some(Ok((Token::Dot, _))) => {
-                    expect_token!(self, Token::Dot, ".")?;
+                Some(Ok((Token::Dot, _))) | Some(Ok((Token::QuestionMarkDot, _))) => {
+                    let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkDot, _))));
+                    if is_optional {
+                        expect_token!(self, Token::QuestionMarkDot, "?.")?;
+                    } else {
+                        expect_token!(self, Token::Dot, ".")?;
+                    }
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                     if ident == "loop" && self.is_in_loop() {
                         let new_name = match attr {
@@ -294,13 +306,14 @@ impl<'a> Parser<'a> {
                             GetAttr {
                                 expr,
                                 name: attr.to_string(),
+                                optional: is_optional,
                             },
                             span.clone(),
                         ));
                     }
                 }
                 // Subscript
-                Some(Ok((Token::LeftBracket, _))) => {
+                Some(Ok((Token::LeftBracket, _)) | Ok((Token::QuestionMarkLeftBracket, _))) => {
                     expr = self.parse_subscript(expr)?;
                 }
                 // Function

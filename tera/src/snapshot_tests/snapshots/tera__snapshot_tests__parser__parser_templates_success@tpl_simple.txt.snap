@@ -11,6 +11,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
             name: "product",
         } @ 4:14-4:21 (51..58),
         name: "name",
+        optional: false,
     } @ 4:22-4:26 (59..63),
     "</title>\n  </head>\n  <body>\n    <h1>",
     GetAttr {
@@ -18,6 +19,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
             name: "product",
         } @ 7:11-7:18 (105..112),
         name: "name",
+        optional: false,
     } @ 7:19-7:23 (113..117),
     " - ",
     Filter {
@@ -26,6 +28,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
                 name: "product",
             } @ 7:32-7:39 (126..133),
             name: "manufacturer",
+            optional: false,
         } @ 7:40-7:52 (134..146),
         name: "upper",
         kwargs: {},
@@ -36,6 +39,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
             name: "product",
         } @ 8:10-8:17 (173..180),
         name: "summary",
+        optional: false,
     } @ 8:18-8:25 (181..188),
     "</p>\n    <p>£",
     BinaryOperation {
@@ -45,6 +49,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
                 name: "product",
             } @ 9:11-9:18 (207..214),
             name: "price",
+            optional: false,
         } @ 9:19-9:24 (215..220),
         right: 1.2 @ 9:27-9:31 (223..227),
     } @ 9:11-9:31 (207..227),
