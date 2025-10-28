@@ -41,8 +41,8 @@ pub(crate) enum Instruction {
     CallFunction(String),
     /// Render the given inline component
     RenderInlineComponent(String),
-    /// Render the given component with body
-    RenderBodyComponent(String),
+    /// Render the given component with body. Contains component name and body chunk index
+    RenderBodyComponent(String, usize),
     /// Apply the given filter
     ApplyFilter(String),
     /// Run the given test
@@ -144,6 +144,15 @@ impl Chunk {
             _ => false,
         })
     }
+
+    /// Offset all RenderBodyComponent indices by the given amount
+    pub(crate) fn offset_body_component_indices(&mut self, offset: usize) {
+        for (instr, _) in &mut self.instructions {
+            if let Instruction::RenderBodyComponent(_name, idx) = instr {
+                *idx += offset;
+            }
+        }
+    }
 }
 
 impl fmt::Debug for Chunk {
@@ -164,6 +173,6 @@ mod tests {
 
     #[test]
     fn test_size() {
-        assert_eq!(std::mem::size_of::<Instruction>(), 32);
+        assert_eq!(std::mem::size_of::<Instruction>(), 40);
     }
 }

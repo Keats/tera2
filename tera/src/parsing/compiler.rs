@@ -22,6 +22,8 @@ pub(crate) struct Compiler<'s> {
     // We will need this later to check if the arguments called actually exist/right types
     pub(crate) component_calls: Vec<ComponentCall>,
     pub(crate) raw_content_num_bytes: usize,
+    /// Component body chunks compiled separately to execute in component context
+    pub(crate) component_body_chunks: Vec<Chunk>,
 }
 
 impl<'s> Compiler<'s> {
@@ -33,6 +35,7 @@ impl<'s> Compiler<'s> {
             blocks: HashMap::new(),
             source,
             raw_content_num_bytes: 0,
+            component_body_chunks: Vec::new(),
         }
     }
 
@@ -159,13 +162,22 @@ impl<'s> Compiler<'s> {
                 self.component_calls.push(component_call.clone());
 
                 let is_inline = component_call.body.is_empty();
-                if !is_inline {
-                    self.chunk.add(Instruction::Capture, None);
+                let body_chunk_idx = if !is_inline {
+                    // Compile body into a separate chunk to execute in component context
+                    let chunk_name = format!("{}_component_body_{}",
+                        self.chunk.name,
+                        self.component_body_chunks.len());
+                    let mut body_compiler = Compiler::new(&chunk_name, self.source);
                     for node in component_call.body {
-                        self.compile_node(node);
+                        body_compiler.compile_node(node);
                     }
-                    self.chunk.add(Instruction::EndCapture, None);
-                }
+                    let idx = self.component_body_chunks.len();
+                    self.component_body_chunks.push(body_compiler.chunk);
+                    idx
+                } else {
+                    0 // Dummy value for inline components
+                };
+
                 self.compile_kwargs(component_call.kwargs.clone());
 
                 if is_inline {
@@ -175,7 +187,7 @@ impl<'s> Compiler<'s> {
                     );
                 } else {
                     self.chunk.add(
-                        Instruction::RenderBodyComponent(component_call.name),
+                        Instruction::RenderBodyComponent(component_call.name, body_chunk_idx),
                         Some(span),
                     );
                 }

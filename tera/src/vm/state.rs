@@ -20,7 +20,7 @@ pub struct State<'tera> {
     pub(crate) for_loops: Vec<ForLoop>,
     /// Any variables with {% set %} outside a for loop or {% set_global %} will be stored here
     /// Locals set in a for loop are set in `for_loops`
-    set_variables: BTreeMap<String, Value>,
+    pub(crate) set_variables: BTreeMap<String, Value>,
     pub(crate) context: &'tera Context,
     /// To handle the capture instructions
     pub(crate) capture_buffers: Vec<Vec<u8>>,
@@ -30,6 +30,10 @@ pub struct State<'tera> {
     /// (block name, (all_chunks, level))
     pub(crate) blocks: BTreeMap<&'tera str, (Vec<&'tera Chunk>, usize)>,
     pub(crate) current_block_name: Option<&'tera str>,
+    /// Body chunk index for lazy component body rendering
+    pub(crate) body_chunk_idx: Option<usize>,
+    /// Parent context for body rendering (to access parent template variables)
+    pub(crate) body_parent_context: Option<&'tera Context>,
 }
 
 impl<'t> State<'t> {
@@ -50,6 +54,8 @@ impl<'t> State<'t> {
             include_parent: None,
             blocks: BTreeMap::new(),
             current_block_name: None,
+            body_chunk_idx: None,
+            body_parent_context: None,
         }
     }
 

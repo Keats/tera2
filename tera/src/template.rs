@@ -13,6 +13,8 @@ pub struct Template {
     pub(crate) blocks: HashMap<String, Chunk>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
     pub(crate) component_calls: Vec<String>,
+    /// Component body chunks compiled separately to execute in component context
+    pub(crate) component_body_chunks: Vec<Chunk>,
     /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
@@ -54,6 +56,7 @@ impl Template {
         let chunk = body_compiler.chunk;
         let blocks = body_compiler.blocks;
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
+        let mut component_body_chunks = body_compiler.component_body_chunks;
         let components = parser_output
             .component_definitions
             .into_iter()
@@ -61,7 +64,22 @@ impl Template {
                 let mut compiler = Compiler::new(&tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
-                (c.name.clone(), (c, compiler.chunk))
+
+                // Offset the body component indices in the compiled chunk and body chunks
+                let offset = component_body_chunks.len();
+                let mut component_chunk = compiler.chunk;
+                component_chunk.offset_body_component_indices(offset);
+
+                // Also offset indices in the body chunks themselves
+                let mut body_chunks = compiler.component_body_chunks;
+                for body_chunk in &mut body_chunks {
+                    body_chunk.offset_body_component_indices(offset);
+                }
+
+                // Merge component body chunks from component definitions
+                component_body_chunks.extend(body_chunks);
+
+                (c.name.clone(), (c, component_chunk))
             })
             .collect();
         let component_calls = body_compiler
@@ -80,6 +98,7 @@ impl Template {
             parents,
             components,
             component_calls,
+            component_body_chunks,
             block_lineage: HashMap::new(),
             from_extend: false,
             autoescape_enabled: true,

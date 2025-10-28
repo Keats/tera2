@@ -55,8 +55,13 @@ impl<'tera> VirtualMachine<'tera> {
                 let mut err = ReportError::new($msg, &$span.as_ref().clone().unwrap());
                 let chunk = state.chunk.expect("to have a chunk");
                 let (name, source) = if self.template.name != chunk.name {
-                    let tpl = &self.tera.templates[&chunk.name];
-                    (&tpl.name, &tpl.source)
+                    // Check if chunk name is an actual template, otherwise use current template
+                    if let Some(tpl) = self.tera.templates.get(&chunk.name) {
+                        (&tpl.name, &tpl.source)
+                    } else {
+                        // For component body chunks and other non-template chunks
+                        (&self.template.name, &self.template.source)
+                    }
                 } else {
                     (&self.template.name, &self.template.source)
                 };
@@ -125,7 +130,7 @@ impl<'tera> VirtualMachine<'tera> {
         }
 
         macro_rules! component {
-            ($name:expr, $span:expr, $has_body:expr) => {{
+            ($name:expr, $span:expr, $body_chunk_idx:expr) => {{
                 let (kwargs, _) = state.stack.pop();
                 let kwargs = kwargs.into_map().expect("to have kwargs");
                 let mut context = Context::new();
@@ -175,10 +180,10 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
 
-                if $has_body {
-                    context.insert_value("body", state.stack.pop().0);
-                }
-                let val = self.render_component(&component_chunk, context)?;
+                // Render component with optional body chunk for lazy evaluation
+                // Pass parent context for body rendering
+                let parent_context = state.context;
+                let val = self.render_component(&component_chunk, context, $body_chunk_idx, Some(parent_context))?;
                 state
                     .stack
                     .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
@@ -192,7 +197,29 @@ impl<'tera> VirtualMachine<'tera> {
                         .stack
                         .push(v.clone(), span.as_ref().map(Cow::Borrowed));
                 }
-                Instruction::LoadName(n) => state.load_name(n, span),
+                Instruction::LoadName(n) => {
+                    // Special handling for lazy body rendering in components
+                    if n == "body" && state.body_chunk_idx.is_some() {
+                        let body_chunk_idx = state.body_chunk_idx.unwrap();
+                        let body_chunk = &self.template.component_body_chunks[body_chunk_idx];
+                        // Create a context that merges parent context and component context
+                        let mut body_context = if let Some(parent_ctx) = state.body_parent_context {
+                            parent_ctx.clone()
+                        } else {
+                            Context::new()
+                        };
+                        // Add component's context variables (component overrides parent)
+                        body_context.extend(state.context.clone());
+                        // Add component's set variables (overrides everything)
+                        for (key, value) in &state.set_variables {
+                            body_context.insert_value(key.clone(), value.clone());
+                        }
+                        let body_output = self.render_chunk_in_context(body_chunk, &body_context)?;
+                        state.stack.push(Value::safe_string(&body_output), span.as_ref().map(Cow::Borrowed));
+                    } else {
+                        state.load_name(n, span);
+                    }
+                },
                 Instruction::LoadAttr(attr) => {
                     let (a, a_span) = state.stack.pop();
                     if a.is_undefined() {
@@ -440,11 +467,11 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("This test is not registered in Tera"), span)
                     }
                 }
-                Instruction::RenderBodyComponent(name) => {
-                    component!(name, span, true);
+                Instruction::RenderBodyComponent(name, body_chunk_idx) => {
+                    component!(name, span, Some(*body_chunk_idx));
                 }
                 Instruction::RenderInlineComponent(name) => {
-                    component!(name, span, false);
+                    component!(name, span, None::<usize>);
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
@@ -603,7 +630,7 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    fn render_component(&self, chunk: &Chunk, context: Context) -> TeraResult<String> {
+    fn render_component(&self, chunk: &Chunk, context: Context, body_chunk_idx: Option<usize>, parent_context: Option<&Context>) -> TeraResult<String> {
         // TODO: need to keep around the filename the component is defined in to fetch it for errors
         let vm = Self {
             tera: self.tera,
@@ -611,6 +638,21 @@ impl<'tera> VirtualMachine<'tera> {
         };
 
         let mut state = State::new_with_chunk(&context, chunk);
+        state.body_chunk_idx = body_chunk_idx;
+        state.body_parent_context = parent_context;
+        let mut output = Vec::with_capacity(1024);
+        vm.interpret(&mut state, &mut output)?;
+
+        Ok(String::from_utf8(output)?)
+    }
+
+    fn render_chunk_in_context(&self, chunk: &Chunk, context: &Context) -> TeraResult<String> {
+        let vm = Self {
+            tera: self.tera,
+            template: self.template,
+        };
+
+        let mut state = State::new_with_chunk(context, chunk);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 

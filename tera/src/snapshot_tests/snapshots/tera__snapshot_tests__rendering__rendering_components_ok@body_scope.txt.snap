@@ -1,0 +1,11 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/body_scope.txt
+---
+  
+  <div class="card">
+    
+  <h1>My Card</h1>
+
+  </div>
