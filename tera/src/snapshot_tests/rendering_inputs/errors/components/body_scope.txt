@@ -1,0 +1,11 @@
+$$ components
+{% component card() %}
+  {% set card_title = "My Card" %}
+  <div class="card">
+    {{body}}
+  </div>
+{% endcomponent card %}
+$$ tpl
+{% <card> %}
+  <h1>{{card_title}}</h1>
+{% </card> %}
