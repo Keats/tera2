@@ -1,0 +1,15 @@
+$$ components
+{% component outer() %}
+  <div class="outer">
+    {% <inner> %}
+      Inner body content
+    {% </inner> %}
+  </div>
+{% endcomponent outer %}
+
+{% component inner() %}
+  <div class="inner">{{body}}</div>
+{% endcomponent inner %}
+
+$$ tpl
+{{<outer/>}}

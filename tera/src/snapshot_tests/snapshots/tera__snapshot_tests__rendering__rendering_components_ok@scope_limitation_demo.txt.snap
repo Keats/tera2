@@ -1,0 +1,19 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/scope_limitation_demo.txt
+---
+  
+  
+  <div id="card-123" class="fancy-card">
+    <h2>My Card</h2>
+    <div class="content">
+      
+  <p>Theme: UNDEFINED</p>
+  <p>Title: My Card</p>
+  <p>Card ID: card-123</p>
+  <p>Card Class: fancy-card</p>
+  <p>User: Bob</p>
+
+    </div>
+  </div>

@@ -1,0 +1,14 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/nested_template_components.txt
+---
+  <div class="outer">
+  Outer content
+  
+  <span class="inner">
+    Inner content: Bob
+  </span>
+
+  More outer content
+</div>

@@ -173,6 +173,15 @@ impl<'s> Compiler<'s> {
                     }
                     let idx = self.component_body_chunks.len();
                     self.component_body_chunks.push(body_compiler.chunk);
+
+                    // Merge nested component body chunks from the body compiler
+                    // and offset their indices in the compiled body chunk
+                    if !body_compiler.component_body_chunks.is_empty() {
+                        let offset = self.component_body_chunks.len();
+                        self.component_body_chunks[idx].offset_body_component_indices(offset);
+                        self.component_body_chunks.extend(body_compiler.component_body_chunks);
+                    }
+
                     idx
                 } else {
                     0 // Dummy value for inline components

@@ -1,0 +1,11 @@
+$$ components
+{% component wrapper(wrapper_param) %}
+  {% set wrapper_set_var = "set in wrapper" %}
+  <div>{{body}}</div>
+{% endcomponent wrapper %}
+$$ tpl
+{% <wrapper wrapper_param="from_wrapper"> %}
+  <p>Wrapper param: {{wrapper_param}}</p>
+  <p>Wrapper set var: {{wrapper_set_var}}</p>
+  <p>Template context var: {{name}}</p>
+{% </wrapper> %}

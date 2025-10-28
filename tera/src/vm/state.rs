@@ -34,6 +34,10 @@ pub struct State<'tera> {
     pub(crate) body_chunk_idx: Option<usize>,
     /// Parent context for body rendering (to access parent template variables)
     pub(crate) body_parent_context: Option<&'tera Context>,
+    /// Body chunks where the body to be rendered is stored (from caller)
+    pub(crate) caller_body_chunks: Option<&'tera Vec<Chunk>>,
+    /// Component's own body chunks (for nested component calls within this component)
+    pub(crate) component_body_chunks: Option<&'tera Vec<Chunk>>,
 }
 
 impl<'t> State<'t> {
@@ -56,6 +60,8 @@ impl<'t> State<'t> {
             current_block_name: None,
             body_chunk_idx: None,
             body_parent_context: None,
+            caller_body_chunks: None,
+            component_body_chunks: None,
         }
     }
 

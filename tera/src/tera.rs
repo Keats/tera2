@@ -42,7 +42,7 @@ pub struct Tera {
     pub(crate) filters: HashMap<&'static str, StoredFilter>,
     pub(crate) tests: HashMap<&'static str, StoredTest>,
     pub(crate) functions: HashMap<&'static str, StoredFunction>,
-    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
+    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk, Vec<Chunk>)>,
 }
 
 impl Tera {

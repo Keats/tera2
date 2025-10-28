@@ -1,7 +1,7 @@
 ---
 source: tera/src/snapshot_tests/rendering.rs
 expression: "&out"
-input_file: tera/src/snapshot_tests/rendering_inputs/success/components/aaa_simple_test.txt
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/simple_template_component.txt
 ---
   <div>
   Test content

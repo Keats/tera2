@@ -116,6 +116,8 @@ pub struct Parser<'a> {
     num_left_brackets: usize,
     blocks_seen: HashSet<String>,
     output: ParserOutput,
+    // Track component nesting depth to prevent infinite recursion
+    component_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -131,6 +133,7 @@ impl<'a> Parser<'a> {
             num_left_brackets: 0,
             blocks_seen: HashSet::with_capacity(10),
             output: ParserOutput::default(),
+            component_depth: 0,
         }
     }
 
@@ -826,6 +829,19 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_component_with_body(&mut self) -> TeraResult<Expression> {
+        // Increment depth at entry to track recursion
+        self.component_depth += 1;
+
+        // Check depth to prevent infinite recursion
+        const MAX_COMPONENT_DEPTH: usize = 100;
+        if self.component_depth > MAX_COMPONENT_DEPTH {
+            self.component_depth -= 1;
+            return Err(Error::syntax_error(
+                format!("Component nesting depth exceeded {}", MAX_COMPONENT_DEPTH),
+                &self.current_span,
+            ));
+        }
+
         let mut start_span = self.current_span.clone();
         // The '<' token was already consumed in parse_tag,
         // so the next token should be the component name
@@ -840,20 +856,94 @@ impl<'a> Parser<'a> {
         // Close the opening tag
         expect_token!(self, Token::TagEnd(..), "%}")?;
 
-        // Parse body content until {% </component> %}
-        let body = self.parse_until(|tok| matches!(tok, Token::LessThan))?;
+        // Parse body content using recursive descent
+        let mut body = Vec::new();
 
-        // Parse the closing tag: </component>
-        expect_token!(self, Token::LessThan, "<")?;
-        expect_token!(self, Token::Div, "/")?;
-        let end_name = self.parse_dotted_component_name()?;
-        if end_name != name {
-            return Err(Error::syntax_error(
-                format!("Closing tag '{end_name}' doesn't match opening tag '{name}'"),
-                &self.current_span,
-            ));
+        loop {
+            match self.next()? {
+                None => {
+                    self.component_depth -= 1;
+                    return Err(Error::syntax_error(
+                        format!("Unclosed component tag '{name}'"),
+                        &self.current_span,
+                    ));
+                }
+                Some((Token::Content(c), _)) => {
+                    if !c.is_empty() {
+                        body.push(Node::Content(c.to_owned()));
+                    }
+                }
+                Some((Token::VariableStart(_), _)) => {
+                    let expr = self.parse_expression(0)?;
+                    expect_token!(self, Token::VariableEnd(..), "}}")?;
+                    body.push(Node::Expression(expr));
+                }
+                Some((Token::TagStart(_), _)) => {
+                    // Peek at next token to see what kind of tag this is
+                    let tok = match &self.next {
+                        None => {
+                            self.component_depth -= 1;
+                            return Err(self.eoi());
+                        }
+                        Some(Ok((tok, _))) => tok,
+                        Some(Err(ref e)) => {
+                            self.component_depth -= 1;
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
+                    };
+
+                    // Check if this is our closing tag: {% </component_name> %}
+                    if matches!(tok, Token::LessThan) {
+                        self.next_or_error()?; // consume <
+
+                        if matches!(self.next, Some(Ok((Token::Div, _)))) {
+                            // This is a closing tag: {% </...> %}
+                            self.next_or_error()?; // consume /
+                            let end_name = self.parse_dotted_component_name()?;
+
+                            if end_name == name {
+                                // Found OUR closing tag!
+                                expect_token!(self, Token::GreaterThan, ">")?;
+                                // Exit the loop - we're done parsing the body
+                                break;
+                            } else {
+                                self.component_depth -= 1;
+                                return Err(Error::syntax_error(
+                                    format!("Found closing tag '{end_name}' but expected '{name}'"),
+                                    &self.current_span,
+                                ));
+                            }
+                        } else {
+                            // It's an opening tag: {% <nested> %} - RECURSIVELY parse it
+                            // by calling ourselves! This is proper recursive descent.
+                            let component_expr = self.parse_component_with_body()?;
+                            expect_token!(self, Token::TagEnd(..), "%}")?;
+                            body.push(Node::Expression(component_expr));
+                        }
+                    } else {
+                        // Regular tag: {% if/for/set/etc %} - delegate to parse_tag
+                        let node = self.parse_tag(body.is_empty())?;
+                        expect_token!(self, Token::TagEnd(..), "%}")?;
+                        if let Some(n) = node {
+                            body.push(n);
+                        }
+                    }
+                }
+                Some((t, _)) => {
+                    self.component_depth -= 1;
+                    return Err(Error::syntax_error(
+                        format!("Unexpected token in component body: {:?}", t),
+                        &self.current_span,
+                    ));
+                }
+            }
         }
-        expect_token!(self, Token::GreaterThan, ">")?;
+
+        // Decrement depth at exit
+        self.component_depth -= 1;
 
         start_span.expand(&self.current_span);
         let expr = Expression::ComponentCall(Spanned::new(

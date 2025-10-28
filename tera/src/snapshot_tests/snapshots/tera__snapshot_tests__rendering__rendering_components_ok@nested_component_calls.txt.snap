@@ -1,0 +1,12 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/nested_component_calls.txt
+---
+  <div class="outer">
+    
+  <div class="inner">
+      Inner body content
+    </div>
+
+  </div>

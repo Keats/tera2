@@ -11,7 +11,7 @@ pub struct Template {
     pub(crate) chunk: Chunk,
     /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
-    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
+    pub(crate) components: HashMap<String, (ComponentDefinition, Chunk, Vec<Chunk>)>,
     pub(crate) component_calls: Vec<String>,
     /// Component body chunks compiled separately to execute in component context
     pub(crate) component_body_chunks: Vec<Chunk>,
@@ -56,7 +56,7 @@ impl Template {
         let chunk = body_compiler.chunk;
         let blocks = body_compiler.blocks;
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
-        let mut component_body_chunks = body_compiler.component_body_chunks;
+        let component_body_chunks = body_compiler.component_body_chunks;
         let components = parser_output
             .component_definitions
             .into_iter()
@@ -65,21 +65,11 @@ impl Template {
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
 
-                // Offset the body component indices in the compiled chunk and body chunks
-                let offset = component_body_chunks.len();
-                let mut component_chunk = compiler.chunk;
-                component_chunk.offset_body_component_indices(offset);
+                // Each component keeps its own body chunks (no merging/offsetting needed)
+                let component_chunk = compiler.chunk;
+                let component_body_chunks = compiler.component_body_chunks;
 
-                // Also offset indices in the body chunks themselves
-                let mut body_chunks = compiler.component_body_chunks;
-                for body_chunk in &mut body_chunks {
-                    body_chunk.offset_body_component_indices(offset);
-                }
-
-                // Merge component body chunks from component definitions
-                component_body_chunks.extend(body_chunks);
-
-                (c.name.clone(), (c, component_chunk))
+                (c.name.clone(), (c, component_chunk, component_body_chunks))
             })
             .collect();
         let component_calls = body_compiler

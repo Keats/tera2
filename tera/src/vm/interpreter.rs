@@ -134,7 +134,7 @@ impl<'tera> VirtualMachine<'tera> {
                 let (kwargs, _) = state.stack.pop();
                 let kwargs = kwargs.into_map().expect("to have kwargs");
                 let mut context = Context::new();
-                let (component_def, component_chunk) = &self.tera.components[$name];
+                let (component_def, component_chunk, component_body_chunks) = &self.tera.components[$name];
 
                 for key in kwargs.keys() {
                     if !component_def.kwargs.contains_key(key.as_str().unwrap()) {
@@ -181,9 +181,15 @@ impl<'tera> VirtualMachine<'tera> {
                 }
 
                 // Render component with optional body chunk for lazy evaluation
-                // Pass parent context for body rendering
+                // Determine where to find the body chunk for this component call:
+                // Prefer component_body_chunks (for calls within component definitions)
+                // over caller_body_chunks (for calls within rendered bodies),
+                // fall back to template's body chunks
                 let parent_context = state.context;
-                let val = self.render_component(&component_chunk, context, $body_chunk_idx, Some(parent_context))?;
+                let caller_body_chunks = state.component_body_chunks
+                    .or(state.caller_body_chunks)
+                    .unwrap_or(&self.template.component_body_chunks);
+                let val = self.render_component(&component_chunk, context, $body_chunk_idx, Some(parent_context), caller_body_chunks, component_body_chunks)?;
                 state
                     .stack
                     .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
@@ -201,7 +207,9 @@ impl<'tera> VirtualMachine<'tera> {
                     // Special handling for lazy body rendering in components
                     if n == "body" && state.body_chunk_idx.is_some() {
                         let body_chunk_idx = state.body_chunk_idx.unwrap();
-                        let body_chunk = &self.template.component_body_chunks[body_chunk_idx];
+                        // Use caller's body chunks (where the body was defined)
+                        let body_chunks = state.caller_body_chunks.expect("to have caller body chunks when body_chunk_idx is set");
+                        let body_chunk = &body_chunks[body_chunk_idx];
                         // Create a context that merges parent context and component context
                         let mut body_context = if let Some(parent_ctx) = state.body_parent_context {
                             parent_ctx.clone()
@@ -214,7 +222,9 @@ impl<'tera> VirtualMachine<'tera> {
                         for (key, value) in &state.set_variables {
                             body_context.insert_value(key.clone(), value.clone());
                         }
-                        let body_output = self.render_chunk_in_context(body_chunk, &body_context)?;
+                        // When rendering a body, only pass caller_body_chunks (where the body came from).
+                        // Don't pass component_body_chunks because the body belongs to the caller's context.
+                        let body_output = self.render_chunk_in_context(body_chunk, &body_context, state.caller_body_chunks, None)?;
                         state.stack.push(Value::safe_string(&body_output), span.as_ref().map(Cow::Borrowed));
                     } else {
                         state.load_name(n, span);
@@ -630,7 +640,7 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    fn render_component(&self, chunk: &Chunk, context: Context, body_chunk_idx: Option<usize>, parent_context: Option<&Context>) -> TeraResult<String> {
+    fn render_component(&self, chunk: &Chunk, context: Context, body_chunk_idx: Option<usize>, parent_context: Option<&Context>, caller_body_chunks: &Vec<Chunk>, component_body_chunks: &Vec<Chunk>) -> TeraResult<String> {
         // TODO: need to keep around the filename the component is defined in to fetch it for errors
         let vm = Self {
             tera: self.tera,
@@ -640,19 +650,23 @@ impl<'tera> VirtualMachine<'tera> {
         let mut state = State::new_with_chunk(&context, chunk);
         state.body_chunk_idx = body_chunk_idx;
         state.body_parent_context = parent_context;
+        state.caller_body_chunks = Some(caller_body_chunks);
+        state.component_body_chunks = Some(component_body_chunks);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 
         Ok(String::from_utf8(output)?)
     }
 
-    fn render_chunk_in_context(&self, chunk: &Chunk, context: &Context) -> TeraResult<String> {
+    fn render_chunk_in_context(&self, chunk: &Chunk, context: &Context, caller_body_chunks: Option<&Vec<Chunk>>, component_body_chunks: Option<&Vec<Chunk>>) -> TeraResult<String> {
         let vm = Self {
             tera: self.tera,
             template: self.template,
         };
 
         let mut state = State::new_with_chunk(context, chunk);
+        state.caller_body_chunks = caller_body_chunks;
+        state.component_body_chunks = component_body_chunks;
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 

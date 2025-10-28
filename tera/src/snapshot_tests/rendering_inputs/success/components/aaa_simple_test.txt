@@ -1,0 +1,8 @@
+$$ components
+{% component simple() %}
+  <div>{{body}}</div>
+{% endcomponent simple %}
+$$ tpl
+{% <simple> %}
+  Test content
+{% </simple> %}

@@ -1,4 +1,0 @@
-$$ components
-{% component print(val) %}{{val|safe}}{% endcomponent print %}
-$$ tpl
-{{ <print val={some_html}/> }}

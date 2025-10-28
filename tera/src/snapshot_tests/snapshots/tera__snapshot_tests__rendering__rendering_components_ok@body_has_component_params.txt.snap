@@ -1,0 +1,11 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/body_has_component_params.txt
+---
+  
+  <div>
+  <p>Wrapper param: from_wrapper</p>
+  <p>Wrapper set var: set in wrapper</p>
+  <p>Template context var: Bob</p>
+</div>

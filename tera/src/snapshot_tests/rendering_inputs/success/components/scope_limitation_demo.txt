@@ -1,0 +1,27 @@
+$$ components
+{% component card(title) %}
+  {% set card_id = "card-123" %}
+  {% set card_class = "fancy-card" %}
+  <div id="{{card_id}}" class="{{card_class}}">
+    <h2>{{title}}</h2>
+    <div class="content">
+      {{body}}
+    </div>
+  </div>
+{% endcomponent card %}
+
+$$ tpl
+{# Template sets a variable #}
+{% set page_theme = "dark" %}
+
+{# This body CAN access: #}
+{# 1. Template render context (name) #}
+{# 2. Component parameters (title) #}
+{# 3. Component set variables (card_id, card_class) #}
+{% <card title="My Card"> %}
+  <p>Theme: {{page_theme or "UNDEFINED"}}</p>
+  <p>Title: {{title}}</p>
+  <p>Card ID: {{card_id}}</p>
+  <p>Card Class: {{card_class}}</p>
+  <p>User: {{name}}</p>
+{% </card> %}
