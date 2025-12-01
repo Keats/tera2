@@ -15,7 +15,7 @@ globset = { version = "0.4.14", optional = true }
 # Crates for speedup
 ahash = { version = "0.8", optional = true }
 itoa = { version = "1.0.9", optional = true }
-pulldown-cmark-escape = { version = "0.10", optional = true}
+pulldown-cmark-escape = { version = "0.11", optional = true}
 
 [features]
 default = []
