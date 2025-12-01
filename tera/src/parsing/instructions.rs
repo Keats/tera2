@@ -2,6 +2,7 @@ use crate::utils::Span;
 use crate::value::Value;
 use std::fmt;
 use std::fmt::Formatter;
+use std::ops::RangeInclusive;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Instruction {
@@ -143,6 +144,32 @@ impl Chunk {
             Instruction::CallFunction(s) => s == fn_name,
             _ => false,
         })
+    }
+
+    /// Get the span at the given instruction index
+    pub(crate) fn get_span(&self, idx: u32) -> Option<&Span> {
+        self.instructions
+            .get(idx as usize)
+            .and_then(|(_, span)| span.as_ref())
+    }
+
+    /// Expand a range of span indices into a single Span.
+    /// Takes the start position from the first span and end position from the last span.
+    /// Optimized for the common case where start == end (single instruction).
+    pub(crate) fn expand_span(&self, range: &RangeInclusive<u32>) -> Option<Span> {
+        let start = *range.start();
+        let end = *range.end();
+        let start_span = self.get_span(start)?;
+
+        // Fast path: single instruction, no expansion needed
+        if start == end {
+            return Some(start_span.clone());
+        }
+
+        let end_span = self.get_span(end)?;
+        let mut expanded = start_span.clone();
+        expanded.expand(end_span);
+        Some(expanded)
     }
 }
 
