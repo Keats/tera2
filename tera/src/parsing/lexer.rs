@@ -108,6 +108,8 @@ pub enum Token<'a> {
 
     // Rest
     Dot,
+    QuestionMarkDot,
+    QuestionMarkLeftBracket,
     Comma,
     Colon,
     Bang,
@@ -147,6 +149,8 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::Mod => write!(f, "MOD"),
             Token::Bang => write!(f, "BANG"),
             Token::Dot => write!(f, "DOT"),
+            Token::QuestionMarkDot => write!(f, "QUESTION_MARK_DOT"),
+            Token::QuestionMarkLeftBracket => write!(f, "QUESTION_MARK_LEFT_BRACKET"),
             Token::Comma => write!(f, "COMMA"),
             Token::Colon => write!(f, "COLON"),
             Token::Tilde => write!(f, "TILDE"),
@@ -194,6 +198,8 @@ impl<'a> fmt::Display for Token<'a> {
             Token::Mod => write!(f, "`%`"),
             Token::Bang => write!(f, "`!`"),
             Token::Dot => write!(f, "`.`"),
+            Token::QuestionMarkDot => write!(f, "`?.`"),
+            Token::QuestionMarkLeftBracket => write!(f, "`?[`"),
             Token::Comma => write!(f, "`,`"),
             Token::Colon => write!(f, "`:`"),
             Token::Tilde => write!(f, "`~`"),
@@ -520,6 +526,8 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     Some(b"!=") => Some(Token::NotEqual),
                     Some(b">=") => Some(Token::GreaterThanOrEqual),
                     Some(b"<=") => Some(Token::LessThanOrEqual),
+                    Some(b"?.") => Some(Token::QuestionMarkDot),
+                    Some(b"?[") => Some(Token::QuestionMarkLeftBracket),
                     _ => None,
                 };
                 if let Some(op) = op {

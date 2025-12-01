@@ -137,8 +137,8 @@ fn rendering_realistic_benchmark() {
             std::fs::read_to_string("benches/realistic/index.html").unwrap(),
         ),
         (
-            "macros.html",
-            std::fs::read_to_string("benches/realistic/macros.html").unwrap(),
+            "components.html",
+            std::fs::read_to_string("benches/realistic/components.html").unwrap(),
         ),
         (
             "page.html",

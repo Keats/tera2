@@ -1,6 +1,6 @@
 ---
 source: tera/src/snapshot_tests/rendering.rs
-expression: "&out"
+expression: "&normalized_out"
 ---
 {"name": "Alex", "age": 42, "vip": true}
 name = Alex

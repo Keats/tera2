@@ -1,5 +1,5 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Block, Expression, MacroCall, Node, UnaryOperator};
+use crate::parsing::ast::{BinaryOperator, Block, ComponentCall, Expression, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::value::Value;
 use crate::HashMap;
@@ -14,20 +14,13 @@ enum ProcessingBody {
     Loop(usize),
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct CompiledMacroDefinition {
-    pub name: String,
-    pub kwargs: HashMap<String, Option<Value>>,
-    pub chunk: Chunk,
-}
-
 pub(crate) struct Compiler<'s> {
     pub(crate) chunk: Chunk,
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
-    // We will need the MacroCall later to check if the arguments called actually exist
-    pub(crate) macro_calls: Vec<MacroCall>,
+    // We will need this later to check if the arguments called actually exist/right types
+    pub(crate) component_calls: Vec<ComponentCall>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -36,7 +29,7 @@ impl<'s> Compiler<'s> {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
-            macro_calls: Vec::new(),
+            component_calls: Vec::new(),
             blocks: HashMap::new(),
             source,
             raw_content_num_bytes: 0,
@@ -90,13 +83,22 @@ impl<'s> Compiler<'s> {
             Expression::GetAttr(e) => {
                 let (attr, span) = e.into_parts();
                 self.compile_expr(attr.expr);
-                self.chunk.add(Instruction::LoadAttr(attr.name), Some(span));
+                if attr.optional {
+                    self.chunk
+                        .add(Instruction::LoadAttrOpt(attr.name), Some(span));
+                } else {
+                    self.chunk.add(Instruction::LoadAttr(attr.name), Some(span));
+                }
             }
             Expression::GetItem(e) => {
                 let (item, span) = e.into_parts();
                 self.compile_expr(item.expr);
                 self.compile_expr(item.sub_expr);
-                self.chunk.add(Instruction::BinarySubscript, Some(span));
+                if item.optional {
+                    self.chunk.add(Instruction::BinarySubscriptOpt, Some(span));
+                } else {
+                    self.chunk.add(Instruction::BinarySubscript, Some(span));
+                }
             }
             Expression::Slice(e) => {
                 let (slice, span) = e.into_parts();
@@ -119,7 +121,11 @@ impl<'s> Compiler<'s> {
                     self.chunk.add(Instruction::LoadConst(1.into()), None);
                 }
 
-                self.chunk.add(Instruction::Slice, Some(span));
+                if slice.optional {
+                    self.chunk.add(Instruction::SliceOpt, Some(span));
+                } else {
+                    self.chunk.add(Instruction::Slice, Some(span));
+                }
             }
             Expression::Filter(e) => {
                 let (filter, span) = e.into_parts();
@@ -146,22 +152,33 @@ impl<'s> Compiler<'s> {
                 self.compile_expr(ternary.false_expr);
                 self.end_branch(self.chunk.len());
             }
-            Expression::MacroCall(e) => {
-                let (macro_call, span) = e.into_parts();
-                self.compile_kwargs(macro_call.kwargs.clone());
-                let call_idx =
-                    if let Some(idx) = self.macro_calls.iter().position(|x| {
-                        x.namespace == macro_call.namespace && x.name == macro_call.name
-                    }) {
-                        idx
-                    } else {
-                        let len = self.macro_calls.len();
-                        self.macro_calls.push(macro_call);
-                        len
-                    };
+            Expression::ComponentCall(e) => {
+                let (component_call, span) = e.into_parts();
 
-                self.chunk
-                    .add(Instruction::RenderMacro(call_idx), Some(span));
+                // Record the component call for validation
+                self.component_calls.push(component_call.clone());
+
+                let is_inline = component_call.body.is_empty();
+                if !is_inline {
+                    self.chunk.add(Instruction::Capture, None);
+                    for node in component_call.body {
+                        self.compile_node(node);
+                    }
+                    self.chunk.add(Instruction::EndCapture, None);
+                }
+                self.compile_kwargs(component_call.kwargs.clone());
+
+                if is_inline {
+                    self.chunk.add(
+                        Instruction::RenderInlineComponent(component_call.name),
+                        Some(span),
+                    );
+                } else {
+                    self.chunk.add(
+                        Instruction::RenderBodyComponent(component_call.name),
+                        Some(span),
+                    );
+                }
             }
             Expression::FunctionCall(e) => {
                 let (func, span) = e.into_parts();
@@ -248,11 +265,12 @@ impl<'s> Compiler<'s> {
 
     fn compile_block(&mut self, block: Block) {
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
-        compiler.macro_calls = std::mem::take(&mut self.macro_calls);
+        // TODO: do we need that?
+        compiler.component_calls = std::mem::take(&mut self.component_calls);
         for node in block.body {
             compiler.compile_node(node);
         }
-        self.macro_calls = compiler.macro_calls;
+        self.component_calls = compiler.component_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks);
         self.blocks.insert(block.name.clone(), compiler.chunk);

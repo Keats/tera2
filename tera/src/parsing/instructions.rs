@@ -11,10 +11,16 @@ pub(crate) enum Instruction {
     LoadName(String),
     /// Get the named field of the top stack value (`person.name`)
     LoadAttr(String),
+    /// Safely get the named field of the top stack value (`person.name`)
+    LoadAttrOpt(String),
     /// Handles `a[b]`. `b` is the top stack value, `a` the one before
     BinarySubscript,
+    /// Safely handles `a[b]`. `b` is the top stack value, `a` the one before
+    BinarySubscriptOpt,
     /// Handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
     Slice,
+    /// Safely handles `a[1:2]`, `a[::-1]`, `a[:2]` etc
+    SliceOpt,
     /// Write the raw string given
     WriteText(String),
     /// Writes the value on the top of the stack
@@ -33,8 +39,10 @@ pub(crate) enum Instruction {
     BuildList(usize),
     /// Call the named Tera function
     CallFunction(String),
-    /// Render the macro at the given index in the macro_calls vec
-    RenderMacro(usize),
+    /// Render the given inline component
+    RenderInlineComponent(String),
+    /// Render the given component with body
+    RenderBodyComponent(String),
     /// Apply the given filter
     ApplyFilter(String),
     /// Run the given test

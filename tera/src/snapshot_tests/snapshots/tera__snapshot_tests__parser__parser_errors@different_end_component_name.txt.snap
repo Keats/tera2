@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/different_end_component_name.txt
+---
+ Syntax error --> [different_end_component_name.txt:1:39]
+  |
+1 | {% component hello() %}{% endcomponent hi %}
+  |                                        ^---
+  = component was named `hello` in the opening tag, found `hi` as name in the end tag

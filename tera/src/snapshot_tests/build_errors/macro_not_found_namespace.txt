@@ -1,4 +1,0 @@
-$$ macros
-
-$$ tpl
-{% import "macros" as macros %}{{ macros::test_global() }}

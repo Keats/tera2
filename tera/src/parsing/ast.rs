@@ -1,5 +1,7 @@
-use crate::errors::{Error, TeraResult};
+use crate::errors::Error;
+use std::collections::BTreeMap;
 use std::fmt;
+use std::str::FromStr;
 
 use crate::utils::{Span, Spanned};
 use crate::value::{format_map, Key, Value, ValueInner};
@@ -106,7 +108,7 @@ pub enum Expression {
     Test(Spanned<Test>),
     /// 'a' if truthy else 'b'
     Ternary(Spanned<Ternary>),
-    MacroCall(Spanned<MacroCall>),
+    ComponentCall(Spanned<ComponentCall>),
     FunctionCall(Spanned<FunctionCall>),
     UnaryOperation(Spanned<UnaryOperation>),
     BinaryOperation(Spanned<BinaryOperation>),
@@ -138,7 +140,7 @@ impl Expression {
             Expression::Map(s) => s.span(),
             Expression::Array(s) => s.span(),
             Expression::Test(s) => s.span(),
-            Expression::MacroCall(s) => s.span(),
+            Expression::ComponentCall(s) => s.span(),
             Expression::FunctionCall(s) => s.span(),
             Expression::UnaryOperation(s) => s.span(),
             Expression::BinaryOperation(s) => s.span(),
@@ -157,7 +159,7 @@ impl Expression {
             Expression::Map(s) => s.span_mut().expand(span),
             Expression::Array(s) => s.span_mut().expand(span),
             Expression::Test(s) => s.span_mut().expand(span),
-            Expression::MacroCall(s) => s.span_mut().expand(span),
+            Expression::ComponentCall(s) => s.span_mut().expand(span),
             Expression::FunctionCall(s) => s.span_mut().expand(span),
             Expression::UnaryOperation(s) => s.span_mut().expand(span),
             Expression::BinaryOperation(s) => s.span_mut().expand(span),
@@ -189,7 +191,7 @@ impl fmt::Debug for Expression {
             Map(i) => fmt::Debug::fmt(i, f),
             Array(i) => fmt::Debug::fmt(i, f),
             Test(i) => fmt::Debug::fmt(i, f),
-            MacroCall(i) => fmt::Debug::fmt(i, f),
+            ComponentCall(i) => fmt::Debug::fmt(i, f),
             Filter(i) => fmt::Debug::fmt(i, f),
             FunctionCall(i) => fmt::Debug::fmt(i, f),
             UnaryOperation(i) => fmt::Debug::fmt(i, f),
@@ -245,7 +247,7 @@ impl fmt::Display for Expression {
             Map(i) => write!(f, "{}", **i),
             Array(i) => write!(f, "{}", **i),
             Test(i) => write!(f, "{}", **i),
-            MacroCall(i) => write!(f, "{}", **i),
+            ComponentCall(i) => write!(f, "{}", **i),
             Filter(i) => write!(f, "{}", **i),
             FunctionCall(i) => write!(f, "{}", **i),
             UnaryOperation(i) => write!(f, "{}", **i),
@@ -394,59 +396,16 @@ impl fmt::Display for Test {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct MacroCall {
-    pub namespace: String,
-    /// The filename it's defined in
-    pub filename: Option<String>,
+pub struct ComponentCall {
     pub name: String,
     pub kwargs: HashMap<String, Expression>,
+    pub body: Vec<Node>,
+    pub self_closing: bool,
 }
 
-impl MacroCall {
-    pub fn validate_args_names(
-        &self,
-        tpl_name: &str,
-        kwargs_allowed: &[&String],
-    ) -> TeraResult<()> {
-        let mut kwargs_names = self.kwargs.keys().collect::<Vec<_>>();
-        kwargs_names.sort();
-        let mut allowed = kwargs_allowed
-            .iter()
-            .map(|x| (*x).as_str())
-            .collect::<Vec<_>>();
-        allowed.sort();
-
-        for arg_name in &kwargs_names {
-            if !allowed.contains(&arg_name.as_str()) {
-                return Err(Error::message(format!(
-                    "Template {tpl_name} is calling macro {} \
-                                    with an argument {arg_name} which isn't present in its definition. \
-                                    Only the following are allowed: {}.",
-                    self.name,
-                    allowed.join(", ")
-                )));
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn validate(&self, tpl_name: &str, defs: &[MacroDefinition]) -> TeraResult<()> {
-        if let Some(macro_def) = defs.iter().find(|x| x.name == self.name) {
-            self.validate_args_names(tpl_name, &macro_def.kwargs.keys().collect::<Vec<_>>())
-        } else {
-            Err(Error::macro_not_found(
-                tpl_name,
-                &self.namespace,
-                &self.name,
-            ))
-        }
-    }
-}
-
-impl fmt::Display for MacroCall {
+impl fmt::Display for ComponentCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}::{}", self.namespace, self.name)?;
+        write!(f, "<{}", self.name)?;
         write!(f, "{{",)?;
         let mut keys = self.kwargs.keys().collect::<Vec<_>>();
         keys.sort();
@@ -457,7 +416,22 @@ impl fmt::Display for MacroCall {
                 write!(f, "{}={}, ", k, self.kwargs[*k])?
             }
         }
-        write!(f, "}}",)
+        write!(f, "}}",)?;
+
+        if self.self_closing {
+            write!(f, "/>")?;
+        } else {
+            write!(f, ">")?;
+            write!(f, "[",)?;
+            for node in &self.body {
+                write!(f, "{:?}", node)?;
+            }
+            write!(f, "]",)?;
+
+            write!(f, "<{}/>", self.name)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -518,11 +492,16 @@ impl fmt::Display for Var {
 pub struct GetAttr {
     pub expr: Expression,
     pub name: String,
+    pub optional: bool,
 }
 
 impl fmt::Display for GetAttr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.expr, self.name)
+        if self.optional {
+            write!(f, "{}?.{}", self.expr, self.name)
+        } else {
+            write!(f, "{}.{}", self.expr, self.name)
+        }
     }
 }
 
@@ -533,11 +512,16 @@ pub struct Slice {
     pub start: Option<Expression>,
     pub end: Option<Expression>,
     pub step: Option<Expression>,
+    pub optional: bool,
 }
 
 impl fmt::Display for Slice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[", self.expr)?;
+        if self.optional {
+            write!(f, "{}?[", self.expr)?;
+        } else {
+            write!(f, "{}[", self.expr)?;
+        }
         if let Some(ref expr) = self.start {
             write!(f, "{}", expr)?;
         }
@@ -556,11 +540,16 @@ impl fmt::Display for Slice {
 pub struct GetItem {
     pub expr: Expression,
     pub sub_expr: Expression,
+    pub optional: bool,
 }
 
 impl fmt::Display for GetItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}[{}]", self.expr, self.sub_expr)
+        if self.optional {
+            write!(f, "{}?[{}]", self.expr, self.sub_expr)
+        } else {
+            write!(f, "{}[{}]", self.expr, self.sub_expr)
+        }
     }
 }
 
@@ -616,7 +605,7 @@ pub struct If {
     pub false_body: Vec<Node>,
 }
 
-/// A filter section node `{{ filter name(param="value") }} content {{ endfilter }}`
+/// A filter section node `{% filter name(param="value") %} content {% endfilter %}`
 #[derive(Clone, Debug, PartialEq)]
 pub struct FilterSection {
     pub name: Spanned<String>,
@@ -625,15 +614,99 @@ pub struct FilterSection {
     pub body: Vec<Node>,
 }
 
-/// A Macro definition `{% macro hello() %}...{% endmacro %}`
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Type {
+    String,
+    Bool,
+    Integer,
+    Float,
+    Number,
+    Array,
+    Map,
+}
+
+impl FromStr for Type {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "string" => Ok(Type::String),
+            "bool" => Ok(Type::Bool),
+            "integer" => Ok(Type::Integer),
+            "float" => Ok(Type::Float),
+            "number" => Ok(Type::Number),
+            "array" => Ok(Type::Array),
+            "map" => Ok(Type::Map),
+            _ => Err(Error::message(
+                format!("Found {s} but the only types allowed are: string, bool, integer, float, number, array and map"),
+            )),
+        }
+    }
+}
+
+impl Type {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Type::String => "string",
+            Type::Bool => "bool",
+            Type::Integer => "integer",
+            Type::Float => "float",
+            Type::Number => "number",
+            Type::Array => "array",
+            Type::Map => "map",
+        }
+    }
+
+    #[inline]
+    pub fn matches_value(&self, value: &Value) -> bool {
+        use crate::value::ValueKind;
+        match self {
+            Type::String => value.is_string(),
+            Type::Bool => value.is_bool(),
+            Type::Integer => matches!(
+                value.kind(),
+                ValueKind::I64 | ValueKind::U64 | ValueKind::I128 | ValueKind::U128
+            ),
+            Type::Float => matches!(value.kind(), ValueKind::F64),
+            Type::Number => value.is_number(),
+            Type::Map => value.is_map(),
+            Type::Array => value.is_array(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ComponentArgument {
+    pub default: Option<Value>,
+    pub typ: Option<Type>,
+}
+
+impl ComponentArgument {
+    #[inline]
+    pub fn type_matches(&self, value: &Value) -> bool {
+        self.typ
+            .and_then(|t| Some(t.matches_value(value)))
+            .unwrap_or(true)
+    }
+}
+
+/// A component definition `{% component hello() %}...{% endcomponent %}`
 /// Not present in the AST, we extract them during parsing
-#[derive(Clone, Debug, PartialEq)]
-pub struct MacroDefinition {
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct ComponentDefinition {
     pub name: String,
-    /// The args for that macro: name -> optional default value
+    /// The args for that component: name -> optional default value
     /// Expression for default args can only be literals
-    pub kwargs: HashMap<String, Option<Value>>,
+    pub kwargs: BTreeMap<String, ComponentArgument>,
+    /// Component metadata that you might need at compile time
+    pub metadata: BTreeMap<String, Value>,
     pub body: Vec<Node>,
+}
+
+impl ComponentDefinition {
+    pub fn kwargs_list(&self) -> Vec<&str> {
+        self.kwargs.keys().map(|k| k.as_str()).collect()
+    }
 }
 
 /// A forloop: can be over values or key/values

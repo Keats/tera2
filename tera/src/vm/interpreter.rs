@@ -3,14 +3,12 @@ use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
-use crate::parsing::compiler::CompiledMacroDefinition;
 use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
 
 use crate::args::Kwargs;
-use crate::parsing::ast::MacroCall;
 use crate::vm::state::State;
 use crate::{Context, Tera};
 
@@ -126,6 +124,67 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
+        macro_rules! component {
+            ($name:expr, $span:expr, $has_body:expr) => {{
+                let (kwargs, _) = state.stack.pop();
+                let kwargs = kwargs.into_map().expect("to have kwargs");
+                let mut context = Context::new();
+                let (component_def, component_chunk) = &self.tera.components[$name];
+
+                for key in kwargs.keys() {
+                    if !component_def.kwargs.contains_key(key.as_str().unwrap()) {
+                        let kwargs_list = component_def.kwargs_list();
+                        let kwargs_msg = if kwargs_list.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" Possible argument(s) are: {}",
+                                kwargs_list.iter()
+                                .map(|s| format!("`{}`", s))
+                                .collect::<Vec<_>>()
+                                .join(", "))
+                        };
+                        rendering_error!(format!("Argument `{key}` not found in definition.{kwargs_msg}"), $span)
+                    }
+                }
+
+                for (key, value) in &component_def.kwargs {
+                    match kwargs.get(&Key::Str(key)) {
+                        Some(kwarg_val) => {
+                            if value.type_matches(&kwarg_val) {
+                                context.insert_value(key.clone(), kwarg_val.clone());
+                            } else {
+                                // TODO: we need to pass the span of each element in the map somehow
+                                // so we can point exactly where the issue is
+                                rendering_error!(format!("Component argument `{key}` (type: `{}`) does not match expected type: `{}`", kwarg_val.name(), value.typ.unwrap().as_str()), $span);
+                            }
+                        }
+                        None => match &value.default {
+                            Some(kwarg_val) => {
+                                context.insert_value(key.clone(), kwarg_val.clone());
+                            }
+                            None => {
+                                // Missing argument that doesn't have a default
+                                let typ_msg = if let Some(t) = value.typ.and_then(|t| Some(t.as_str())) {
+                                    format!("(type: `{t}`)")
+                                } else {
+                                    String::new()
+                                };
+                                rendering_error!(format!("Argument `{key}` {typ_msg} missing."), $span)
+                            }
+                        },
+                    }
+                }
+
+                if $has_body {
+                    context.insert_value("body", state.stack.pop().0);
+                }
+                let val = self.render_component(&component_chunk, context)?;
+                state
+                    .stack
+                    .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
+            }};
+        }
+
         while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
             match instr {
                 Instruction::LoadConst(v) => {
@@ -143,6 +202,18 @@ impl<'tera> VirtualMachine<'tera> {
                         .stack
                         .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
                 }
+                Instruction::LoadAttrOpt(attr) => {
+                    let (a, _a_span) = state.stack.pop();
+                    if a.is_undefined() || a.is_null() {
+                        state
+                            .stack
+                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                    } else {
+                        state
+                            .stack
+                            .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
+                    }
+                }
                 Instruction::BinarySubscript => {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
@@ -157,6 +228,25 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), subscript_span);
+                        }
+                    }
+                }
+                Instruction::BinarySubscriptOpt => {
+                    let (subscript, subscript_span) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val.is_undefined() || val.is_null() {
+                        state
+                            .stack
+                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                    } else {
+                        let c_span = expand_span!(val_span, subscript_span);
+                        match val.get_item(subscript) {
+                            Ok(v) => {
+                                state.stack.push(v, Some(c_span));
+                            }
+                            Err(e) => {
+                                rendering_error!(e.to_string(), subscript_span);
+                            }
                         }
                     }
                 }
@@ -178,6 +268,29 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), val_span);
+                        }
+                    }
+                }
+                Instruction::SliceOpt => {
+                    let (step, _) = state.stack.pop();
+                    let (end, _) = state.stack.pop();
+                    let (start, _) = state.stack.pop();
+                    let (val, val_span) = state.stack.pop();
+                    if val.is_undefined() {
+                        state
+                            .stack
+                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                    } else {
+                        // let mut slice_span = expand_span!(val_span, start_span);
+                        // This returns an error if the value is not an array/string so we don't need to
+                        // expand the span.
+                        match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
+                            Ok(v) => {
+                                state.stack.push(v, Some(val_span.unwrap()));
+                            }
+                            Err(e) => {
+                                rendering_error!(e.to_string(), val_span);
+                            }
                         }
                     }
                 }
@@ -216,7 +329,6 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                 }
                 Instruction::Set(name) => {
-                    // TODO: do we need to keep those spans?
                     let (val, _) = state.stack.pop();
                     state.store_local(name, val);
                 }
@@ -328,40 +440,11 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("This test is not registered in Tera"), span)
                     }
                 }
-                Instruction::RenderMacro(idx) => {
-                    let kwargs = state.stack.pop().0.into_map().expect("to have kwargs");
-                    let mut context = Context::new();
-                    // first need to make sure the data in the template makes sense
-                    let curr_template = if self.template.parents.is_empty() {
-                        self.template
-                    } else {
-                        self.tera.get_template(state.current_tpl_name())?
-                    };
-
-                    let compiled_macro_def = &curr_template.macro_calls_def[*idx];
-                    for (key, value) in &compiled_macro_def.kwargs {
-                        match kwargs.get(&Key::Str(key)) {
-                            Some(kwarg_val) => {
-                                context.insert(key.to_string(), kwarg_val);
-                            }
-                            None => match value {
-                                Some(kwarg_val) => {
-                                    context.insert(key.to_string(), kwarg_val);
-                                }
-                                None => todo!("Missing arg macro error"),
-                            },
-                        }
-                    }
-
-                    let val = self.render_macro(
-                        &curr_template.macro_calls[*idx],
-                        compiled_macro_def,
-                        context,
-                    )?;
-
-                    state
-                        .stack
-                        .push_borrowed(Value::safe_string(&val), span.as_ref().unwrap());
+                Instruction::RenderBodyComponent(name) => {
+                    component!(name, span, true);
+                }
+                Instruction::RenderInlineComponent(name) => {
+                    component!(name, span, false);
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
@@ -520,19 +603,14 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    fn render_macro(
-        &self,
-        call: &MacroCall,
-        macro_def: &CompiledMacroDefinition,
-        context: Context,
-    ) -> TeraResult<String> {
-        let tpl = self.tera.get_template(call.filename.as_ref().unwrap())?;
+    fn render_component(&self, chunk: &Chunk, context: Context) -> TeraResult<String> {
+        // TODO: need to keep around the filename the component is defined in to fetch it for errors
         let vm = Self {
             tera: self.tera,
-            template: tpl,
+            template: self.template,
         };
 
-        let mut state = State::new_with_chunk(&context, &macro_def.chunk);
+        let mut state = State::new_with_chunk(&context, chunk);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 

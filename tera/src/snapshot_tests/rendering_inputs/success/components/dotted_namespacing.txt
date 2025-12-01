@@ -1,0 +1,26 @@
+$$ components
+{% component ui.button(label: string, variant: string = "primary") %}
+<button class="btn btn-{{variant}}">{{label}}</button>
+{% endcomponent ui.button %}
+
+{% component forms.input(name: string, label: string, required: bool = false) %}
+<label for="{{name}}">{{label}}{% if required %}*{% endif %}</label>
+<input type="text" name="{{name}}" {% if required %}required{% endif %}>
+{% endcomponent forms.input %}
+
+{% component ui.forms.advanced.widget(title: string) %}
+<div class="advanced-widget">
+  <h3>{{title}}</h3>
+  {{body}}
+</div>
+{% endcomponent ui.forms.advanced.widget %}
+$$ tpl
+<div class="page">
+  {{<ui.button label="Click me" variant="secondary"/>}}
+
+  {{<forms.input name="email" label="Email Address" required={true}/>}}
+
+  {% <ui.forms.advanced.widget title="Advanced Settings"> %}
+    <p>This is advanced content!</p>
+  {% </ui.forms.advanced.widget> %}
+</div>

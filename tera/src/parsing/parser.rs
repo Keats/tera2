@@ -1,11 +1,13 @@
+use std::collections::BTreeMap;
 use std::iter::Peekable;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, Expression, ExpressionMap, Filter, FilterSection,
-    ForLoop, FunctionCall, GetAttr, GetItem, If, Include, MacroCall, MacroDefinition, Map, Set,
-    Slice, Ternary, Test, UnaryOperation, Var,
+    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall, ComponentDefinition,
+    Expression, ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If,
+    Include, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -71,14 +73,14 @@ const RESERVED_NAMES: [&str; 14] = [
 ];
 
 /// This enum is only used to error when some tags are used in places they are not allowed
-/// For example super() outside of a block or a macro definition inside a macro definition
+/// For example super() outside of a block or a component definition inside a component definition
 /// or continue/break in for
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum BodyContext {
     ForLoop,
     Block,
     If,
-    MacroDefinition,
+    ComponentDefinition,
     FilterSection,
 }
 
@@ -94,9 +96,7 @@ pub struct ParserOutput {
     pub(crate) parent: Option<String>,
     // The AST for the body
     pub(crate) nodes: Vec<Node>,
-    pub(crate) macro_definitions: Vec<MacroDefinition>,
-    // (file, namespace)
-    pub(crate) macro_imports: Vec<(String, String)>,
+    pub(crate) component_definitions: Vec<ComponentDefinition>,
 }
 
 pub struct Parser<'a> {
@@ -178,7 +178,12 @@ impl<'a> Parser<'a> {
 
     // Parse something in brackets [..] after an ident or a literal array/map
     fn parse_subscript(&mut self, expr: Expression) -> TeraResult<Expression> {
-        expect_token!(self, Token::LeftBracket, "[")?;
+        let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkLeftBracket, _))));
+        if is_optional {
+            expect_token!(self, Token::QuestionMarkLeftBracket, "?[")?;
+        } else {
+            expect_token!(self, Token::LeftBracket, "[")?;
+        }
         self.num_left_brackets += 1;
         if self.num_left_brackets > MAX_NUM_LEFT_BRACKETS {
             return Err(Error::syntax_error(
@@ -234,6 +239,7 @@ impl<'a> Parser<'a> {
                     start,
                     end,
                     step,
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -242,6 +248,7 @@ impl<'a> Parser<'a> {
                 GetItem {
                     expr,
                     sub_expr: start.expect("to have an expr"),
+                    optional: is_optional,
                 },
                 span,
             ))
@@ -252,10 +259,10 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    /// Can be just an ident or a macro call/fn
+    /// Can be just an ident or a component call/fn
     fn parse_ident(&mut self, ident: &str) -> TeraResult<Expression> {
         let mut start_span = self.current_span.clone();
-        // We might not end up using that one if it's a macro or a fn call
+        // We might not end up using that one if it's a component or a fn call
         let mut expr = Expression::Var(Spanned::new(
             Var {
                 name: ident.to_string(),
@@ -265,8 +272,13 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.next {
-                Some(Ok((Token::Dot, _))) => {
-                    expect_token!(self, Token::Dot, ".")?;
+                Some(Ok((Token::Dot, _))) | Some(Ok((Token::QuestionMarkDot, _))) => {
+                    let is_optional = matches!(self.next, Some(Ok((Token::QuestionMarkDot, _))));
+                    if is_optional {
+                        expect_token!(self, Token::QuestionMarkDot, "?.")?;
+                    } else {
+                        expect_token!(self, Token::Dot, ".")?;
+                    }
                     let (attr, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
                     if ident == "loop" && self.is_in_loop() {
                         let new_name = match attr {
@@ -294,13 +306,14 @@ impl<'a> Parser<'a> {
                             GetAttr {
                                 expr,
                                 name: attr.to_string(),
+                                optional: is_optional,
                             },
                             span.clone(),
                         ));
                     }
                 }
                 // Subscript
-                Some(Ok((Token::LeftBracket, _))) => {
+                Some(Ok((Token::LeftBracket, _)) | Ok((Token::QuestionMarkLeftBracket, _))) => {
                     expr = self.parse_subscript(expr)?;
                 }
                 // Function
@@ -310,27 +323,6 @@ impl<'a> Parser<'a> {
                     expr = Expression::FunctionCall(Spanned::new(
                         FunctionCall {
                             name: ident.to_owned(),
-                            kwargs,
-                        },
-                        start_span,
-                    ));
-                    break;
-                }
-                // Macro calls
-                Some(Ok((Token::Colon, _))) => {
-                    // we expect 2 colons, eg macros::bla()
-                    expect_token!(self, Token::Colon, ":")?;
-                    expect_token!(self, Token::Colon, ":")?;
-                    // Then the macro name
-                    let (macro_name, _) =
-                        expect_token!(self, Token::Ident(id) => id, "identifier")?;
-                    let kwargs = self.parse_kwargs()?;
-                    start_span.expand(&self.current_span);
-                    expr = Expression::MacroCall(Spanned::new(
-                        MacroCall {
-                            name: macro_name.to_string(),
-                            namespace: ident.to_string(),
-                            filename: None,
                             kwargs,
                         },
                         start_span,
@@ -366,6 +358,76 @@ impl<'a> Parser<'a> {
         expect_token!(self, Token::RightParen, ")")?;
 
         Ok(kwargs)
+    }
+
+    fn parse_dotted_component_name(&mut self) -> TeraResult<String> {
+        let (first, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        let mut name = first.to_string();
+
+        while matches!(self.next, Some(Ok((Token::Dot, _)))) {
+            self.next_or_error()?; // consume dot
+            let (part, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            name.push('.');
+            name.push_str(part);
+        }
+
+        Ok(name)
+    }
+
+    fn parse_component_attributes(&mut self) -> TeraResult<HashMap<String, Expression>> {
+        let mut attrs = HashMap::new();
+
+        while matches!(self.next, Some(Ok((Token::Ident(_), _)))) {
+            let (name, name_span) = expect_token!(self, Token::Ident(id) => id, "attribute name")?;
+
+            let value = match &self.next {
+                // Check if there's an assignment
+                Some(Ok((Token::Assign, _))) => {
+                    self.next_or_error()?; // consume '='
+
+                    match self.next.as_ref() {
+                        // If it starts with quotes, it's a string literal
+                        Some(Ok((Token::Str(s), _))) => {
+                            let s_copy = *s;
+                            let span = self.current_span.clone();
+                            self.next_or_error()?;
+                            Expression::Const(Spanned::new(Value::from(s_copy), span))
+                        }
+                        // If it starts with {, parse as expression until matching }
+                        Some(Ok((Token::LeftBrace, _))) => {
+                            self.next_or_error()?; // consume '{'
+                            let expr = self.parse_expression(0)?;
+                            expect_token!(self, Token::RightBrace, "}")?;
+                            expr
+                        }
+                        Some(Ok((token, span))) => {
+                            return Err(Error::syntax_error(
+                                format!("Expected \"string\" or {{expression}} but found {token}"),
+                                span,
+                            ));
+                        }
+                        Some(Err(e)) => {
+                            return Err(Error {
+                                kind: e.kind.clone(),
+                                source: None,
+                            });
+                        }
+                        None => return Err(self.eoi()),
+                    }
+                }
+                // No assignment - shorthand syntax: treat as {attributeName}
+                _ => Expression::Var(Spanned::new(
+                    Var {
+                        name: name.to_string(),
+                    },
+                    name_span,
+                )),
+            };
+
+            attrs.insert(name.to_string(), value);
+        }
+
+        Ok(attrs)
     }
 
     fn parse_filter(&mut self, expr: Expression) -> TeraResult<Expression> {
@@ -554,6 +616,21 @@ impl<'a> Parser<'a> {
                 Expression::UnaryOperation(Spanned::new(UnaryOperation { op, expr }, span.clone()))
             }
             Token::Ident(ident) => self.parse_ident(ident)?,
+            Token::LessThan => {
+                // We've consumed '<', now check if next token is an identifier for component call
+                match &self.next {
+                    Some(Ok((Token::Ident(_), _))) => {
+                        // This looks like an XML component call
+                        self.parse_inline_component_call()?
+                    }
+                    _ => {
+                        return Err(Error::syntax_error(
+                            "Found `<` but expected identifier after it for component call. Use `<` for comparisons in proper context.".to_string(),
+                            &self.current_span,
+                        ));
+                    }
+                }
+            }
             Token::LeftBrace => self.parse_map()?,
             Token::LeftBracket => self.parse_array()?,
             Token::LeftParen => {
@@ -564,7 +641,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::syntax_error(
-                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `{{`, `[` or `(`"),
+                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{{`, `[` or `(`"),
                     &self.current_span,
                 ));
             }
@@ -690,6 +767,107 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
+    fn parse_inline_component_call(&mut self) -> TeraResult<Expression> {
+        let mut start_span = self.current_span.clone();
+        // The '<' token was already consumed in inner_parse_expression,
+        // so the next token should be the component name
+        let name = self.parse_dotted_component_name()?;
+
+        // Parse attributes: name="string" or name={expression}
+        let kwargs = self.parse_component_attributes()?;
+
+        // Check for self-closing '/>' or opening '>'
+        let is_self_closing = match &self.next {
+            Some(Ok((Token::Div, _))) => {
+                self.next_or_error()?; // consume '/'
+                expect_token!(self, Token::GreaterThan, ">")?;
+                true
+            }
+            Some(Ok((Token::GreaterThan, _))) => {
+                self.next_or_error()?; // consume '>'
+                false
+            }
+            Some(Ok((token, _))) => {
+                return Err(Error::syntax_error(
+                    format!("Found {token} but expected `/` or `>`"),
+                    &self.current_span,
+                ));
+            }
+            Some(Err(e)) => {
+                return Err(Error {
+                    kind: e.kind.clone(),
+                    source: None,
+                })
+            }
+            None => return Err(self.eoi()),
+        };
+
+        let body = Vec::new();
+
+        if !is_self_closing {
+            // In variable context {{ }}, only self-closing components are allowed
+            return Err(Error::syntax_error(
+                "Components with body content must use tag syntax: {% <component()> %}...{% </component> %}".to_string(),
+                &self.current_span,
+            ));
+        }
+
+        start_span.expand(&self.current_span);
+        let expr = Expression::ComponentCall(Spanned::new(
+            ComponentCall {
+                name: name.to_string(),
+                kwargs,
+                body,
+                self_closing: true,
+            },
+            start_span,
+        ));
+        Ok(expr)
+    }
+
+    fn parse_component_with_body(&mut self) -> TeraResult<Expression> {
+        let mut start_span = self.current_span.clone();
+        // The '<' token was already consumed in parse_tag,
+        // so the next token should be the component name
+        let name = self.parse_dotted_component_name()?;
+
+        // Parse attributes: name="string" or name={expression}
+        let kwargs = self.parse_component_attributes()?;
+
+        // Expect '>' (no self-closing allowed in tag context)
+        expect_token!(self, Token::GreaterThan, ">")?;
+
+        // Close the opening tag
+        expect_token!(self, Token::TagEnd(..), "%}")?;
+
+        // Parse body content until {% </component> %}
+        let body = self.parse_until(|tok| matches!(tok, Token::LessThan))?;
+
+        // Parse the closing tag: </component>
+        expect_token!(self, Token::LessThan, "<")?;
+        expect_token!(self, Token::Div, "/")?;
+        let end_name = self.parse_dotted_component_name()?;
+        if end_name != name {
+            return Err(Error::syntax_error(
+                format!("Closing tag '{end_name}' doesn't match opening tag '{name}'"),
+                &self.current_span,
+            ));
+        }
+        expect_token!(self, Token::GreaterThan, ">")?;
+
+        start_span.expand(&self.current_span);
+        let expr = Expression::ComponentCall(Spanned::new(
+            ComponentCall {
+                name: name.to_string(),
+                kwargs,
+                body,
+                self_closing: false,
+            },
+            start_span,
+        ));
+        Ok(expr)
+    }
+
     fn parse_expression(&mut self, min_bp: u8) -> TeraResult<Expression> {
         self.num_expr_calls = 0;
         self.inner_parse_expression(min_bp)
@@ -775,18 +953,35 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_macro_definition(&mut self) -> TeraResult<MacroDefinition> {
+    fn parse_literal_map(&mut self, context: &str) -> TeraResult<Value> {
+        expect_token!(self, Token::LeftBrace, "{")?;
+        let map = self.parse_map()?;
+        if let Some(val) = map.as_value() {
+            Ok(val)
+        } else {
+            Err(Error::syntax_error(
+                format!("Invalid {context}: this map should only contain literal values."),
+                map.span(),
+            ))
+        }
+    }
+
+    fn parse_component_definition(&mut self) -> TeraResult<ComponentDefinition> {
         if !self.body_contexts.is_empty() {
             return Err(Error::syntax_error(
-                "Macro definitions cannot be written in another tag.".to_string(),
+                "Component definitions cannot be written in another tag.".to_string(),
                 &self.current_span,
             ));
         }
-
-        self.body_contexts.push(BodyContext::MacroDefinition);
-        let (name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+        self.body_contexts.push(BodyContext::ComponentDefinition);
+        let name = self.parse_dotted_component_name()?;
         expect_token!(self, Token::LeftParen, "(")?;
-        let mut kwargs = HashMap::new();
+        let mut kwargs = BTreeMap::new();
+
+        let mut component_def = ComponentDefinition {
+            name: name.to_string(),
+            ..Default::default()
+        };
 
         loop {
             if matches!(self.next, Some(Ok((Token::RightParen, _)))) {
@@ -795,90 +990,114 @@ impl<'a> Parser<'a> {
             }
 
             let (arg_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
-            kwargs.insert(arg_name.to_string(), None);
-            match self.next {
-                Some(Ok((Token::Assign, _))) => {
-                    self.next_or_error()?;
+            let mut kwarg = ComponentArgument::default();
 
-                    let (val, eat_next) = match &self.next {
-                        Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
-                        Some(Ok((Token::LeftBracket, _))) => {
-                            expect_token!(self, Token::LeftBracket, "[")?;
-                            let array = self.parse_array()?;
-                            if let Some(val) = array.as_value() {
-                                (val, false)
-                            } else {
-                                return Err(Error::syntax_error(
-                                    "Invalid default argument: this array should only contain literal values.".to_string(),
-                                    array.span(),
-                                ));
-                            }
-                        }
-                        Some(Ok((Token::LeftBrace, _))) => {
-                            expect_token!(self, Token::LeftBrace, "{")?;
-                            let map = self.parse_map()?;
-                            if let Some(val) = map.as_value() {
-                                (val, false)
-                            } else {
-                                return Err(Error::syntax_error(
-                                    "Invalid default argument: this map should only contain literal values.".to_string(),
-                                    map.span(),
-                                ));
-                            }
-                        }
-                        Some(Ok((token, span))) => {
+            // First a potential type
+            if let Some(Ok((Token::Colon, _))) = self.next {
+                self.next_or_error()?;
+                match &self.next {
+                    Some(Ok((Token::Ident(type_str), span))) => {
+                        let typ = Type::from_str(type_str)
+                            .map_err(|e| Error::syntax_error(format!("{e}"), span))?;
+                        self.next_or_error()?;
+                        kwarg.typ = Some(typ);
+                    }
+                    Some(Ok((token, span))) => {
+                        return Err(Error::syntax_error(
+                            format!("Found {token} but the only types allowed are: string, bool, integer, float, number, array and map"),
+                            span,
+                        ));
+                    }
+                    Some(Err(e)) => {
+                        return Err(Error {
+                            kind: e.kind.clone(),
+                            source: None,
+                        });
+                    }
+                    None => return Err(self.eoi()),
+                }
+            }
+
+            // Then a potential default value
+            if let Some(Ok((Token::Assign, _))) = self.next {
+                self.next_or_error()?;
+
+                let (val, eat_next) = match &self.next {
+                    Some(Ok((Token::Bool(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::LeftBracket, _))) => {
+                        expect_token!(self, Token::LeftBracket, "[")?;
+                        let array = self.parse_array()?;
+                        if let Some(val) = array.as_value() {
+                            (val, false)
+                        } else {
                             return Err(Error::syntax_error(
-                                format!("Found {token} but macro default arguments can only be one of: string, bool, integer, float, array or map"),
-                                span,
+                                "Invalid default argument: this array should only contain literal values.".to_string(),
+                                array.span(),
                             ));
                         }
-                        Some(Err(e)) => {
-                            return Err(Error {
-                                kind: e.kind.clone(),
-                                source: None,
-                            });
-                        }
-                        None => return Err(self.eoi()),
-                    };
-                    if eat_next {
-                        self.next_or_error()?;
                     }
-
-                    kwargs.insert(arg_name.to_string(), Some(val));
-
-                    if matches!(self.next, Some(Ok((Token::Comma, _)))) {
-                        self.next_or_error()?;
-                        continue;
+                    Some(Ok((Token::LeftBrace, _))) => {
+                        (self.parse_literal_map("default argument")?, false)
                     }
-                }
-                Some(Ok((Token::Comma, _))) => {
+                    Some(Ok((token, span))) => {
+                        return Err(Error::syntax_error(
+                            format!("Found {token} but component default arguments can only be one of: string, bool, integer, float, array or map"),
+                            span,
+                        ));
+                    }
+                    Some(Err(e)) => {
+                        return Err(Error {
+                            kind: e.kind.clone(),
+                            source: None,
+                        });
+                    }
+                    None => return Err(self.eoi()),
+                };
+                if eat_next {
                     self.next_or_error()?;
                 }
-                _ => continue,
+
+                kwarg.default = Some(val);
+            }
+
+            // And finally maybe a comma
+            if let Some(Ok((Token::Comma, _))) = self.next {
+                self.next_or_error()?;
+            }
+
+            kwargs.insert(arg_name.to_string(), kwarg);
+        }
+        component_def.kwargs = kwargs;
+
+        // Then we potentially have a metadata map
+        if let Some(Ok((Token::LeftBrace, _))) = self.next {
+            let map = self.parse_literal_map("component metadata")?;
+            for (key, value) in map.as_map().unwrap() {
+                component_def
+                    .metadata
+                    .insert(key.to_string(), value.clone());
             }
         }
 
         expect_token!(self, Token::TagEnd(..), "%}")?;
-        let body = self.parse_until(|tok| matches!(tok, Token::Ident("endmacro")))?;
+
+        let body = self.parse_until(|tok| matches!(tok, Token::Ident("endcomponent")))?;
         self.next_or_error()?;
 
         if matches!(self.next, Some(Ok((Token::Ident(..), _)))) {
-            let (end_name, _) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+            let end_name = self.parse_dotted_component_name()?;
             if name != end_name {
-                return Err(self.different_name_end_tag(name, end_name, "macro"));
+                return Err(self.different_name_end_tag(&name, &end_name, "component"));
             }
         }
 
         self.body_contexts.pop();
+        component_def.body = body;
 
-        Ok(MacroDefinition {
-            name: name.to_string(),
-            kwargs,
-            body,
-        })
+        Ok(component_def)
     }
 
     fn parse_set(&mut self, global: bool) -> TeraResult<Node> {
@@ -961,7 +1180,7 @@ impl<'a> Parser<'a> {
                 }
                 if !is_first_node {
                     return Err(Error::syntax_error(
-                        "`extends` needs to be the first tag of the template, with the exception of macro imports that are allowed before.".to_string(),
+                        "`extends` needs to be the first tag of the template".to_string(),
                         &self.current_span,
                     ));
                 }
@@ -1041,29 +1260,9 @@ impl<'a> Parser<'a> {
                     body,
                 })))
             }
-            Token::Ident("macro") => {
-                let macro_def = self.parse_macro_definition()?;
-                self.output.macro_definitions.push(macro_def);
-                Ok(None)
-            }
-            Token::Ident("import") => {
-                // {% import 'macros.html' as macros %}
-                let (filename, _) = expect_token!(self, Token::Str(s) => s, "string")?;
-                expect_token!(self, Token::Ident("as"), "as")?;
-                let (namespace, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
-
-                for (_, namespace2) in &self.output.macro_imports {
-                    if namespace == namespace2 {
-                        return Err(Error::syntax_error(
-                            format!("Multiple macros imports using the `{namespace}` namespace"),
-                            &self.current_span,
-                        ));
-                    }
-                }
-                self.output
-                    .macro_imports
-                    .push((filename.to_string(), namespace.to_string()));
-
+            Token::Ident("component") => {
+                let component_def = self.parse_component_definition()?;
+                self.output.component_definitions.push(component_def);
                 Ok(None)
             }
             Token::Ident("break") | Token::Ident("continue") => {
@@ -1083,6 +1282,21 @@ impl<'a> Parser<'a> {
                 } else {
                     Node::Continue
                 }))
+            }
+            Token::LessThan => {
+                // Handle React-like component calls in tag context: {% <component()> %}...{% </component> %}
+                match &self.next {
+                    Some(Ok((Token::Ident(_), _))) => {
+                        // This looks like an XML component call
+                        let component_expr = self.parse_component_with_body()?;
+                        Ok(Some(Node::Expression(component_expr)))
+                    }
+                    _ => Err(Error::syntax_error(
+                        "Found `<` but expected identifier after it for XML component call."
+                            .to_string(),
+                        &self.current_span,
+                    )),
+                }
             }
             _ => Err(Error::syntax_error(
                 "Unknown tag".to_string(),

@@ -1,3 +1,0 @@
-{% for v in array %}
-{% macro popup() -%} hello {%- endmacro %}
-{% endfor %}

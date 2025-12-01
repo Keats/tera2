@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_operator.txt
   |
 1 | {{ / }}
   |    ^---
-  = Found `/` but expected one of: integer, float, string, bool, ident, `-`, `not`, `{`, `[` or `(`
+  = Found `/` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
