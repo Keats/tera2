@@ -75,7 +75,7 @@ impl<'t> State<'t> {
     /// 3. self.context
     /// 4. return Value::Undefined
     pub(crate) fn get(&self, name: &str) -> Value {
-        for forloop in &self.for_loops {
+        for forloop in self.for_loops.iter().rev() {
             if let Some(v) = forloop.get(name) {
                 return v;
             }
