@@ -8,7 +8,7 @@ input_file: tera/src/snapshot_tests/compiler_inputs/success/ternary.txt
 0001 LoadConst(I64(18))
 0002 GreaterThanOrEqual
 0003 PopJumpIfFalse(6)
-0004 LoadConst(String("majeur", Normal))
+0004 LoadConst(String("majeur"))
 0005 Jump(7)
-0006 LoadConst(String("mineur", Normal))
+0006 LoadConst(String("mineur"))
 0007 WriteTop

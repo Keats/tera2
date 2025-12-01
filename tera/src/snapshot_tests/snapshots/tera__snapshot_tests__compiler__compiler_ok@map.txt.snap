@@ -6,7 +6,7 @@ input_file: tera/src/snapshot_tests/compiler_inputs/success/map.txt
 === map.txt ===
 0000 LoadConst(Map({String("hello"): I64(0)}))
 0001 WriteTop
-0002 LoadConst(String("hello", Normal))
+0002 LoadConst(String("hello"))
 0003 LoadName("data")
 0004 BuildMap(1)
 0005 WriteTop

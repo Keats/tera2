@@ -29,7 +29,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
             ValueInner::I128(v) => visitor.visit_i128(*v),
             ValueInner::U128(v) => visitor.visit_u128(*v),
             ValueInner::F64(v) => visitor.visit_f64(v),
-            ValueInner::String(v, _) => visitor.visit_str(v.as_str()),
+            ValueInner::String(v) => visitor.visit_str(v.as_str()),
             ValueInner::Bytes(v) => visitor.visit_bytes(&v),
             ValueInner::Undefined | ValueInner::Null => visitor.visit_unit(),
             ValueInner::Array(v) => visitor.visit_seq(de::value::SeqDeserializer::new(
@@ -76,7 +76,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
                     ));
                 }
             }
-            ValueInner::String(_, _) => (self.value.clone(), None),
+            ValueInner::String(_) => (self.value.clone(), None),
             _ => {
                 return Err(de::Error::invalid_type(
                     Unexpected::Other(self.value.name()),

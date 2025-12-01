@@ -182,7 +182,7 @@ impl fmt::Debug for Expression {
                 ValueInner::Bool(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 ValueInner::I64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
                 ValueInner::F64(j) => fmt::Debug::fmt(&Spanned::new(*j, i.span().clone()), f),
-                ValueInner::String(j, _) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
+                ValueInner::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 ValueInner::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 ValueInner::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 ValueInner::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
@@ -211,7 +211,7 @@ impl fmt::Display for Expression {
 
         match self {
             Const(i) => match &i.node().inner {
-                ValueInner::String(s, _) => write!(f, "'{}'", *s),
+                ValueInner::String(s) => write!(f, "'{}'", *s),
                 ValueInner::I64(s) => write!(f, "{}", *s),
                 ValueInner::F64(s) => write!(f, "{}", *s),
                 ValueInner::U64(s) => write!(f, "{}", *s),
@@ -225,7 +225,7 @@ impl fmt::Display for Expression {
                             write!(f, ", ")?;
                         }
                         match &elem.inner {
-                            ValueInner::String(t, _) => write!(f, r#""{t}""#),
+                            ValueInner::String(t) => write!(f, r#""{t}""#),
                             _ => write!(f, "{elem}"),
                         }?;
                     }
