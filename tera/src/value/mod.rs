@@ -125,10 +125,10 @@ impl SmartString {
         }
     }
 
-    pub(crate) fn with_kind(self, kind: StringKind) -> Self {
+    pub(crate) fn mark_safe(self) -> Self {
         match self {
-            Self::Small { len, data, .. } => Self::Small { len, kind, data },
-            Self::Large(s, _) => Self::Large(s, kind),
+            Self::Small { len, data, .. } => Self::Small { len, kind: StringKind::Safe, data },
+            Self::Large(s, _) => Self::Large(s, StringKind::Safe),
         }
     }
 
@@ -504,7 +504,7 @@ impl Value {
     pub fn mark_safe(self) -> Self {
         match self.inner {
             ValueInner::String(s) => Value {
-                inner: ValueInner::String(s.with_kind(StringKind::Safe)),
+                inner: ValueInner::String(s.mark_safe()),
             },
             _ => self,
         }

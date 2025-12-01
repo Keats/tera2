@@ -146,7 +146,6 @@ impl Chunk {
         })
     }
 
-    /// Get the span at the given instruction index
     pub(crate) fn get_span(&self, idx: u32) -> Option<&Span> {
         self.instructions
             .get(idx as usize)
@@ -155,7 +154,6 @@ impl Chunk {
 
     /// Expand a range of span indices into a single Span.
     /// Takes the start position from the first span and end position from the last span.
-    /// Optimized for the common case where start == end (single instruction).
     pub(crate) fn expand_span(&self, range: &RangeInclusive<u32>) -> Option<Span> {
         let start = *range.start();
         let end = *range.end();
