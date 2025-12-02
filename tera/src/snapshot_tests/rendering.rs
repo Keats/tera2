@@ -212,7 +212,7 @@ fn can_iterate_on_graphemes() {
     tera.add_raw_template("tpl", tpl).unwrap();
     let mut context = Context::default();
     // s.chars() would give ['न', 'म', 'स', '्', 'त', 'े']
-    // graphemes are ["न", "म", "स्", "ते"]
+    // graphemes per UAX #29 are ["न", "म", "स्ते"]
     context.insert("string", "नमस्ते");
     let out = tera.render("tpl", &context).unwrap();
     let normalized_out = normalize_line_endings(&out);

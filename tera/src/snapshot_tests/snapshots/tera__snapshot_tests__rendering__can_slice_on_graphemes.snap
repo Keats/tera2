@@ -1,7 +1,7 @@
 ---
 source: tera/src/snapshot_tests/rendering.rs
-expression: "&out"
+expression: "&normalized_out"
 ---
-तेस्मन
+स्तेमन
 मस्ते
-नमस्
+नम

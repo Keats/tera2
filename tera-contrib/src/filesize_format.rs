@@ -1,4 +1,4 @@
-use tera::{Kwargs, Number, State, Value};
+use tera::{Kwargs, State};
 
 /// Formats a number of bytes into a human-readable file size string.
 /// Uses binary units (KiB, MiB, GiB, etc.) by default.

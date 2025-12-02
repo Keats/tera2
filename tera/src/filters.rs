@@ -191,11 +191,12 @@ pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Strin
 
     #[cfg(feature = "unicode")]
     {
-        let graphemes = unic_segment::GraphemeIndices::new(&val).collect::<Vec<(usize, &str)>>();
+        use unicode_segmentation::UnicodeSegmentation;
+        let graphemes = val.grapheme_indices(true).collect::<Vec<(usize, &str)>>();
         if length >= graphemes.len() {
             return Ok(val.to_string());
         }
-        Ok(val[..graphemes[length].0].to_string() + &end)
+        Ok(val[..graphemes[length].0].to_string() + end)
     }
 
     #[cfg(not(feature = "unicode"))]

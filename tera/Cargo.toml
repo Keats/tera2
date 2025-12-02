@@ -8,7 +8,7 @@ serde = "1"
 
 # Optional deps
 indexmap = { version = "2", optional = true }
-unic-segment = { version = "0.9", optional = true }
+unicode-segmentation = { version = "1.12", optional = true }
 walkdir = { version = "2.5.0", optional = true }
 globset = { version = "0.4.14", optional = true }
 
@@ -24,7 +24,7 @@ fast_hash = ["dep:ahash", "ahash?/serde"]
 # Keep order of insertion for Value
 preserve_order = ["dep:indexmap"]
 # If we want Tera to work with graphemes clusters rather than utf-8 characters when iterating on strings
-unicode = ["dep:unic-segment"]
+unicode = ["dep:unicode-segmentation"]
 # Use itoa to format numbers (instead of std::fmt)
 no_fmt = ["dep:itoa"]
 # Use a faster HTML escape than the default one

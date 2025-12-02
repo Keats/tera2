@@ -8,6 +8,9 @@ use std::sync::Arc;
 
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
+#[cfg(feature = "unicode")]
+use unicode_segmentation::UnicodeSegmentation;
+
 mod de;
 mod key;
 pub(crate) mod number;
@@ -795,7 +798,7 @@ impl Value {
                 let mut out = Vec::with_capacity(s.len());
 
                 #[cfg(feature = "unicode")]
-                let mut input: Vec<&str> = unic_segment::Graphemes::new(s.as_str()).collect();
+                let mut input: Vec<&str> = s.as_str().graphemes(true).collect();
                 #[cfg(not(feature = "unicode"))]
                 let mut input: Vec<char> = s.as_str().chars().collect();
 

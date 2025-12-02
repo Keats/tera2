@@ -1,8 +1,7 @@
 ---
 source: tera/src/snapshot_tests/rendering.rs
-expression: "&out"
+expression: "&normalized_out"
 ---
 1.न
 2.म
-3.स्
-4.ते
+3.स्ते
