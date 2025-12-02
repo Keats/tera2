@@ -64,7 +64,7 @@ impl<'tera> VirtualMachine<'tera> {
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error");
+                err.generate_report(name, source, "Rendering error", None);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
             // Variant for fused instructions that takes a direct span
@@ -78,7 +78,7 @@ impl<'tera> VirtualMachine<'tera> {
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error");
+                err.generate_report(name, source, "Rendering error", None);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
         }

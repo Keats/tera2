@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/multiple_unary_operator.txt
 ---
+Failed to parse 'multiple_unary_operator.txt'
+
  Syntax error --> [multiple_unary_operator.txt:1:4]
   |
 1 | {{ -- 1}}

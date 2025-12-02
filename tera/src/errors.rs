@@ -23,8 +23,14 @@ impl ReportError {
     }
 
     // TODO: clean up so we don't need err_type
-    pub fn generate_report(&mut self, filename: &str, source: &str, err_type: &str) {
-        self.report = generate_report(self, filename, source, err_type);
+    pub fn generate_report(
+        &mut self,
+        filename: &str,
+        source: &str,
+        err_type: &str,
+        title: Option<&str>,
+    ) {
+        self.report = generate_report(self, filename, source, err_type, title);
     }
 
     pub fn unexpected_end_of_input(span: &Span) -> Self {

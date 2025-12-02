@@ -337,7 +337,7 @@ impl Tera {
                     for span in spans {
                         let mut err =
                             ReportError::new(format!("Unknown component `{component}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -346,7 +346,7 @@ impl Tera {
                 if !self.filters.contains_key(filter.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown filter `{filter}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -355,7 +355,7 @@ impl Tera {
                 if !self.tests.contains_key(test.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown test `{test}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -364,7 +364,7 @@ impl Tera {
                 if func != "super" && !self.functions.contains_key(func.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown function `{func}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -436,10 +436,7 @@ impl Tera {
     /// tera.add_raw_template("new.html", "Blabla").unwrap();
     /// ```
     pub fn add_raw_template(&mut self, name: &str, content: &str) -> TeraResult<()> {
-        let template = Template::new(name, content, None)
-            // TODO: need to format the error message with source context
-            .map_err(|e| Error::chain(format!("Failed to parse '{}'", name), e))?;
-
+        let template = Template::new(name, content, None)?;
         self.templates.insert(name.to_string(), template);
         self.finalize_templates()?;
         Ok(())
@@ -463,10 +460,7 @@ impl Tera {
         C: AsRef<str>,
     {
         for (name, content) in templates {
-            let template = Template::new(name.as_ref(), content.as_ref(), None)
-                // TODO: need to format the error message with source context
-                .map_err(|e| Error::chain(format!("Failed to parse '{}'", name.as_ref()), e))?;
-
+            let template = Template::new(name.as_ref(), content.as_ref(), None)?;
             self.templates.insert(name.as_ref().to_string(), template);
         }
 
@@ -489,9 +483,7 @@ impl Tera {
         f.read_to_string(&mut content)
             .map_err(|e| Error::chain(format!("Failed to read template '{:?}'", path), e))?;
 
-        let template = Template::new(tpl_name, &content, Some(path.to_str().unwrap().to_string()))
-            // TODO: need to format the error message with source context
-            .map_err(|e| Error::chain(format!("Failed to parse '{}'", tpl_name), e))?;
+        let template = Template::new(tpl_name, &content, Some(path.to_str().unwrap().to_string()))?;
 
         self.templates.insert(tpl_name.to_string(), template);
         Ok(())
