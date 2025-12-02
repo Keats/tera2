@@ -563,6 +563,15 @@ impl Value {
         }
     }
 
+    pub(crate) fn into_vec(self) -> Option<Vec<Value>> {
+        match self.inner {
+            ValueInner::Array(arc) => {
+                Some(Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone()))
+            }
+            _ => None,
+        }
+    }
+
     /// Returns the Value at the given path, or Undefined if there's nothing there.
     pub fn get_from_path(&self, path: &str) -> Value {
         if matches!(&self.inner, ValueInner::Undefined | ValueInner::Null) {

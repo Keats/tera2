@@ -569,7 +569,36 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::Div => math_binop!(div),
                 Instruction::FloorDiv => math_binop!(floor_div),
                 Instruction::Mod => math_binop!(rem),
-                Instruction::Plus => math_binop!(add),
+                Instruction::Plus => {
+                    let (b, b_span) = state.stack.pop();
+                    let (a, a_span) = state.stack.pop();
+                    let c_span = combine_spans(&a_span, &b_span);
+
+                    // Both arrays: concatenate
+                    if a.is_array() && b.is_array() {
+                        let mut result = a.into_vec().unwrap();
+                        result.extend(b.into_vec().unwrap());
+                        state.stack.push(Value::from(result), c_span);
+                    }
+                    // Both numbers: add
+                    else if a.is_number() && b.is_number() {
+                        match crate::value::number::add(&a, &b) {
+                            Ok(c) => state.stack.push(c, c_span),
+                            Err(e) => rendering_error!(e.to_string(), c_span),
+                        }
+                    }
+                    // Type mismatch: error
+                    else {
+                        rendering_error!(
+                            format!(
+                                "`+` requires operands to be both numbers or arrays, found `{}` and `{}`",
+                                a.name(),
+                                b.name()
+                            ),
+                            c_span
+                        );
+                    }
+                }
                 Instruction::Minus => math_binop!(sub),
                 Instruction::Power => math_binop!(pow),
                 Instruction::LessThan => op_binop!(<),
