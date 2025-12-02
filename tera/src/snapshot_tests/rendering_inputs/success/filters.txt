@@ -55,3 +55,4 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "hello" | truncate(length=255) }}
 {{ "hello" | truncate(length=2) }}
 {{ "hello" | truncate(length=2, end="^") }}
+wordcount: {{ "one\ntwo\nthree" | wordcount }}

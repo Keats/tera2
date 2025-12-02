@@ -222,6 +222,7 @@ impl Tera {
         self.register_filter("default", crate::filters::default);
         self.register_filter("upper", crate::filters::upper);
         self.register_filter("lower", crate::filters::lower);
+        self.register_filter("wordcount", crate::filters::wordcount);
         self.register_filter("trim", crate::filters::trim);
         self.register_filter("trim_start", crate::filters::trim_start);
         self.register_filter("trim_end", crate::filters::trim_end);

@@ -78,6 +78,10 @@ pub(crate) fn lower(val: &str, _: Kwargs, _: &State) -> String {
     val.to_lowercase()
 }
 
+pub(crate) fn wordcount(val: &str, _: Kwargs, _: &State) -> usize {
+    val.split_whitespace().count()
+}
+
 pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val
