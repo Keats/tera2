@@ -1,6 +1,7 @@
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::{Chunk, Compiler};
+use crate::utils::Span;
 use crate::{HashMap, Parser};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -12,7 +13,10 @@ pub struct Template {
     /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
-    pub(crate) component_calls: Vec<String>,
+    pub(crate) component_calls: HashMap<String, Vec<Span>>,
+    pub(crate) filter_calls: HashMap<String, Vec<Span>>,
+    pub(crate) test_calls: HashMap<String, Vec<Span>>,
+    pub(crate) function_calls: HashMap<String, Vec<Span>>,
     /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
@@ -67,7 +71,11 @@ impl Template {
 
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
 
-        // Optimize component chunks
+        // Optimize component chunks and collect their filter/test/function calls
+        let mut filter_calls = body_compiler.filter_calls;
+        let mut test_calls = body_compiler.test_calls;
+        let mut function_calls = body_compiler.function_calls;
+
         let components = parser_output
             .component_definitions
             .into_iter()
@@ -75,16 +83,22 @@ impl Template {
                 let mut compiler = Compiler::new(tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
+                // Collect filter/test/function calls from component body
+                for (name, spans) in compiler.filter_calls {
+                    filter_calls.entry(name).or_default().extend(spans);
+                }
+                for (name, spans) in compiler.test_calls {
+                    test_calls.entry(name).or_default().extend(spans);
+                }
+                for (name, spans) in compiler.function_calls {
+                    function_calls.entry(name).or_default().extend(spans);
+                }
                 let mut chunk = compiler.chunk;
                 chunk.optimize();
                 (c.name.clone(), (c, chunk))
             })
             .collect();
-        let component_calls = body_compiler
-            .component_calls
-            .into_iter()
-            .map(|c| c.name)
-            .collect();
+        let component_calls = body_compiler.component_calls;
 
         Ok(Self {
             name: tpl_name.to_string(),
@@ -96,6 +110,9 @@ impl Template {
             parents,
             components,
             component_calls,
+            filter_calls,
+            test_calls,
+            function_calls,
             block_lineage: HashMap::new(),
             from_extend: false,
             autoescape_enabled: true,

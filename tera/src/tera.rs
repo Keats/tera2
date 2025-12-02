@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use crate::args::ArgFromValue;
-use crate::errors::{Error, TeraResult};
+use crate::errors::{Error, ReportError, TeraResult};
 use crate::filters::{Filter, StoredFilter};
 use crate::functions::{Function, StoredFunction};
 use crate::template::{find_parents, Template};
@@ -90,9 +90,9 @@ impl Tera {
             self.load_from_glob(&glob)?;
             self.finalize_templates()
         } else {
-            return Err(Error::message(
+            Err(Error::message(
                 "Reloading is only available if you are using a glob",
-            ));
+            ))
         }
     }
 
@@ -325,16 +325,49 @@ impl Tera {
             tpl_size_hint.insert(name.clone(), size_hint);
         }
 
-        // 2nd loop: we check whether all called components are defined
+        // 2nd loop: we check whether all called components/filters/tests/functions are defined
         // as well as finding each block lineage
         let mut tpl_blocks: HashMap<String, HashMap<String, Vec<Chunk>>> =
             HashMap::with_capacity(self.templates.len());
+        // Collect errors with their location for sorting
+        let mut errors: Vec<(&str, usize, String)> = Vec::new();
+
         for (name, tpl) in &self.templates {
-            for call in &tpl.component_calls {
-                if !component_sources.contains_key(call.as_str()) {
-                    return Err(Error::message(format!(
-                        "Template `{name}` uses component `{call}` which isn't present in Tera"
-                    )));
+            for (component, spans) in &tpl.component_calls {
+                if !component_sources.contains_key(component.as_str()) {
+                    for span in spans {
+                        let mut err =
+                            ReportError::new(format!("Unknown component `{component}`"), span);
+                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
+                }
+            }
+            for (filter, spans) in &tpl.filter_calls {
+                if !self.filters.contains_key(filter.as_str()) {
+                    for span in spans {
+                        let mut err = ReportError::new(format!("Unknown filter `{filter}`"), span);
+                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
+                }
+            }
+            for (test, spans) in &tpl.test_calls {
+                if !self.tests.contains_key(test.as_str()) {
+                    for span in spans {
+                        let mut err = ReportError::new(format!("Unknown test `{test}`"), span);
+                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
+                }
+            }
+            for (func, spans) in &tpl.function_calls {
+                if func != "super" && !self.functions.contains_key(func.as_str()) {
+                    for span in spans {
+                        let mut err = ReportError::new(format!("Unknown function `{func}`"), span);
+                        err.generate_report(&tpl.name, &tpl.source, "Build error");
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
                 }
             }
 
@@ -355,6 +388,13 @@ impl Tera {
                 blocks.insert(block_name.clone(), all_blocks);
             }
             tpl_blocks.insert(name.clone(), blocks);
+        }
+
+        if !errors.is_empty() {
+            // Sort by template name, then by position in source
+            errors.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
+            let reports: Vec<String> = errors.into_iter().map(|(_, _, report)| report).collect();
+            return Err(Error::message(reports.join("\n\n")));
         }
 
         // Collect components from the winning templates (based on component_sources)

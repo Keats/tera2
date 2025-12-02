@@ -1,0 +1,6 @@
+$$ a.txt
+{{ name | unknown_filter }}
+$$ b.txt
+{{ unknown_func() }}
+$$ c.txt
+{% if name is unknown_test %}yes{% endif %}

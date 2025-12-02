@@ -1,0 +1,22 @@
+---
+source: tera/src/snapshot_tests/build_errors.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/build_errors/mixed_unknown.txt
+---
+ Build error --> [tpl:1:10]
+  |
+1 | {{ name | unknown_filter }}
+  |           ^---
+  = Unknown filter `unknown_filter`
+
+ Build error --> [tpl:2:2]
+  |
+2 | {{<unknown_component />}}
+  |   ^---
+  = Unknown component `unknown_component`
+
+ Build error --> [tpl:3:3]
+  |
+3 | {{ unknown_func() }}
+  |    ^---
+  = Unknown function `unknown_func`

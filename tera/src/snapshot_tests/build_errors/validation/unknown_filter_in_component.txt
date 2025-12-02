@@ -1,0 +1,4 @@
+$$ tpl
+{% component hello() %}
+{{ name | unknown_filter }}
+{% endcomponent %}

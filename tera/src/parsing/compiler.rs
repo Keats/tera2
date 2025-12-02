@@ -1,6 +1,7 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Block, ComponentCall, Expression, Node, UnaryOperator};
+use crate::parsing::ast::{BinaryOperator, Block, Expression, Node, UnaryOperator};
 use crate::parsing::instructions::{Chunk, Instruction};
+use crate::utils::Span;
 use crate::value::Value;
 use crate::HashMap;
 
@@ -19,8 +20,10 @@ pub(crate) struct Compiler<'s> {
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     pub(crate) blocks: HashMap<String, Chunk>,
-    // We will need this later to check if the arguments called actually exist/right types
-    pub(crate) component_calls: Vec<ComponentCall>,
+    pub(crate) component_calls: HashMap<String, Vec<Span>>,
+    pub(crate) filter_calls: HashMap<String, Vec<Span>>,
+    pub(crate) test_calls: HashMap<String, Vec<Span>>,
+    pub(crate) function_calls: HashMap<String, Vec<Span>>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -29,7 +32,10 @@ impl<'s> Compiler<'s> {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
-            component_calls: Vec::new(),
+            component_calls: HashMap::new(),
+            filter_calls: HashMap::new(),
+            test_calls: HashMap::new(),
+            function_calls: HashMap::new(),
             blocks: HashMap::new(),
             source,
             raw_content_num_bytes: 0,
@@ -131,6 +137,10 @@ impl<'s> Compiler<'s> {
                 let (filter, span) = e.into_parts();
                 self.compile_expr(filter.expr);
                 self.compile_kwargs(filter.kwargs);
+                self.filter_calls
+                    .entry(filter.name.clone())
+                    .or_default()
+                    .push(span.clone());
                 self.chunk
                     .add(Instruction::ApplyFilter(filter.name), Some(span));
             }
@@ -138,6 +148,10 @@ impl<'s> Compiler<'s> {
                 let (test, span) = e.into_parts();
                 self.compile_expr(test.expr);
                 self.compile_kwargs(test.kwargs);
+                self.test_calls
+                    .entry(test.name.clone())
+                    .or_default()
+                    .push(span.clone());
                 self.chunk.add(Instruction::RunTest(test.name), Some(span));
             }
             Expression::Ternary(e) => {
@@ -156,7 +170,10 @@ impl<'s> Compiler<'s> {
                 let (component_call, span) = e.into_parts();
 
                 // Record the component call for validation
-                self.component_calls.push(component_call.clone());
+                self.component_calls
+                    .entry(component_call.name.clone())
+                    .or_default()
+                    .push(span.clone());
 
                 let is_inline = component_call.body.is_empty();
                 if !is_inline {
@@ -183,6 +200,10 @@ impl<'s> Compiler<'s> {
             Expression::FunctionCall(e) => {
                 let (func, span) = e.into_parts();
                 self.compile_kwargs(func.kwargs);
+                self.function_calls
+                    .entry(func.name.clone())
+                    .or_default()
+                    .push(span.clone());
                 self.chunk
                     .add(Instruction::CallFunction(func.name), Some(span));
             }
@@ -267,10 +288,16 @@ impl<'s> Compiler<'s> {
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
         // TODO: do we need that?
         compiler.component_calls = std::mem::take(&mut self.component_calls);
+        compiler.filter_calls = std::mem::take(&mut self.filter_calls);
+        compiler.test_calls = std::mem::take(&mut self.test_calls);
+        compiler.function_calls = std::mem::take(&mut self.function_calls);
         for node in block.body {
             compiler.compile_node(node);
         }
         self.component_calls = compiler.component_calls;
+        self.filter_calls = compiler.filter_calls;
+        self.test_calls = compiler.test_calls;
+        self.function_calls = compiler.function_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks);
         self.blocks.insert(block.name.clone(), compiler.chunk);
@@ -324,8 +351,12 @@ impl<'s> Compiler<'s> {
                 self.chunk.add(Instruction::EndCapture, None);
                 for expr in b.filters {
                     if let Expression::Filter(f) = expr {
-                        let (filter, _) = f.into_parts();
+                        let (filter, span) = f.into_parts();
                         self.compile_kwargs(filter.kwargs);
+                        self.filter_calls
+                            .entry(filter.name.clone())
+                            .or_default()
+                            .push(span);
                         self.chunk.add(Instruction::ApplyFilter(filter.name), None);
                     }
                 }
@@ -425,8 +456,12 @@ impl<'s> Compiler<'s> {
                 }
                 self.chunk.add(Instruction::EndCapture, None);
                 self.compile_kwargs(f.kwargs);
-                self.chunk
-                    .add(Instruction::ApplyFilter(f.name.into_parts().0), None);
+                let (filter_name, span) = f.name.into_parts();
+                self.filter_calls
+                    .entry(filter_name.clone())
+                    .or_default()
+                    .push(span);
+                self.chunk.add(Instruction::ApplyFilter(filter_name), None);
                 self.chunk.add(Instruction::WriteTop, None);
             }
         }

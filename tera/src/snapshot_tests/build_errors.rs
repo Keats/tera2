@@ -6,7 +6,7 @@ use crate::snapshot_tests::utils::{normalize_line_endings, split_multi_templates
 
 #[test]
 fn build_errors() {
-    insta::glob!("build_errors/*.txt", |path| {
+    insta::glob!("build_errors/**/*.txt", |path| {
         println!("{path:?}");
         let contents = std::fs::read_to_string(path).unwrap();
         let normalized_contents = normalize_line_endings(&contents);
