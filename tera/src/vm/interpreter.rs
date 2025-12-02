@@ -612,25 +612,26 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     }
                 }
-                // Fused instructions
+                // Combined instructions
                 Instruction::LoadPath(path) => {
                     let chunk = state.chunk.expect("to have a chunk");
-                    // path[0] is variable name, path[1..] are attributes
-                    // Note: We error if the container is undefined (matching LoadAttr behavior),
-                    // but NOT if the result of attribute access is undefined (allowing `or`, etc.)
                     let mut val = state.get(&path[0]);
-                    // If path is just a variable name with no attrs, undefined is OK (for `or`)
-                    // But if we're accessing attrs on an undefined container, that's an error
+                    let num_attrs = path.len() - 1;
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
-                            // Container is undefined - error pointing to the container
-                            let span_idx = if k == 0 { 0 } else { k };
                             rendering_error!(
                                 format!("Container is not defined"),
-                                span: chunk.get_span_at(current_ip, span_idx)
+                                span: chunk.get_span_at(current_ip, k)
                             );
                         }
                         val = val.get_attr(attr);
+                        // Only error on intermediate undefined, not the final result
+                        if val.is_undefined() && k + 1 < num_attrs {
+                            rendering_error!(
+                                format!("Field `{}` is not defined", attr),
+                                span: chunk.get_span_at(current_ip, k + 1)
+                            );
+                        }
                     }
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
@@ -639,7 +640,7 @@ impl<'tera> VirtualMachine<'tera> {
                     if val.is_undefined() {
                         let chunk = state.chunk.expect("to have a chunk");
                         rendering_error!(
-                            format!("Variable `{}` is not defined", path[0]),
+                            format!("Field `{}` is not defined", path[0]),
                             span: chunk.get_span_at(current_ip, 0)
                         );
                     }
@@ -654,7 +655,7 @@ impl<'tera> VirtualMachine<'tera> {
                             );
                         }
                     }
-                    // Write directly (no stack at all)
+
                     if !self.template.autoescape_enabled || val.is_safe() {
                         if let Some(captured) = state.capture_buffers.last_mut() {
                             val.format(captured)?;

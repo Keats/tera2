@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_top_field.tx
   |
 1 | {{ unknown.username }}
   |    ^---
-  = Variable `unknown` is not defined
+  = Field `unknown` is not defined
