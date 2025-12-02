@@ -1,6 +1,0 @@
----
-source: src/tests/rendering.rs
-expression: "&out"
-input_file: src/tests/rendering_inputs/success/inheritance/super_without_redefining_grandparent.txt
----
-Title - More

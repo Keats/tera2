@@ -194,30 +194,47 @@ impl Chunk {
     /// Optimize bytecode by combining common instruction patterns to avoid pushing/popping
     /// so much on the stack in the VM when we can
     pub(crate) fn optimize(&mut self) {
-        let mut optimized = Vec::with_capacity(self.instructions.len());
+        let mut old_instructions = std::mem::take(&mut self.instructions);
+        let mut optimized = Vec::with_capacity(old_instructions.len());
         // Map from old instruction index to new instruction index
         // +1 to handle jumps that target one-past-the-end (i.e., chunk.len())
-        let mut index_map: Vec<usize> = vec![0; self.instructions.len() + 1];
+        let mut index_map: Vec<usize> = vec![0; old_instructions.len() + 1];
         let mut i = 0;
 
-        while i < self.instructions.len() {
+        // Placeholder for mem::replace - cheapest instruction (no heap allocation)
+        let placeholder = (Instruction::WriteTop, Vec::new());
+
+        while i < old_instructions.len() {
             // Record the mapping for this instruction
             index_map[i] = optimized.len();
 
             // Try to collect a path: LoadName followed by any number of LoadAttr
-            if let (Instruction::LoadName(name), spans) = &self.instructions[i] {
-                let mut path = vec![name.clone()];
-                // Collect spans from all combined instructions for accurate error reporting
-                let mut collected_spans: Vec<Span> = spans.clone();
+            if matches!(&old_instructions[i].0, Instruction::LoadName(_)) {
+                // Take ownership of the LoadName instruction
+                let (instr, spans) =
+                    std::mem::replace(&mut old_instructions[i], placeholder.clone());
+                let name = match instr {
+                    Instruction::LoadName(n) => n,
+                    _ => unreachable!(),
+                };
+                let mut path = vec![name];
+                let mut collected_spans = spans;
                 let mut j = i + 1;
 
                 // Collect consecutive LoadAttr instructions
-                while j < self.instructions.len() {
-                    if let (Instruction::LoadAttr(attr), attr_spans) = &self.instructions[j] {
+                while j < old_instructions.len() {
+                    if matches!(&old_instructions[j].0, Instruction::LoadAttr(_)) {
                         // Map the consumed LoadAttr to the same position as the first instruction
                         index_map[j] = optimized.len();
-                        path.push(attr.clone());
-                        collected_spans.extend_from_slice(attr_spans);
+                        // Take ownership of the LoadAttr instruction
+                        let (attr_instr, attr_spans) =
+                            std::mem::replace(&mut old_instructions[j], placeholder.clone());
+                        let attr = match attr_instr {
+                            Instruction::LoadAttr(a) => a,
+                            _ => unreachable!(),
+                        };
+                        path.push(attr);
+                        collected_spans.extend(attr_spans);
                         j += 1;
                     } else {
                         break;
@@ -225,34 +242,38 @@ impl Chunk {
                 }
 
                 // Check if followed by WriteTop
-                let has_write = j < self.instructions.len()
-                    && matches!(&self.instructions[j].0, Instruction::WriteTop);
+                let has_write = j < old_instructions.len()
+                    && matches!(&old_instructions[j].0, Instruction::WriteTop);
 
                 if has_write {
                     // Map the consumed WriteTop
                     index_map[j] = optimized.len();
                     // Fuse entire path + WriteTop into WritePath
-                    // Don't include WriteTop's span - we only need spans for each path element
                     optimized.push((Instruction::WritePath(path), collected_spans));
                     i = j + 1; // Skip past WriteTop
                     continue;
                 } else if path.len() > 1 {
-                    // Fuse LoadName + LoadAttr* into LoadPath (no WriteTop)
+                    // Combine LoadName + LoadAttr* into LoadPath
                     optimized.push((Instruction::LoadPath(path), collected_spans));
                     i = j;
                     continue;
                 }
-                // Single LoadName with no attrs AND no WriteTop - keep original LoadName
-                // and fall through to add it
+                // Single LoadName with no attrs AND no WriteTop - reconstruct original
+                optimized.push((Instruction::LoadName(path.pop().unwrap()), collected_spans));
+                i += 1;
+                continue;
             }
 
-            // No pattern matched, keep original
-            optimized.push(self.instructions[i].clone());
+            // No pattern matched, move original
+            optimized.push(std::mem::replace(
+                &mut old_instructions[i],
+                placeholder.clone(),
+            ));
             i += 1;
         }
 
         // Map the one-past-the-end index (for jumps that target chunk.len())
-        index_map[self.instructions.len()] = optimized.len();
+        index_map[old_instructions.len()] = optimized.len();
 
         // Now fix up all jump targets
         for (instr, _) in &mut optimized {
