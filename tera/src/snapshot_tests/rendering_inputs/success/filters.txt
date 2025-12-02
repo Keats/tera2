@@ -55,5 +55,10 @@ wordcount: {{ "one\ntwo\nthree" | wordcount }}
 {{ "<html>" | safe | escape_html }}
 {{ "one\ntwo\nthree" | newlines_to_br | safe }}
 pluralize(singular): message{{1 | pluralize}}
-pluralize(zero): categor{{0 |  pluralize(singular="y", plural="ies")}}
-pluralize(multiple): categor{{2 |  pluralize(singular="y", plural="ies")}}
+pluralize(zero): categor{{0 | pluralize(singular="y", plural="ies")}}
+pluralize(multiple): categor{{2 | pluralize(singular="y", plural="ies")}}
+sort: {{ [3, -1, 2, 5, 4] | sort }}
+sort(empty): {{ [] | sort }}
+sort(strings): {{ ["c", "a", "b"] | sort | safe }}
+sort(attribute): {{ year_data | sort(attribute="year") | map(attribute="id") }}
+sort(tuple index): {{ [[2], [1], [3]] | sort(attribute="0") }}

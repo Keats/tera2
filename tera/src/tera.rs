@@ -246,6 +246,7 @@ impl Tera {
         self.register_filter("last", crate::filters::last);
         self.register_filter("nth", crate::filters::nth);
         self.register_filter("join", crate::filters::join);
+        self.register_filter("sort", crate::filters::sort);
         self.register_filter("unique", crate::filters::unique);
         self.register_filter("get", crate::filters::get);
         self.register_filter("map", crate::filters::map);

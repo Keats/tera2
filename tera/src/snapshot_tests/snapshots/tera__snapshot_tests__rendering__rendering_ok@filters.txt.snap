@@ -69,3 +69,8 @@ one<br>two<br>three
 pluralize(singular): message
 pluralize(zero): categories
 pluralize(multiple): categories
+sort: [-1, 2, 3, 4, 5]
+sort(empty): []
+sort(strings): ["a", "b", "c"]
+sort(attribute): [1, 2, 3, 4, 5, 7, 6]
+sort(tuple index): [[1], [2], [3]]

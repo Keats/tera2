@@ -430,6 +430,25 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Str
         .join(sep))
 }
 
+/// Sorts an array. If `attribute` is provided, sorts by that attribute.
+pub(crate) fn sort(mut val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
+    if val.is_empty() {
+        return Ok(val);
+    }
+
+    if let Some(attribute) = kwargs.get::<&str>("attribute")? {
+        val.sort_by(|a, b| {
+            let key_a = a.get_from_path(attribute);
+            let key_b = b.get_from_path(attribute);
+            key_a.cmp(&key_b)
+        });
+    } else {
+        val.sort();
+    }
+
+    Ok(val)
+}
+
 pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
     if val.is_empty() {
         return val;
