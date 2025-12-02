@@ -148,7 +148,6 @@ impl Tera {
     /// let mut tera = Tera::default();
     ///
     /// // Override escape function
-    /// TODO: fix me
     /// tera.set_escape_fn(|input| {
     ///     input.escape_default().collect()
     /// });

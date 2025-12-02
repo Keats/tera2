@@ -326,7 +326,6 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     } else {
                         // Avoiding String as much as possible
-                        // TODO: Add more benchmarks
                         let mut out: Vec<u8> = Vec::new();
                         top.format(&mut out)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
@@ -355,7 +354,6 @@ impl<'tera> VirtualMachine<'tera> {
                         elems.push((key.as_key()?, val));
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
-                    // TODO: do we need to keep track of the full span?
                     state.stack.push(Value::from(map), None)
                 }
                 Instruction::BuildList(num_elem) => {
@@ -482,7 +480,6 @@ impl<'tera> VirtualMachine<'tera> {
                     state.capture_buffers.push(Vec::with_capacity(128));
                 }
                 Instruction::EndCapture => {
-                    // TODO: we should keep track of the buffer spans?
                     let captured = state.capture_buffers.pop().unwrap();
                     let val = Value::from(String::from_utf8(captured)?);
                     state.stack.push(val, None);

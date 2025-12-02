@@ -286,7 +286,6 @@ impl<'s> Compiler<'s> {
 
     fn compile_block(&mut self, block: Block) {
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
-        // TODO: do we need that?
         compiler.component_calls = std::mem::take(&mut self.component_calls);
         compiler.filter_calls = std::mem::take(&mut self.filter_calls);
         compiler.test_calls = std::mem::take(&mut self.test_calls);

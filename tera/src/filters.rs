@@ -555,11 +555,8 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
     let value = kwargs.get::<Value>("value")?.unwrap_or(Value::null());
     let mut res = Vec::with_capacity(val.len());
 
-    // TODO: filter with filters? Eg filter all elements where attribute | length == 3 for example
-    // how would that look from the template?
     for v in val {
         match v.get_from_path(attribute) {
-            // TODO: should we error or not?
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path: {attribute}"
@@ -585,7 +582,6 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
     let mut grouped: HashMap<Key, Vec<Value>> = HashMap::new();
     for v in val {
         match v.get_from_path(attribute) {
-            // TODO: should we error or not?
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path; {attribute}"
@@ -605,9 +601,6 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 
     Ok(grouped.into_iter().map(|(k, v)| (k, v.into())).collect())
 }
-
-// TODO: missing from array sort
-// TODO: add indent after making sure it's good. Tests could be insta for easy viz
 
 #[cfg(test)]
 mod tests {

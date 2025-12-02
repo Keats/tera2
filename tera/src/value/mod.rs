@@ -663,17 +663,6 @@ impl Value {
         }
     }
 
-    // TODO: do we need that?
-    // pub(crate) fn is_empty(&self) -> bool {
-    //     match self {
-    //         Value::Array(v) => v.is_empty(),
-    //         Value::Bytes(v) => v.is_empty(),
-    //         Value::String(v, _) => v.is_empty(),
-    //         Value::Map(v) => v.is_empty(),
-    //         _ => false,
-    //     }
-    // }
-
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         matches!(
             &self.inner,
