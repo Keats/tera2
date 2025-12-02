@@ -1,5 +1,7 @@
 #[cfg(feature = "date")]
 pub mod dates;
+#[cfg(feature = "filesize_format")]
+pub mod filesize_format;
 #[cfg(feature = "json")]
 pub mod json;
 #[cfg(feature = "rand")]
