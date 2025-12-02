@@ -96,6 +96,25 @@ pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
         .replace('\r', "<br>")
 }
 
+/// Returns a plural suffix if the value is not equal to ±1, or a singular suffix otherwise.
+/// Default singular suffix is "" and default plural suffix is "s".
+pub(crate) fn pluralize(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+    let singular = kwargs.get::<&str>("singular")?.unwrap_or("");
+    let plural = kwargs.get::<&str>("plural")?.unwrap_or("s");
+
+    let is_singular = match val.as_i128() {
+        Some(n) => n == 1,
+        None => {
+            return Err(Error::message(format!(
+                "pluralize filter requires an integer, got `{}`",
+                val.name()
+            )));
+        }
+    };
+
+    Ok(if is_singular { singular } else { plural }.to_string())
+}
+
 pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val

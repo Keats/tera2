@@ -66,3 +66,6 @@ he^
 wordcount: 3
 &amp;lt;html&amp;gt;
 one<br>two<br>three
+pluralize(singular): message
+pluralize(zero): categories
+pluralize(multiple): categories

@@ -54,3 +54,6 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 wordcount: {{ "one\ntwo\nthree" | wordcount }}
 {{ "<html>" | safe | escape_html }}
 {{ "one\ntwo\nthree" | newlines_to_br | safe }}
+pluralize(singular): message{{1 | pluralize}}
+pluralize(zero): categor{{0 |  pluralize(singular="y", plural="ies")}}
+pluralize(multiple): categor{{2 |  pluralize(singular="y", plural="ies")}}
