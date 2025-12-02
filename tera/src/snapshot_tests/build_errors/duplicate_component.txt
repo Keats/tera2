@@ -1,0 +1,5 @@
+$$ a.html
+{% component hello() %}Hello{% endcomponent %}
+
+$$ b.html
+{% component hello() %}World{% endcomponent %}

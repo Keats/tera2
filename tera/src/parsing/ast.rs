@@ -684,8 +684,7 @@ pub struct ComponentArgument {
 impl ComponentArgument {
     #[inline]
     pub fn type_matches(&self, value: &Value) -> bool {
-        self.typ.map(|t| t.matches_value(value))
-            .unwrap_or(true)
+        self.typ.map(|t| t.matches_value(value)).unwrap_or(true)
     }
 }
 

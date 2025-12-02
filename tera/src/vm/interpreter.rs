@@ -470,8 +470,7 @@ impl<'tera> VirtualMachine<'tera> {
                     let block_chunk = block_lineage[0];
                     let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));
-                    let old_block_name =
-                        state.current_block_name.replace(block_name);
+                    let old_block_name = state.current_block_name.replace(block_name);
                     let res = self.interpret(state, output);
                     state.chunk = old_chunk;
                     state.current_block_name = old_block_name;

@@ -97,8 +97,7 @@ pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
 }
 
 pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
-    val.replace("\r\n", "<br>")
-        .replace(['\n', '\r'], "<br>")
+    val.replace("\r\n", "<br>").replace(['\n', '\r'], "<br>")
 }
 
 /// Returns a plural suffix if the value is not equal to ±1, or a singular suffix otherwise.

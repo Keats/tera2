@@ -282,35 +282,56 @@ impl Tera {
     /// Optimizes the templates when possible and doing some light
     /// checks like whether blocks/macros/templates all exist when they are used
     fn finalize_templates(&mut self) -> TeraResult<()> {
-        let mut tpl_parents = HashMap::new();
-        let mut tpl_size_hint = HashMap::new();
-        let mut components = HashMap::new();
+        let mut tpl_parents: HashMap<String, Vec<String>> =
+            HashMap::with_capacity(self.templates.len());
+        let mut tpl_size_hint: HashMap<String, usize> =
+            HashMap::with_capacity(self.templates.len());
+        // Track which template defined each component: component_name -> (tpl_name, from_extend)
+        // We only store references here; actual data is collected at the end
+        let mut component_sources: HashMap<&str, (&str, bool)> = HashMap::new();
 
-        // 1st loop: we find the parents of each templates with all the block definitions
-        // as well as copying the component definitions defined in each template
+        // 1st loop: find parents of each template and check for duplicate components
         for (name, tpl) in &self.templates {
             let parents = find_parents(&self.templates, tpl, tpl, vec![])?;
-            for (component_name, c) in &tpl.components {
-                if components.contains_key(component_name) {
-                    todo!("Write a proper error message for duplicate components, with both filenames")
+            for component_name in tpl.components.keys() {
+                match component_sources.get(component_name.as_str()) {
+                    Some(&(_, true)) if !tpl.from_extend => {
+                        // User overrides extended component
+                        component_sources.insert(component_name, (&tpl.name, false));
+                    }
+                    Some(&(_, false)) if tpl.from_extend => {
+                        // Keep existing user component, ignore extended one
+                    }
+                    Some(&(existing_tpl, _)) => {
+                        // Both from same origin - true duplicate
+                        let mut names = [existing_tpl, tpl.name.as_str()];
+                        names.sort_unstable();
+                        return Err(Error::message(format!(
+                            "Component `{component_name}` is defined in both `{}` and `{}`",
+                            names[0], names[1]
+                        )));
+                    }
+                    None => {
+                        component_sources.insert(component_name, (&tpl.name, tpl.from_extend));
+                    }
                 }
-                components.insert(component_name.clone(), c.clone());
             }
             let mut size_hint = tpl.raw_content_num_bytes;
             for parent in &parents {
-                size_hint += &self.templates[parent].raw_content_num_bytes;
+                size_hint += self.templates[parent].raw_content_num_bytes;
             }
 
             tpl_parents.insert(name.clone(), parents);
             tpl_size_hint.insert(name.clone(), size_hint);
         }
 
-        // 2nd loop: we check whether we know all the components that are called are defined
+        // 2nd loop: we check whether all called components are defined
         // as well as finding each block lineage
-        let mut tpl_blocks = HashMap::with_capacity(self.templates.len());
+        let mut tpl_blocks: HashMap<String, HashMap<String, Vec<Chunk>>> =
+            HashMap::with_capacity(self.templates.len());
         for (name, tpl) in &self.templates {
             for call in &tpl.component_calls {
-                if !components.contains_key(call) {
+                if !component_sources.contains_key(call.as_str()) {
                     return Err(Error::message(format!(
                         "Template `{name}` uses component `{call}` which isn't present in Tera"
                     )));
@@ -334,6 +355,14 @@ impl Tera {
                 blocks.insert(block_name.clone(), all_blocks);
             }
             tpl_blocks.insert(name.clone(), blocks);
+        }
+
+        // Collect components from the winning templates (based on component_sources)
+        let mut components = HashMap::with_capacity(component_sources.len());
+        for (component_name, (tpl_name, _)) in component_sources {
+            let tpl = &self.templates[tpl_name];
+            let data = tpl.components[component_name].clone();
+            components.insert(component_name.to_string(), data);
         }
 
         // 3rd loop: we actually set everything we've done on the templates objects
@@ -771,6 +800,36 @@ mod tests {
         assert_eq!(my_tera.templates.len(), 4);
         let result = my_tera.render("one", &Context::default()).unwrap();
         assert_eq!(result, "MINE");
+    }
+
+    #[test]
+    fn can_override_component_template_from_content() {
+        // Framework defines a component
+        let mut framework_tera = Tera::default();
+        framework_tera
+            .add_raw_template(
+                "components.html",
+                "{% component hello() %}Framework{% endcomponent hello %}",
+            )
+            .unwrap();
+
+        // User defines the same component with different content
+        let mut my_tera = Tera::default();
+        my_tera
+            .add_raw_templates(vec![
+                (
+                    "my_components.html",
+                    "{% component hello() %}User{% endcomponent hello %}",
+                ),
+                ("index.html", "{{<hello/>}}"),
+            ])
+            .unwrap();
+
+        // Extend with framework - user's component should win
+        my_tera.extend(&framework_tera).unwrap();
+
+        let result = my_tera.render("index.html", &Context::default()).unwrap();
+        assert_eq!(result, "User");
     }
 
     #[cfg(feature = "glob_fs")]
