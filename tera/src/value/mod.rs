@@ -452,7 +452,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn as_i128(&self) -> Option<i128> {
+    pub fn as_i128(&self) -> Option<i128> {
         match &self.inner {
             ValueInner::U64(v) => Some(*v as i128),
             ValueInner::I64(v) => Some(*v as i128),

@@ -24,10 +24,8 @@ pub fn format(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
                 .map_err(|e| Error::message(format!("format error: {}", e)))
         }
         ValueKind::I64 | ValueKind::I128 | ValueKind::U64 | ValueKind::U128 => {
-            let n = val.as_number().unwrap();
-            // as_integer returns None for floats with fractional parts, but these are integers
-            let i = n.as_integer().unwrap();
-            formatx::formatx!(&fmt_str, i)
+            let n = val.as_i128().unwrap();
+            formatx::formatx!(&fmt_str, n)
                 .map_err(|e| Error::message(format!("format error: {}", e)))
         }
         ValueKind::F64 => {
