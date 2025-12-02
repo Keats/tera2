@@ -627,11 +627,7 @@ impl Tera {
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
         let template = self.get_template(template_name)?;
         let mut vm = VirtualMachine::new(self, template);
-        // POC implementation of a global context
-        // TODO: Optimize this with removing .clones()
-        let mut ctx = self.global_context.clone();
-        ctx.extend(context.clone());
-        vm.render(&ctx)
+        vm.render(context, &self.global_context)
     }
 
     /// Renders a Tera template given a [`Context`] to something that implements [`Write`].
@@ -666,11 +662,7 @@ impl Tera {
     ) -> TeraResult<()> {
         let template = self.get_template(template_name)?;
         let mut vm = VirtualMachine::new(self, template);
-        // POC implementation of a global context
-        // TODO: Optimize this with removing .clones()
-        let mut ctx = self.global_context.clone();
-        ctx.extend(context.clone());
-        vm.render_to(&ctx, write)
+        vm.render_to(context, &self.global_context, write)
     }
 
     /// Returns the global context, allowing modifications to it

@@ -24,6 +24,8 @@ pub struct State<'tera> {
     /// Locals set in a for loop are set in `for_loops`
     set_variables: BTreeMap<String, Value>,
     pub(crate) context: &'tera Context,
+    /// The global context from Tera, checked after user context
+    pub(crate) global_context: Option<&'tera Context>,
     /// To handle the capture instructions
     pub(crate) capture_buffers: Vec<Vec<u8>>,
     /// Used in includes only
@@ -49,6 +51,7 @@ impl<'t> State<'t> {
             for_loops: Vec::with_capacity(4),
             set_variables: BTreeMap::new(),
             context,
+            global_context: None,
             chunk: None,
             capture_buffers: Vec::with_capacity(4),
             include_parent: None,
@@ -78,8 +81,9 @@ impl<'t> State<'t> {
     /// It goes in the following order for scopes:
     /// 1. All loops from the inner to the outer
     /// 2. set_variables
-    /// 3. self.context
-    /// 4. return Value::Undefined
+    /// 3. self.context (user context)
+    /// 4. self.global_context (Tera's global context)
+    /// 5. include_parent or return Value::Undefined
     pub(crate) fn get(&self, name: &str) -> Value {
         for forloop in self.for_loops.iter().rev() {
             if let Some(v) = forloop.get(name) {
@@ -93,6 +97,12 @@ impl<'t> State<'t> {
 
         if let Some(val) = self.context.data.get(name) {
             return val.clone();
+        }
+
+        if let Some(global) = self.global_context {
+            if let Some(val) = global.data.get(name) {
+                return val.clone();
+            }
         }
 
         if let Some(parent) = self.include_parent {
@@ -113,9 +123,17 @@ impl<'t> State<'t> {
 
     fn dump_context(&self) -> Value {
         let mut context = crate::HashMap::new();
+        // Add global context first (lowest priority)
+        if let Some(global) = self.global_context {
+            for (k, v) in &global.data {
+                context.insert(k.to_string(), v.clone());
+            }
+        }
+        // User context overrides global
         for (k, v) in &self.context.data {
             context.insert(k.to_string(), v.clone());
         }
+        // set_variables override user context
         context.extend(self.set_variables.clone());
 
         for forloop in &self.for_loops {
