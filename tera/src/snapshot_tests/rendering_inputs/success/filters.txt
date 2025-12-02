@@ -34,10 +34,6 @@
 {{ [1, 2, 3] | last }}
 {{ [1, 2, 3] | nth(n=1) }}
 {{ [1, 2, 3] | join(sep=", ") }}
-{{ [1, 2, 3] | slice(start=1) }}
-{{ [1, 2, 3] | slice(end=1) }}
-{{ [1, 2, 3] | slice(start=-1) }}
-{{ [1, 2, 3] | slice(start=0, end=2) }}
 {{ [1, 2, 3, 2, 3, 4] | unique }}
 {{ reviews | map(attribute="title") | safe }}
 {{ year_data | map(attribute="year") }}

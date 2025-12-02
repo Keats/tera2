@@ -411,34 +411,6 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Str
         .join(sep))
 }
 
-/// Slice the array
-/// Use the `start` argument to define where to start (inclusive, default to `0`)
-/// and `end` argument to define where to stop (exclusive, default to the length of the array)
-/// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
-    if val.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let get_index = |i| {
-        if i >= 0 {
-            i as usize
-        } else {
-            (val.len() as isize + i) as usize
-        }
-    };
-    let start = get_index(kwargs.get::<isize>("start")?.unwrap_or_default());
-    let mut end = get_index(kwargs.get::<isize>("end")?.unwrap_or(val.len() as isize));
-    if end > val.len() {
-        end = val.len();
-    }
-    // Not an error, but returns an empty Vec
-    if start >= end {
-        return Ok(Vec::new());
-    }
-    Ok(val[start..end].to_vec())
-}
-
 pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
     if val.is_empty() {
         return val;
@@ -725,37 +697,6 @@ mod tests {
             round((2.245).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             (2.25).into()
         );
-    }
-
-    #[test]
-    fn test_slice() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        let v: Vec<Value> = vec![1, 2, 3, 4, 5].into_iter().map(Into::into).collect();
-
-        let inputs = vec![
-            ((Some(1), None), vec![2, 3, 4, 5]),
-            ((None, Some(2)), vec![1, 2]),
-            ((Some(1), Some(2)), vec![2]),
-            ((None, Some(-2)), vec![1, 2, 3]),
-            ((None, None), vec![1, 2, 3, 4, 5]),
-            ((Some(3), Some(1)), vec![]),
-            ((Some(9), None), vec![]),
-        ];
-
-        for ((start, end), expected) in inputs {
-            let mut map = Map::new();
-            if let Some(s) = start {
-                map.insert("start".into(), s.into());
-            }
-            if let Some(s) = end {
-                map.insert("end".into(), s.into());
-            }
-            assert_eq!(
-                slice(v.clone(), Kwargs::new(Arc::new(map)), &state).unwrap(),
-                expected.into_iter().map(|x| x.into()).collect::<Vec<_>>()
-            );
-        }
     }
 
     #[cfg(feature = "unicode")]
