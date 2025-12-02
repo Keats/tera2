@@ -1,7 +1,10 @@
+use crate::args::Kwargs;
+use crate::errors::TeraResult;
+use crate::filters::StoredFilter;
 use crate::parsing::Chunk;
 use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
-use crate::{Context, Value};
+use crate::{Context, HashMap, Value};
 
 use std::collections::BTreeMap;
 
@@ -29,6 +32,8 @@ pub struct State<'tera> {
     /// (block name, (all_chunks, level))
     pub(crate) blocks: BTreeMap<&'tera str, (Vec<&'tera Chunk>, usize)>,
     pub(crate) current_block_name: Option<&'tera str>,
+    /// Reference to registered filters for calling filters from within filters (e.g., map filter)
+    pub(crate) filters: Option<&'tera HashMap<&'static str, StoredFilter>>,
 }
 
 impl<'t> State<'t> {
@@ -49,6 +54,7 @@ impl<'t> State<'t> {
             include_parent: None,
             blocks: BTreeMap::new(),
             current_block_name: None,
+            filters: None,
         }
     }
 
@@ -124,6 +130,16 @@ impl<'t> State<'t> {
             self.stack.push(self.dump_context(), None);
         } else {
             self.stack.push(self.get(name), Some(span_idx..=span_idx));
+        }
+    }
+
+    /// Call a filter by name. Used by filters like `map` that need to apply other filters.
+    pub fn call_filter(&self, name: &str, value: &Value, kwargs: Kwargs) -> TeraResult<Value> {
+        match self.filters.and_then(|f| f.get(name)) {
+            Some(filter) => filter.call(value, kwargs, self),
+            None => Err(crate::errors::Error::message(format!(
+                "Filter `{name}` is not registered"
+            ))),
         }
     }
 }

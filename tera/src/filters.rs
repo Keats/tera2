@@ -39,6 +39,12 @@ type FilterFunc = dyn Fn(&Value, Kwargs, &State) -> TeraResult<Value> + Sync + S
 #[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
 
+impl std::fmt::Debug for StoredFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredFilter").finish_non_exhaustive()
+    }
+}
+
 impl StoredFilter {
     pub fn new<Func, Arg, Res>(f: Func) -> Self
     where
@@ -467,29 +473,64 @@ pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
     res
 }
 
-/// Map retrieves an attribute from a list of objects.
-/// The 'attribute' argument specifies what to retrieve.
-/// If a value is undefined, it will error
-pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
+/// Map retrieves an attribute from a list of objects and/or applies a filter to each element.
+/// - `attribute`: specifies what attribute to retrieve from each element
+/// - `filter`: specifies a filter to apply to each element (or to the extracted attribute)
+/// - `args`: optional map of arguments to pass to the filter
+///
+/// At least one of `attribute` or `filter` must be provided.
+/// If both are provided, the attribute is extracted first, then the filter is applied.
+pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, state: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(val);
     }
-    let attribute = kwargs.must_get::<&str>("attribute")?;
-    // TODO: allow passing a filter/test name to apply to every element?
-    // TODO: allow passing a default value if it's undefined?
-    let mut res = Vec::with_capacity(val.len());
-    for v in val {
-        match v.get_from_path(attribute) {
-            // TODO: should we error or not?
-            x if x.is_undefined() => {
-                return Err(Error::message(format!(
-                    "Value {v} does not an attribute after following path; {attribute}"
-                )));
-            }
-            x => res.push(x),
-        }
+
+    let filter_name = kwargs.get::<&str>("filter")?;
+    let attribute = kwargs.get::<&str>("attribute")?;
+
+    // Must have at least one of filter or attribute
+    if filter_name.is_none() && attribute.is_none() {
+        return Err(Error::message(
+            "map filter requires either `filter` or `attribute` argument",
+        ));
     }
 
+    // Prepare filter kwargs if filter is specified
+    let filter_kwargs = if filter_name.is_some() {
+        let args_map = kwargs
+            .get::<Value>("args")?
+            .and_then(|v| v.into_map())
+            .unwrap_or_else(|| Arc::new(Map::new()));
+        Some(Kwargs::new(args_map))
+    } else {
+        None
+    };
+
+    let mut res = Vec::with_capacity(val.len());
+    for v in val {
+        // Step 1: Extract attribute if specified
+        let extracted = if let Some(attr) = attribute {
+            match v.get_from_path(attr) {
+                x if x.is_undefined() => {
+                    return Err(Error::message(format!(
+                        "Value {v} does not have an attribute at path: {attr}"
+                    )));
+                }
+                x => x,
+            }
+        } else {
+            v
+        };
+
+        // Step 2: Apply filter if specified
+        let final_val = if let (Some(name), Some(ref f_kwargs)) = (filter_name, &filter_kwargs) {
+            state.call_filter(name, &extracted, f_kwargs.clone())?
+        } else {
+            extracted
+        };
+
+        res.push(final_val);
+    }
     Ok(res)
 }
 
