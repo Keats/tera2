@@ -57,3 +57,4 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "hello" | truncate(length=2, end="^") }}
 wordcount: {{ "one\ntwo\nthree" | wordcount }}
 {{ "<html>" | safe | escape_html }}
+{{ "one\ntwo\nthree" | newlines_to_br | safe }}

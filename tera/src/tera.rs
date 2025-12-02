@@ -224,6 +224,7 @@ impl Tera {
         self.register_filter("lower", crate::filters::lower);
         self.register_filter("wordcount", crate::filters::wordcount);
         self.register_filter("escape_html", crate::filters::escape);
+        self.register_filter("newlines_to_br", crate::filters::newlines_to_br);
         self.register_filter("trim", crate::filters::trim);
         self.register_filter("trim_start", crate::filters::trim_start);
         self.register_filter("trim_end", crate::filters::trim_end);

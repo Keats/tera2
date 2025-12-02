@@ -90,6 +90,12 @@ pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
     unsafe { String::from_utf8_unchecked(buf) }
 }
 
+pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
+    val.replace("\r\n", "<br>")
+        .replace('\n', "<br>")
+        .replace('\r', "<br>")
+}
+
 pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     if let Some(pat) = kwargs.get::<&str>("pat")? {
         Ok(val
