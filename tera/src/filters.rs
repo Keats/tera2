@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
+use crate::utils::escape_html;
 use crate::value::number::Number;
 use crate::value::{FunctionResult, Key, Map, ValueKind};
 use crate::vm::state::State;
@@ -80,6 +81,13 @@ pub(crate) fn lower(val: &str, _: Kwargs, _: &State) -> String {
 
 pub(crate) fn wordcount(val: &str, _: Kwargs, _: &State) -> usize {
     val.split_whitespace().count()
+}
+
+pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
+    let mut buf = Vec::with_capacity(val.len());
+    escape_html(val.as_bytes(), &mut buf).unwrap();
+    // SAFETY: escape_html only produces valid UTF-8
+    unsafe { String::from_utf8_unchecked(buf) }
 }
 
 pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
