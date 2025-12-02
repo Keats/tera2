@@ -127,7 +127,11 @@ impl SmartString {
 
     pub(crate) fn mark_safe(self) -> Self {
         match self {
-            Self::Small { len, data, .. } => Self::Small { len, kind: StringKind::Safe, data },
+            Self::Small { len, data, .. } => Self::Small {
+                len,
+                kind: StringKind::Safe,
+                data,
+            },
             Self::Large(s, _) => Self::Large(s, StringKind::Safe),
         }
     }

@@ -67,6 +67,20 @@ impl<'tera> VirtualMachine<'tera> {
                 err.generate_report(name, source, "Rendering error");
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
+            // Variant for fused instructions that takes a direct span
+            ($msg:expr, span: $span:expr) => {{
+                let chunk = state.chunk.expect("to have a chunk");
+                let span = $span.expect("to have a span for error");
+                let mut err = ReportError::new($msg, span);
+                let (name, source) = if self.template.name != chunk.name {
+                    let tpl = &self.tera.templates[&chunk.name];
+                    (&tpl.name, &tpl.source)
+                } else {
+                    (&self.template.name, &self.template.source)
+                };
+                err.generate_report(name, source, "Rendering error");
+                return Err(Error::new(ErrorKind::RenderingError(err)));
+            }};
         }
 
         macro_rules! op_binop {
@@ -595,6 +609,65 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), a_span);
+                        }
+                    }
+                }
+                // Fused instructions
+                Instruction::LoadPath(path) => {
+                    let chunk = state.chunk.expect("to have a chunk");
+                    // path[0] is variable name, path[1..] are attributes
+                    // Note: We error if the container is undefined (matching LoadAttr behavior),
+                    // but NOT if the result of attribute access is undefined (allowing `or`, etc.)
+                    let mut val = state.get(&path[0]);
+                    // If path is just a variable name with no attrs, undefined is OK (for `or`)
+                    // But if we're accessing attrs on an undefined container, that's an error
+                    for (k, attr) in path[1..].iter().enumerate() {
+                        if val.is_undefined() {
+                            // Container is undefined - error pointing to the container
+                            let span_idx = if k == 0 { 0 } else { k };
+                            rendering_error!(
+                                format!("Container is not defined"),
+                                span: chunk.get_span_at(current_ip, span_idx)
+                            );
+                        }
+                        val = val.get_attr(attr);
+                    }
+                    state.stack.push(val, Some(current_ip..=current_ip));
+                }
+                Instruction::WritePath(path) => {
+                    let mut val = state.get(&path[0]);
+                    if val.is_undefined() {
+                        let chunk = state.chunk.expect("to have a chunk");
+                        rendering_error!(
+                            format!("Variable `{}` is not defined", path[0]),
+                            span: chunk.get_span_at(current_ip, 0)
+                        );
+                    }
+                    for (k, attr) in path[1..].iter().enumerate() {
+                        val = val.get_attr(attr);
+                        // Check if attribute access failed (returned undefined)
+                        if val.is_undefined() {
+                            let chunk = state.chunk.expect("to have a chunk");
+                            rendering_error!(
+                                format!("Field `{}` is not defined", attr),
+                                span: chunk.get_span_at(current_ip, k + 1)
+                            );
+                        }
+                    }
+                    // Write directly (no stack at all)
+                    if !self.template.autoescape_enabled || val.is_safe() {
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            val.format(captured)?;
+                        } else {
+                            val.format(output)?;
+                        }
+                    } else {
+                        let mut out: Vec<u8> = Vec::new();
+                        val.format(&mut out)?;
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            (self.tera.escape_fn)(&out, captured)?;
+                        } else {
+                            (self.tera.escape_fn)(&out, output)?;
                         }
                     }
                 }

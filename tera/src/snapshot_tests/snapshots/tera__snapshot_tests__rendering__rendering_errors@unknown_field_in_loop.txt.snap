@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_field_in_loo
   |
 3 | {{ r.random }}
   |      ^---
-  = Tried to render a variable that is not defined
+  = Field `random` is not defined

@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_field.txt
   |
 1 | {{ name.unknown }}
   |         ^---
-  = Tried to render a variable that is not defined
+  = Field `unknown` is not defined

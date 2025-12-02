@@ -51,9 +51,23 @@ impl Template {
         let mut body_compiler = Compiler::new(tpl_name, source);
         body_compiler.compile(parser_output.nodes);
 
-        let chunk = body_compiler.chunk;
-        let blocks = body_compiler.blocks;
+        // Optimize the main chunk
+        let mut chunk = body_compiler.chunk;
+        chunk.optimize();
+
+        // Optimize all block chunks
+        let blocks: HashMap<String, Chunk> = body_compiler
+            .blocks
+            .into_iter()
+            .map(|(name, mut chunk)| {
+                chunk.optimize();
+                (name, chunk)
+            })
+            .collect();
+
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
+
+        // Optimize component chunks
         let components = parser_output
             .component_definitions
             .into_iter()
@@ -61,7 +75,9 @@ impl Template {
                 let mut compiler = Compiler::new(&tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
-                (c.name.clone(), (c, compiler.chunk))
+                let mut chunk = compiler.chunk;
+                chunk.optimize();
+                (c.name.clone(), (c, chunk))
             })
             .collect();
         let component_calls = body_compiler
