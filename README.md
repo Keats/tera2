@@ -92,7 +92,11 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `indent` filter now takes a `width` param rather than `prefix`
 - `map`, `group_by` and `filter` filter will error if the attribute ends up being undefined on one of the value
 - `as_str` has been renamed to `str`
-- `object` test has been renamed `map`
+- `divisibleby` has been renamed to `divisible_by`
+- `escape` has been renamed to `escape_html`
+- `linebreaksbr` has been renamed to `newlines_to_br`
+- `object` test has been renamed to `map`
 - `truncate` requires the `length` argument and does not default to 255 anymore
 - filters now always take kwargs
 - ISO 8601 dates using format `1996-12-19T16:39:57-08:00` are not supported anymore for the input of date filter, you can use `1996-12-19T16:39:57[-08:00]` instead
+- `addslashes`, `escape_xml`, `get_env`, and `slice` filter have been removed

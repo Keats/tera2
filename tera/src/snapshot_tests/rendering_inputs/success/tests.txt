@@ -26,3 +26,6 @@ containing(ok): {{ 'hello world' is containing(pat="ll") }}
 containing(ok): {{ [1, 2] is containing(pat=1) }}
 containing(ok): {{ {"a": 1} is containing(pat="a") }}
 containing(err): {{ 'hello world' is containing(pat="x") }}
+defined: {{ data is defined }}
+undefined: {{ unknown is undefined }}
+iterable: {{ data is iterable }}

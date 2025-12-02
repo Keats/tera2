@@ -31,3 +31,6 @@ containing(ok): true
 containing(ok): true
 containing(ok): true
 containing(err): false
+defined: true
+undefined: true
+iterable: true

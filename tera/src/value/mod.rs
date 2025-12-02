@@ -270,8 +270,26 @@ impl Ord for Value {
             return res;
         }
 
-        // Nonsensical hardcoded ordering, don't compare arrays and integers...
-        Ordering::Greater
+        // Fallback: order by type for consistent ordering of incompatible types.
+        // Null/Undefined sort last.
+        // It's nonsensical but this way with the sort filter the null/undefined show up at the end
+        fn type_order(v: &ValueInner) -> u8 {
+            match v {
+                ValueInner::Bool(_) => 0,
+                ValueInner::U64(_)
+                | ValueInner::I64(_)
+                | ValueInner::F64(_)
+                | ValueInner::U128(_)
+                | ValueInner::I128(_) => 1,
+                ValueInner::String(_) => 2,
+                ValueInner::Array(_) => 3,
+                ValueInner::Map(_) => 4,
+                ValueInner::Bytes(_) => 5,
+                ValueInner::Null => 6,
+                ValueInner::Undefined => 7,
+            }
+        }
+        type_order(&self.inner).cmp(&type_order(&other.inner))
     }
 }
 
@@ -434,7 +452,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn as_i128(&self) -> Option<i128> {
+    pub fn as_i128(&self) -> Option<i128> {
         match &self.inner {
             ValueInner::U64(v) => Some(*v as i128),
             ValueInner::I64(v) => Some(*v as i128),

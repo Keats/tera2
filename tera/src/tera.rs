@@ -222,6 +222,10 @@ impl Tera {
         self.register_filter("default", crate::filters::default);
         self.register_filter("upper", crate::filters::upper);
         self.register_filter("lower", crate::filters::lower);
+        self.register_filter("wordcount", crate::filters::wordcount);
+        self.register_filter("escape_html", crate::filters::escape);
+        self.register_filter("newlines_to_br", crate::filters::newlines_to_br);
+        self.register_filter("pluralize", crate::filters::pluralize);
         self.register_filter("trim", crate::filters::trim);
         self.register_filter("trim_start", crate::filters::trim_start);
         self.register_filter("trim_end", crate::filters::trim_end);
@@ -242,7 +246,7 @@ impl Tera {
         self.register_filter("last", crate::filters::last);
         self.register_filter("nth", crate::filters::nth);
         self.register_filter("join", crate::filters::join);
-        self.register_filter("slice", crate::filters::slice);
+        self.register_filter("sort", crate::filters::sort);
         self.register_filter("unique", crate::filters::unique);
         self.register_filter("get", crate::filters::get);
         self.register_filter("map", crate::filters::map);
@@ -259,6 +263,8 @@ impl Tera {
         self.register_test("integer", crate::tests::is_integer);
         self.register_test("float", crate::tests::is_float);
         self.register_test("null", crate::tests::is_null);
+        self.register_test("iterable", crate::tests::is_iterable);
+        self.register_test("defined", crate::tests::is_defined);
         self.register_test("undefined", crate::tests::is_undefined);
         self.register_test("odd", crate::tests::is_odd);
         self.register_test("even", crate::tests::is_even);

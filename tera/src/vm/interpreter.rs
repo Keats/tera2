@@ -688,6 +688,7 @@ impl<'tera> VirtualMachine<'tera> {
         };
 
         let mut state = State::new_with_chunk(&context, chunk);
+        state.filters = Some(&self.tera.filters);
         let mut output = Vec::with_capacity(1024);
         vm.interpret(&mut state, &mut output)?;
 
@@ -709,6 +710,7 @@ impl<'tera> VirtualMachine<'tera> {
         // We create a dummy state for variables to be written to, but we don't keep it around
         let mut include_state = State::new_with_chunk(state.context, &tpl.chunk);
         include_state.include_parent = Some(state);
+        include_state.filters = Some(&self.tera.filters);
         vm.interpret(&mut include_state, output)?;
         Ok(())
     }
@@ -732,6 +734,7 @@ impl<'tera> VirtualMachine<'tera> {
             &self.template.chunk
         };
         let mut state = State::new_with_chunk(context, chunk);
+        state.filters = Some(&self.tera.filters);
         self.interpret(&mut state, &mut output)
     }
 }

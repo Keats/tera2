@@ -91,6 +91,14 @@ pub(crate) fn is_undefined(val: &Value, _: Kwargs, _: &State) -> bool {
     val.is_undefined()
 }
 
+pub(crate) fn is_defined(val: &Value, _: Kwargs, _: &State) -> bool {
+    !val.is_undefined()
+}
+
+pub(crate) fn is_iterable(val: &Value, _: Kwargs, _: &State) -> bool {
+    val.is_map() || val.is_array()
+}
+
 pub(crate) fn is_integer(val: &Value, _: Kwargs, _: &State) -> bool {
     if let Some(num) = val.as_number() {
         num.is_integer()

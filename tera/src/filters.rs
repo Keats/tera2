@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
+use crate::utils::escape_html;
 use crate::value::number::Number;
 use crate::value::{FunctionResult, Key, Map, ValueKind};
 use crate::vm::state::State;
@@ -37,6 +38,12 @@ type FilterFunc = dyn Fn(&Value, Kwargs, &State) -> TeraResult<Value> + Sync + S
 
 #[derive(Clone)]
 pub(crate) struct StoredFilter(Arc<FilterFunc>);
+
+impl std::fmt::Debug for StoredFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredFilter").finish_non_exhaustive()
+    }
+}
 
 impl StoredFilter {
     pub fn new<Func, Arg, Res>(f: Func) -> Self
@@ -76,6 +83,42 @@ pub(crate) fn upper(val: &str, _: Kwargs, _: &State) -> String {
 
 pub(crate) fn lower(val: &str, _: Kwargs, _: &State) -> String {
     val.to_lowercase()
+}
+
+pub(crate) fn wordcount(val: &str, _: Kwargs, _: &State) -> usize {
+    val.split_whitespace().count()
+}
+
+pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
+    let mut buf = Vec::with_capacity(val.len());
+    escape_html(val.as_bytes(), &mut buf).unwrap();
+    // SAFETY: escape_html only produces valid UTF-8
+    unsafe { String::from_utf8_unchecked(buf) }
+}
+
+pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
+    val.replace("\r\n", "<br>")
+        .replace('\n', "<br>")
+        .replace('\r', "<br>")
+}
+
+/// Returns a plural suffix if the value is not equal to ±1, or a singular suffix otherwise.
+/// Default singular suffix is "" and default plural suffix is "s".
+pub(crate) fn pluralize(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+    let singular = kwargs.get::<&str>("singular")?.unwrap_or("");
+    let plural = kwargs.get::<&str>("plural")?.unwrap_or("s");
+
+    let is_singular = match val.as_i128() {
+        Some(n) => n == 1,
+        None => {
+            return Err(Error::message(format!(
+                "pluralize filter requires an integer, got `{}`",
+                val.name()
+            )));
+        }
+    };
+
+    Ok(if is_singular { singular } else { plural }.to_string())
 }
 
 pub(crate) fn trim(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
@@ -393,32 +436,23 @@ pub(crate) fn join(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Str
         .join(sep))
 }
 
-/// Slice the array
-/// Use the `start` argument to define where to start (inclusive, default to `0`)
-/// and `end` argument to define where to stop (exclusive, default to the length of the array)
-/// `start` and `end` are 0-indexed
-pub(crate) fn slice(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
+/// Sorts an array. If `attribute` is provided, sorts by that attribute.
+pub(crate) fn sort(mut val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
-        return Ok(Vec::new());
+        return Ok(val);
     }
 
-    let get_index = |i| {
-        if i >= 0 {
-            i as usize
-        } else {
-            (val.len() as isize + i) as usize
-        }
-    };
-    let start = get_index(kwargs.get::<isize>("start")?.unwrap_or_default());
-    let mut end = get_index(kwargs.get::<isize>("end")?.unwrap_or(val.len() as isize));
-    if end > val.len() {
-        end = val.len();
+    if let Some(attribute) = kwargs.get::<&str>("attribute")? {
+        val.sort_by(|a, b| {
+            let key_a = a.get_from_path(attribute);
+            let key_b = b.get_from_path(attribute);
+            key_a.cmp(&key_b)
+        });
+    } else {
+        val.sort();
     }
-    // Not an error, but returns an empty Vec
-    if start >= end {
-        return Ok(Vec::new());
-    }
-    Ok(val[start..end].to_vec())
+
+    Ok(val)
 }
 
 pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
@@ -439,29 +473,64 @@ pub(crate) fn unique(val: Vec<Value>, _: Kwargs, _: &State) -> Vec<Value> {
     res
 }
 
-/// Map retrieves an attribute from a list of objects.
-/// The 'attribute' argument specifies what to retrieve.
-/// If a value is undefined, it will error
-pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
+/// Map retrieves an attribute from a list of objects and/or applies a filter to each element.
+/// - `attribute`: specifies what attribute to retrieve from each element
+/// - `filter`: specifies a filter to apply to each element (or to the extracted attribute)
+/// - `args`: optional map of arguments to pass to the filter
+///
+/// At least one of `attribute` or `filter` must be provided.
+/// If both are provided, the attribute is extracted first, then the filter is applied.
+pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, state: &State) -> TeraResult<Vec<Value>> {
     if val.is_empty() {
         return Ok(val);
     }
-    let attribute = kwargs.must_get::<&str>("attribute")?;
-    // TODO: allow passing a filter/test name to apply to every element?
-    // TODO: allow passing a default value if it's undefined?
-    let mut res = Vec::with_capacity(val.len());
-    for v in val {
-        match v.get_from_path(attribute) {
-            // TODO: should we error or not?
-            x if x.is_undefined() => {
-                return Err(Error::message(format!(
-                    "Value {v} does not an attribute after following path; {attribute}"
-                )));
-            }
-            x => res.push(x),
-        }
+
+    let filter_name = kwargs.get::<&str>("filter")?;
+    let attribute = kwargs.get::<&str>("attribute")?;
+
+    // Must have at least one of filter or attribute
+    if filter_name.is_none() && attribute.is_none() {
+        return Err(Error::message(
+            "map filter requires either `filter` or `attribute` argument",
+        ));
     }
 
+    // Prepare filter kwargs if filter is specified
+    let filter_kwargs = if filter_name.is_some() {
+        let args_map = kwargs
+            .get::<Value>("args")?
+            .and_then(|v| v.into_map())
+            .unwrap_or_else(|| Arc::new(Map::new()));
+        Some(Kwargs::new(args_map))
+    } else {
+        None
+    };
+
+    let mut res = Vec::with_capacity(val.len());
+    for v in val {
+        // Step 1: Extract attribute if specified
+        let extracted = if let Some(attr) = attribute {
+            match v.get_from_path(attr) {
+                x if x.is_undefined() => {
+                    return Err(Error::message(format!(
+                        "Value {v} does not have an attribute at path: {attr}"
+                    )));
+                }
+                x => x,
+            }
+        } else {
+            v
+        };
+
+        // Step 2: Apply filter if specified
+        let final_val = if let (Some(name), Some(ref f_kwargs)) = (filter_name, &filter_kwargs) {
+            state.call_filter(name, &extracted, f_kwargs.clone())?
+        } else {
+            extracted
+        };
+
+        res.push(final_val);
+    }
     Ok(res)
 }
 
@@ -707,37 +776,6 @@ mod tests {
             round((2.245).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
             (2.25).into()
         );
-    }
-
-    #[test]
-    fn test_slice() {
-        let ctx = Context::new();
-        let state = State::new(&ctx);
-        let v: Vec<Value> = vec![1, 2, 3, 4, 5].into_iter().map(Into::into).collect();
-
-        let inputs = vec![
-            ((Some(1), None), vec![2, 3, 4, 5]),
-            ((None, Some(2)), vec![1, 2]),
-            ((Some(1), Some(2)), vec![2]),
-            ((None, Some(-2)), vec![1, 2, 3]),
-            ((None, None), vec![1, 2, 3, 4, 5]),
-            ((Some(3), Some(1)), vec![]),
-            ((Some(9), None), vec![]),
-        ];
-
-        for ((start, end), expected) in inputs {
-            let mut map = Map::new();
-            if let Some(s) = start {
-                map.insert("start".into(), s.into());
-            }
-            if let Some(s) = end {
-                map.insert("end".into(), s.into());
-            }
-            assert_eq!(
-                slice(v.clone(), Kwargs::new(Arc::new(map)), &state).unwrap(),
-                expected.into_iter().map(|x| x.into()).collect::<Vec<_>>()
-            );
-        }
     }
 
     #[cfg(feature = "unicode")]
