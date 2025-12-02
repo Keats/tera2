@@ -300,7 +300,7 @@ impl<'s> Compiler<'s> {
     pub fn compile_node(&mut self, node: Node) {
         match node {
             Node::Content(text) => {
-                self.raw_content_num_bytes += text.as_bytes().len();
+                self.raw_content_num_bytes += text.len();
                 self.chunk.add(Instruction::WriteText(text), None);
             }
             Node::Expression(expr) => {

@@ -171,9 +171,7 @@ impl<'a> Parser<'a> {
     }
 
     fn is_in_loop(&self) -> bool {
-        self.body_contexts
-            .iter()
-            .any(|b| *b == BodyContext::ForLoop)
+        self.body_contexts.contains(&BodyContext::ForLoop)
     }
 
     // Parse something in brackets [..] after an ident or a literal array/map

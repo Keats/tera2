@@ -32,7 +32,7 @@ impl<'a> Key<'a> {
             Key::U64(b) => Value::from(*b),
             Key::I64(b) => Value::from(*b),
             Key::String(b) => Value::normal_string(b.as_ref()),
-            Key::Str(b) => Value::normal_string(*b),
+            Key::Str(b) => Value::normal_string(b),
         }
     }
 

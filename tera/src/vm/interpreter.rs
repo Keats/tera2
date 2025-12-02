@@ -383,7 +383,7 @@ impl<'tera> VirtualMachine<'tera> {
                         }
 
                         let block_chunk = blocks[level + 1];
-                        let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
+                        let old_chunk = state.chunk.replace(block_chunk);
                         state.blocks.insert(current_block_name, (blocks, level + 1));
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
@@ -468,10 +468,10 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
                     let block_chunk = block_lineage[0];
-                    let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
+                    let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));
                     let old_block_name =
-                        std::mem::replace(&mut state.current_block_name, Some(block_name));
+                        state.current_block_name.replace(block_name);
                     let res = self.interpret(state, output);
                     state.chunk = old_chunk;
                     state.current_block_name = old_block_name;

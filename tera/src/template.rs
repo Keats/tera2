@@ -72,7 +72,7 @@ impl Template {
             .component_definitions
             .into_iter()
             .map(|c| {
-                let mut compiler = Compiler::new(&tpl_name, source);
+                let mut compiler = Compiler::new(tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
                 let mut chunk = compiler.chunk;
