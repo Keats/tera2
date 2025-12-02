@@ -14,7 +14,7 @@ ComponentDefinition {
         },
     },
     metadata: {
-        "css": String("./array.css", Normal),
+        "css": String("./array.css"),
     },
     body: [
         "Hello",

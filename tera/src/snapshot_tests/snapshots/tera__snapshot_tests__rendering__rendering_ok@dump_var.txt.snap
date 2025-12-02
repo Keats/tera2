@@ -1,6 +1,6 @@
 ---
 source: tera/src/snapshot_tests/rendering.rs
-expression: "&out"
+expression: "&normalized_out"
 input_file: tera/src/snapshot_tests/rendering_inputs/success/dump_var.txt
 ---
 {"age": 18, "data": {"names": ["Tchoupi", "Pilou", "Fanny"], "weights": [50.6, 70.1]}, "description": "<p>I should be escaped by default</p>", "empty": [], "hello_world": "hello world in a loop", "malicious": "<html>", "name": "Bob", "numbers": [1, 2, 3], "objects": [{"label": "Child", "numbers": [1, 2, 3], "parent": {"label": "Parent", "numbers": [1, 2, 3], "parent": }}], "one": 1, "product": {"name": "Moto G"}, "reviews": [{"paragraphs": ["A", "B", "C"], "title": "My review"}, {"paragraphs": ["A", "B", "C"], "title": "My review"}], "some_bool": true, "some_html": "<p>Some HTML chars & more</p>", "to": "&", "vectors": [[0, 3, 6], [1, 4, 7]], "year_data": [{"id": 1, "year": 2015}, {"id": 2, "year": 2015}, {"id": 3, "year": 2016}, {"id": 4, "year": 2017}, {"id": 5, "year": 2018}, {"id": 6, "year": }, {"id": 7, "year": 2018}]}

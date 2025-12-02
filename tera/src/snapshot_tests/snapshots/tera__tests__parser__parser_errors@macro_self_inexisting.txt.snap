@@ -1,6 +1,0 @@
----
-source: src/tests/parser.rs
-expression: res.unwrap_err()
-input_file: src/tests/parser_inputs/errors/macro_self_inexisting.txt
----
-Template 'macro_self_inexisting.txt' is using macro `self::inexisting` which is not found in the namespace

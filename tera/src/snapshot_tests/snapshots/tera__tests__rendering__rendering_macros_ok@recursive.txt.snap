@@ -1,6 +1,0 @@
----
-source: src/tests/rendering.rs
-expression: "&out"
-input_file: src/tests/rendering_inputs/success/macros/recursive.txt
----
-7 - 6 - 5 - 4 - 3 - 2 - 11234567

@@ -73,11 +73,11 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        Ok(ValueInner::String(SmartString::new(&v.to_string()), StringKind::Normal).into())
+        Ok(ValueInner::String(SmartString::new(&v.to_string(), StringKind::Normal)).into())
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        Ok(ValueInner::String(SmartString::new(v), StringKind::Normal).into())
+        Ok(ValueInner::String(SmartString::new(v, StringKind::Normal)).into())
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
@@ -106,7 +106,7 @@ impl Serializer for ValueSerializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-        Ok(ValueInner::String(SmartString::new(variant), StringKind::Normal).into())
+        Ok(ValueInner::String(SmartString::new(variant, StringKind::Normal)).into())
     }
 
     fn serialize_newtype_struct<T: Serialize + ?Sized>(

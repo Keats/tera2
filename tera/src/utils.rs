@@ -102,11 +102,10 @@ impl Span {
 pub fn escape_html(input: &[u8], buf: &mut dyn std::io::Write) -> std::io::Result<()> {
     #[cfg(feature = "fast_escape")]
     {
-        // FIXME
-        let mut value = String::new();
-        pulldown_cmark_escape::escape_html(&mut value, &String::from_utf8_lossy(input))
-            .expect("writing to a string is infallible");
-        buf.write_all(value.as_bytes()).expect("");
+        use pulldown_cmark_escape::IoWriter;
+        // SAFETY: input comes from Value::format() which only produces valid UTF-8
+        let s = unsafe { std::str::from_utf8_unchecked(input) };
+        pulldown_cmark_escape::escape_html(IoWriter(buf), s)?;
         Ok(())
     }
 

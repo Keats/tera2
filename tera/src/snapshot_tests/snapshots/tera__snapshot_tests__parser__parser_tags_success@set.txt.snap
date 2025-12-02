@@ -52,7 +52,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
         value: [
             I64(1),
             Bool(true),
-            String("hello", Normal),
+            String("hello"),
         ] @ 6:11-6:29 (126..144),
         global: false,
     },

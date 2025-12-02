@@ -1,6 +1,0 @@
----
-source: tera/src/snapshot_tests/build_errors.rs
-expression: "&err"
-input_file: tera/src/snapshot_tests/build_errors/macro_not_found_namespace.txt
----
-Template `tpl` is using macros `test_global` from `macros` which wasn't found

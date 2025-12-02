@@ -1,6 +1,0 @@
----
-source: tera/src/snapshot_tests/build_errors.rs
-expression: "&err"
-input_file: tera/src/snapshot_tests/build_errors/macros_unknown_arg.txt
----
-Template tpl is calling macro hello with an argument lang which isn't present in its definition. Only the following are allowed: other, val.

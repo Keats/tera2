@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_var.txt
   |
 1 | Hello {{ hey }}
   |          ^---
-  = Tried to render a variable that is not defined
+  = Field `hey` is not defined

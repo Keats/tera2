@@ -15,7 +15,7 @@ globset = { version = "0.4.14", optional = true }
 # Crates for speedup
 ahash = { version = "0.8", optional = true }
 itoa = { version = "1.0.9", optional = true }
-pulldown-cmark-escape = { version = "0.10", optional = true}
+pulldown-cmark-escape = { version = "0.11", optional = true}
 
 [features]
 default = []
@@ -36,7 +36,6 @@ glob_fs = ["dep:walkdir", "dep:globset"]
 
 [dev-dependencies]
 criterion = "0.5"
-iai-callgrind = "0.8.0"
 insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
 tempfile = "3"
@@ -55,17 +54,3 @@ harness = false
 [[bench]]
 name = "templates"
 harness = false
-
-# you can enable the benches below on Linux provided you have everything installed.
-# see https://github.com/iai-callgrind/iai-callgrind for details
-#[[bench]]
-#name = "iai-value"
-#harness = false
-#
-#[[bench]]
-#name = "iai-escape"
-#harness = false
-#
-#[[bench]]
-#name = "iai-templates"
-#harness = false

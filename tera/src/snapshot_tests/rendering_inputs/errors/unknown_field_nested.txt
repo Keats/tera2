@@ -1,0 +1,2 @@
+{% set object = objects[0] %}
+{{ object.parent.unknown.label }}

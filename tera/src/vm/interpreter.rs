@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::io::Write;
 
@@ -7,6 +6,7 @@ use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::{Key, Value};
 use crate::vm::for_loop::ForLoop;
+use crate::vm::stack::{combine_spans, SpanRange};
 
 use crate::args::Kwargs;
 use crate::vm::state::State;
@@ -51,9 +51,27 @@ impl<'tera> VirtualMachine<'tera> {
         let mut ip = 0;
 
         macro_rules! rendering_error {
-            ($msg:expr,$span:expr) => {{
-                let mut err = ReportError::new($msg, &$span.as_ref().clone().unwrap());
+            ($msg:expr,$span_range:expr) => {{
                 let chunk = state.chunk.expect("to have a chunk");
+                let span = $span_range
+                    .as_ref()
+                    .and_then(|r| chunk.expand_span(r))
+                    .expect("to have a span for error");
+                let mut err = ReportError::new($msg, &span);
+                let (name, source) = if self.template.name != chunk.name {
+                    let tpl = &self.tera.templates[&chunk.name];
+                    (&tpl.name, &tpl.source)
+                } else {
+                    (&self.template.name, &self.template.source)
+                };
+                err.generate_report(name, source, "Rendering error");
+                return Err(Error::new(ErrorKind::RenderingError(err)));
+            }};
+            // Variant for fused instructions that takes a direct span
+            ($msg:expr, span: $span:expr) => {{
+                let chunk = state.chunk.expect("to have a chunk");
+                let span = $span.expect("to have a span for error");
+                let mut err = ReportError::new($msg, span);
                 let (name, source) = if self.template.name != chunk.name {
                     let tpl = &self.tera.templates[&chunk.name];
                     (&tpl.name, &tpl.source)
@@ -65,21 +83,11 @@ impl<'tera> VirtualMachine<'tera> {
             }};
         }
 
-        macro_rules! expand_span {
-            ($first:expr,$second:expr) => {{
-                let mut c_span = $first.clone().unwrap().into_owned();
-                if let Some(ref second_span) = $second.as_ref() {
-                    c_span.expand(&second_span);
-                }
-                Cow::Owned(c_span)
-            }};
-        }
-
         macro_rules! op_binop {
             ($op:tt) => {{
                 let (b, b_span) = state.stack.pop();
                 let (a, a_span) = state.stack.pop();
-                state.stack.push(Value::from(a $op b), Some(expand_span!(a_span, b_span)));
+                state.stack.push(Value::from(a $op b), combine_spans(&a_span, &b_span));
             }};
         }
 
@@ -108,16 +116,16 @@ impl<'tera> VirtualMachine<'tera> {
                     );
                 }
 
-                let c_span = expand_span!(a_span, b_span);
+                let c_span = combine_spans(&a_span, &b_span);
                 match crate::value::number::$fn(&a, &b) {
-                    Ok(c) => state.stack.push(c, Some(c_span)),
+                    Ok(c) => state.stack.push(c, c_span),
                     Err(e) => {
                         let err_msg = e.to_string();
                         // yucky
                         if err_msg.contains("divide by 0") {
                             rendering_error!(err_msg, b_span);
                         } else {
-                            rendering_error!(err_msg, Some(c_span));
+                            rendering_error!(err_msg, c_span);
                         }
                     }
                 }
@@ -125,11 +133,12 @@ impl<'tera> VirtualMachine<'tera> {
         }
 
         macro_rules! component {
-            ($name:expr, $span:expr, $has_body:expr) => {{
+            ($name:expr, $span_idx:expr, $has_body:expr) => {{
                 let (kwargs, _) = state.stack.pop();
                 let kwargs = kwargs.into_map().expect("to have kwargs");
                 let mut context = Context::new();
                 let (component_def, component_chunk) = &self.tera.components[$name];
+                let current_span: SpanRange = Some($span_idx..=$span_idx);
 
                 for key in kwargs.keys() {
                     if !component_def.kwargs.contains_key(key.as_str().unwrap()) {
@@ -143,7 +152,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 .collect::<Vec<_>>()
                                 .join(", "))
                         };
-                        rendering_error!(format!("Argument `{key}` not found in definition.{kwargs_msg}"), $span)
+                        rendering_error!(format!("Argument `{key}` not found in definition.{kwargs_msg}"), current_span)
                     }
                 }
 
@@ -155,7 +164,7 @@ impl<'tera> VirtualMachine<'tera> {
                             } else {
                                 // TODO: we need to pass the span of each element in the map somehow
                                 // so we can point exactly where the issue is
-                                rendering_error!(format!("Component argument `{key}` (type: `{}`) does not match expected type: `{}`", kwarg_val.name(), value.typ.unwrap().as_str()), $span);
+                                rendering_error!(format!("Component argument `{key}` (type: `{}`) does not match expected type: `{}`", kwarg_val.name(), value.typ.unwrap().as_str()), current_span);
                             }
                         }
                         None => match &value.default {
@@ -169,7 +178,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 } else {
                                     String::new()
                                 };
-                                rendering_error!(format!("Argument `{key}` {typ_msg} missing."), $span)
+                                rendering_error!(format!("Argument `{key}` {typ_msg} missing."), current_span)
                             }
                         },
                     }
@@ -181,18 +190,19 @@ impl<'tera> VirtualMachine<'tera> {
                 let val = self.render_component(&component_chunk, context)?;
                 state
                     .stack
-                    .push_borrowed(Value::safe_string(&val), $span.as_ref().unwrap());
+                    .push(Value::safe_string(&val), current_span);
             }};
         }
 
-        while let Some((instr, span)) = state.chunk.expect("To have a chunk").get(ip) {
+        while let Some((instr, _)) = state.chunk.expect("To have a chunk").get(ip) {
+            // Current instruction index as span reference
+            let current_ip = ip as u32;
+
             match instr {
                 Instruction::LoadConst(v) => {
-                    state
-                        .stack
-                        .push(v.clone(), span.as_ref().map(Cow::Borrowed));
+                    state.stack.push(v.clone(), Some(current_ip..=current_ip));
                 }
-                Instruction::LoadName(n) => state.load_name(n, span),
+                Instruction::LoadName(n) => state.load_name(n, current_ip),
                 Instruction::LoadAttr(attr) => {
                     let (a, a_span) = state.stack.pop();
                     if a.is_undefined() {
@@ -200,18 +210,18 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                     state
                         .stack
-                        .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
+                        .push(a.get_attr(attr), Some(current_ip..=current_ip));
                 }
                 Instruction::LoadAttrOpt(attr) => {
                     let (a, _a_span) = state.stack.pop();
                     if a.is_undefined() || a.is_null() {
                         state
                             .stack
-                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                            .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
                         state
                             .stack
-                            .push_borrowed(a.get_attr(attr), span.as_ref().unwrap());
+                            .push(a.get_attr(attr), Some(current_ip..=current_ip));
                     }
                 }
                 Instruction::BinarySubscript => {
@@ -221,10 +231,10 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
 
-                    let c_span = expand_span!(val_span, subscript_span);
+                    let c_span = combine_spans(&val_span, &subscript_span);
                     match val.get_item(subscript) {
                         Ok(v) => {
-                            state.stack.push(v, Some(c_span));
+                            state.stack.push(v, c_span);
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), subscript_span);
@@ -237,12 +247,12 @@ impl<'tera> VirtualMachine<'tera> {
                     if val.is_undefined() || val.is_null() {
                         state
                             .stack
-                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                            .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
-                        let c_span = expand_span!(val_span, subscript_span);
+                        let c_span = combine_spans(&val_span, &subscript_span);
                         match val.get_item(subscript) {
                             Ok(v) => {
-                                state.stack.push(v, Some(c_span));
+                                state.stack.push(v, c_span);
                             }
                             Err(e) => {
                                 rendering_error!(e.to_string(), subscript_span);
@@ -259,12 +269,11 @@ impl<'tera> VirtualMachine<'tera> {
                         rendering_error!(format!("Container is not defined"), val_span);
                     }
 
-                    // let mut slice_span = expand_span!(val_span, start_span);
                     // This returns an error if the value is not an array/string so we don't need to
                     // expand the span.
                     match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
                         Ok(v) => {
-                            state.stack.push(v, Some(val_span.unwrap()));
+                            state.stack.push(v, val_span);
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), val_span);
@@ -279,14 +288,13 @@ impl<'tera> VirtualMachine<'tera> {
                     if val.is_undefined() {
                         state
                             .stack
-                            .push_borrowed(Value::undefined(), span.as_ref().unwrap());
+                            .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
-                        // let mut slice_span = expand_span!(val_span, start_span);
                         // This returns an error if the value is not an array/string so we don't need to
                         // expand the span.
                         match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
                             Ok(v) => {
-                                state.stack.push(v, Some(val_span.unwrap()));
+                                state.stack.push(v, val_span);
                             }
                             Err(e) => {
                                 rendering_error!(e.to_string(), val_span);
@@ -370,7 +378,7 @@ impl<'tera> VirtualMachine<'tera> {
                         if blocks.len() == 1 {
                             rendering_error!(
                                 format!("Tried to use super() in the top level block"),
-                                span
+                                Some(current_ip..=current_ip)
                             );
                         }
 
@@ -384,15 +392,18 @@ impl<'tera> VirtualMachine<'tera> {
                     } else if let Some(f) = self.tera.functions.get(name.as_str()) {
                         let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
                             Ok(v) => v,
-                            Err(err) => rendering_error!(format!("{err}"), span),
+                            Err(err) => {
+                                rendering_error!(format!("{err}"), Some(current_ip..=current_ip))
+                            }
                         };
 
-                        state
-                            .stack
-                            .push(val, span.as_ref().map(|c| Cow::Owned(c.clone())));
+                        state.stack.push(val, Some(current_ip..=current_ip));
                     } else {
                         // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(format!("This function is not registered in Tera"), span)
+                        rendering_error!(
+                            format!("This function is not registered in Tera"),
+                            Some(current_ip..=current_ip)
+                        )
                     }
                 }
                 Instruction::ApplyFilter(name) => {
@@ -406,15 +417,19 @@ impl<'tera> VirtualMachine<'tera> {
                                     ErrorKind::InvalidArgument { .. } => {
                                         rendering_error!(format!("{err}"), value_span)
                                     }
-                                    _ => rendering_error!(format!("{err}"), span),
+                                    _ => rendering_error!(
+                                        format!("{err}"),
+                                        Some(current_ip..=current_ip)
+                                    ),
                                 },
                             };
-                        state
-                            .stack
-                            .push(val, span.as_ref().map(|c| Cow::Owned(c.clone())));
+                        state.stack.push(val, Some(current_ip..=current_ip));
                     } else {
                         // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(format!("This filter is not registered in Tera"), span)
+                        rendering_error!(
+                            format!("This filter is not registered in Tera"),
+                            Some(current_ip..=current_ip)
+                        )
                     }
                 }
                 Instruction::RunTest(name) => {
@@ -428,23 +443,27 @@ impl<'tera> VirtualMachine<'tera> {
                                     ErrorKind::InvalidArgument { .. } => {
                                         rendering_error!(format!("{err}"), value_span)
                                     }
-                                    _ => rendering_error!(format!("{err}"), span),
+                                    _ => rendering_error!(
+                                        format!("{err}"),
+                                        Some(current_ip..=current_ip)
+                                    ),
                                 },
                             };
 
-                        state
-                            .stack
-                            .push(val.into(), span.as_ref().map(|c| Cow::Owned(c.clone())));
+                        state.stack.push(val.into(), Some(current_ip..=current_ip));
                     } else {
                         // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(format!("This test is not registered in Tera"), span)
+                        rendering_error!(
+                            format!("This test is not registered in Tera"),
+                            Some(current_ip..=current_ip)
+                        )
                     }
                 }
                 Instruction::RenderBodyComponent(name) => {
-                    component!(name, span, true);
+                    component!(name, current_ip, true);
                 }
                 Instruction::RenderInlineComponent(name) => {
-                    component!(name, span, false);
+                    component!(name, current_ip, false);
                 }
                 Instruction::RenderBlock(block_name) => {
                     let block_lineage = self.get_block_lineage(block_name)?;
@@ -562,11 +581,9 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::StrConcat => {
                     let (b, b_span) = state.stack.pop();
                     let (a, a_span) = state.stack.pop();
-                    let c_span = expand_span!(a_span, b_span);
+                    let c_span = combine_spans(&a_span, &b_span);
                     // TODO: we could push_str if `a` is a string
-                    state
-                        .stack
-                        .push(Value::from(format!("{a}{b}")), Some(c_span));
+                    state.stack.push(Value::from(format!("{a}{b}")), c_span);
                 }
                 Instruction::In => {
                     let (container, container_span) = state.stack.pop();
@@ -592,6 +609,66 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                         Err(e) => {
                             rendering_error!(e.to_string(), a_span);
+                        }
+                    }
+                }
+                // Combined instructions
+                Instruction::LoadPath(path) => {
+                    let chunk = state.chunk.expect("to have a chunk");
+                    let mut val = state.get(&path[0]);
+                    let num_attrs = path.len() - 1;
+                    for (k, attr) in path[1..].iter().enumerate() {
+                        if val.is_undefined() {
+                            rendering_error!(
+                                format!("Container is not defined"),
+                                span: chunk.get_span_at(current_ip, k)
+                            );
+                        }
+                        val = val.get_attr(attr);
+                        // Only error on intermediate undefined, not the final result
+                        if val.is_undefined() && k + 1 < num_attrs {
+                            rendering_error!(
+                                format!("Field `{}` is not defined", attr),
+                                span: chunk.get_span_at(current_ip, k + 1)
+                            );
+                        }
+                    }
+                    state.stack.push(val, Some(current_ip..=current_ip));
+                }
+                Instruction::WritePath(path) => {
+                    let mut val = state.get(&path[0]);
+                    if val.is_undefined() {
+                        let chunk = state.chunk.expect("to have a chunk");
+                        rendering_error!(
+                            format!("Field `{}` is not defined", path[0]),
+                            span: chunk.get_span_at(current_ip, 0)
+                        );
+                    }
+                    for (k, attr) in path[1..].iter().enumerate() {
+                        val = val.get_attr(attr);
+                        // Check if attribute access failed (returned undefined)
+                        if val.is_undefined() {
+                            let chunk = state.chunk.expect("to have a chunk");
+                            rendering_error!(
+                                format!("Field `{}` is not defined", attr),
+                                span: chunk.get_span_at(current_ip, k + 1)
+                            );
+                        }
+                    }
+
+                    if !self.template.autoescape_enabled || val.is_safe() {
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            val.format(captured)?;
+                        } else {
+                            val.format(output)?;
+                        }
+                    } else {
+                        let mut out: Vec<u8> = Vec::new();
+                        val.format(&mut out)?;
+                        if let Some(captured) = state.capture_buffers.last_mut() {
+                            (self.tera.escape_fn)(&out, captured)?;
+                        } else {
+                            (self.tera.escape_fn)(&out, output)?;
                         }
                     }
                 }

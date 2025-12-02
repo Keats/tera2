@@ -3,7 +3,6 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::Stack;
 use crate::{Context, Value};
 
-use crate::utils::Span;
 use std::collections::BTreeMap;
 
 /// Special string indicating request to dump context
@@ -14,7 +13,7 @@ static MAGICAL_DUMP_VAR: &str = "__tera_context";
 /// when dealing with inheritance.
 #[derive(Debug)]
 pub struct State<'tera> {
-    pub(crate) stack: Stack<'tera>,
+    pub(crate) stack: Stack,
     /// It can be None for things like tests as we don't expose Chunk outside of the crate
     pub(crate) chunk: Option<&'tera Chunk>,
     pub(crate) for_loops: Vec<ForLoop>,
@@ -76,7 +75,7 @@ impl<'t> State<'t> {
     /// 3. self.context
     /// 4. return Value::Undefined
     pub(crate) fn get(&self, name: &str) -> Value {
-        for forloop in &self.for_loops {
+        for forloop in self.for_loops.iter().rev() {
             if let Some(v) = forloop.get(name) {
                 return v;
             }
@@ -120,12 +119,11 @@ impl<'t> State<'t> {
         context.into()
     }
 
-    pub(crate) fn load_name<'tera: 't>(&mut self, name: &str, span: &'tera Option<Span>) {
+    pub(crate) fn load_name(&mut self, name: &str, span_idx: u32) {
         if name == MAGICAL_DUMP_VAR {
             self.stack.push(self.dump_context(), None);
         } else {
-            self.stack
-                .push_borrowed(self.get(name), span.as_ref().unwrap());
+            self.stack.push(self.get(name), Some(span_idx..=span_idx));
         }
     }
 }

@@ -159,7 +159,7 @@ pub(crate) fn create_for_loop_iterator(value: &Value) -> Option<ForLoopIterator>
             })
         }
 
-        ValueInner::String(smart_str, _) => {
+        ValueInner::String(smart_str) => {
             let content = smart_str.clone().into_arc_str();
             Some(ForLoopIterator::create_string_iterator(content))
         }

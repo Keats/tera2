@@ -109,7 +109,7 @@ impl<'k> ArgFromValue<'k> for Cow<'_, str> {
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
         match &value.inner {
-            ValueInner::String(s, _) => Ok(Cow::Borrowed(s.as_str())),
+            ValueInner::String(s) => Ok(Cow::Borrowed(s.as_str())),
             _ => Ok(Cow::Owned(format!("{value}"))),
         }
     }
