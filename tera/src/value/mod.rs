@@ -169,7 +169,7 @@ pub(crate) enum ValueInner {
     // Box large integers since they are not used very often
     U128(Box<u128>),
     I128(Box<i128>),
-    // SmartString includes StringKind for memory efficiency
+    // SmartString includes whether a string is safe or not
     String(SmartString),
     Array(Arc<Vec<Value>>),
     Map(Arc<Map>),
