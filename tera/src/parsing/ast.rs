@@ -705,6 +705,73 @@ impl ComponentDefinition {
     pub fn kwargs_list(&self) -> Vec<&str> {
         self.kwargs.keys().map(|k| k.as_str()).collect()
     }
+
+    /// Builds a validated context from provided kwargs, checking types and applying defaults.
+    pub fn build_context<'a>(
+        &self,
+        provided_param_names: impl Iterator<Item = &'a str>,
+        get_value: impl Fn(&str) -> Option<Value>,
+        body: Option<Value>,
+    ) -> Result<crate::Context, String> {
+        let mut context = crate::Context::new();
+
+        // Check for unknown arguments
+        for key in provided_param_names {
+            if !self.kwargs.contains_key(key) {
+                let kwargs_list = self.kwargs_list();
+                let kwargs_msg = if kwargs_list.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " Possible argument(s) are: {}",
+                        kwargs_list
+                            .iter()
+                            .map(|s| format!("`{}`", s))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                };
+                return Err(format!(
+                    "Argument `{key}` not found in component definition.{kwargs_msg}"
+                ));
+            }
+        }
+
+        // Validate and apply each expected argument
+        for (key, arg_def) in &self.kwargs {
+            match get_value(key) {
+                Some(value) => {
+                    if !arg_def.type_matches(&value) {
+                        return Err(format!(
+                            "Component argument `{key}` (type: `{}`) does not match expected type: `{}`",
+                            value.name(),
+                            arg_def.typ.unwrap().as_str()
+                        ));
+                    }
+                    context.insert_value(key.clone(), value);
+                }
+                None => match &arg_def.default {
+                    Some(default_value) => {
+                        context.insert_value(key.clone(), default_value.clone());
+                    }
+                    None => {
+                        let typ_msg = arg_def
+                            .typ
+                            .map(|t| format!(" (type: `{}`)", t.as_str()))
+                            .unwrap_or_default();
+                        return Err(format!("Argument `{key}`{typ_msg} missing."));
+                    }
+                },
+            }
+        }
+
+        // Add body if provided
+        if let Some(body_value) = body {
+            context.insert_value("body", body_value);
+        }
+
+        Ok(context)
+    }
 }
 
 /// A forloop: can be over values or key/values

@@ -7,4 +7,4 @@ input_file: tera/src/snapshot_tests/rendering_inputs/errors/components/unknown_a
   |
 1 | {{ <display_name hello={1}/> }}
   |    ^---
-  = Argument `hello` not found in definition.
+  = Argument `hello` not found in component definition.

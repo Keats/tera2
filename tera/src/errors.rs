@@ -78,6 +78,9 @@ pub enum ErrorKind {
     },
     /// A template was missing
     TemplateNotFound(String),
+    /// A component was missing
+    /// Only raised if you're trying to render a specific component
+    ComponentNotFound(String),
     /// A filter/test main value was not the expected type
     InvalidArgument {
         expected_type: String,
@@ -114,6 +117,7 @@ impl fmt::Display for ErrorKind {
                 "Template '{current}' is inheriting from '{parent}', which doesn't exist or isn't loaded.",
             ),
             ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{name}' not found"),
+            ErrorKind::ComponentNotFound(ref name) => write!(f, "Component '{name}' not found"),
             ErrorKind::NamespaceNotLoaded {
                 ref tpl,
                 ref namespace,
@@ -209,6 +213,13 @@ impl Error {
     pub(crate) fn template_not_found(tpl: impl ToString) -> Self {
         Self {
             kind: ErrorKind::TemplateNotFound(tpl.to_string()),
+            source: None,
+        }
+    }
+
+    pub(crate) fn component_not_found(name: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::ComponentNotFound(name.to_string()),
             source: None,
         }
     }

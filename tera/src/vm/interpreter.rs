@@ -22,7 +22,11 @@ impl<'tera> VirtualMachine<'tera> {
         Self { tera, template }
     }
 
-    fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
+    pub(crate) fn interpret(
+        &self,
+        state: &mut State<'tera>,
+        output: &mut impl Write,
+    ) -> TeraResult<()> {
         let mut ip = 0;
 
         macro_rules! rendering_error {
@@ -111,61 +115,26 @@ impl<'tera> VirtualMachine<'tera> {
             ($name:expr, $span_idx:expr, $has_body:expr) => {{
                 let (kwargs, _) = state.stack.pop();
                 let kwargs = kwargs.into_map().expect("to have kwargs");
-                let mut context = Context::new();
                 let (component_def, component_chunk) = &self.tera.components[$name];
                 let current_span: SpanRange = Some($span_idx..=$span_idx);
 
-                for key in kwargs.keys() {
-                    if !component_def.kwargs.contains_key(key.as_str().unwrap()) {
-                        let kwargs_list = component_def.kwargs_list();
-                        let kwargs_msg = if kwargs_list.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" Possible argument(s) are: {}",
-                                kwargs_list.iter()
-                                .map(|s| format!("`{}`", s))
-                                .collect::<Vec<_>>()
-                                .join(", "))
-                        };
-                        rendering_error!(format!("Argument `{key}` not found in definition.{kwargs_msg}"), current_span)
-                    }
-                }
+                let body = if $has_body {
+                    Some(state.stack.pop().0)
+                } else {
+                    None
+                };
 
-                for (key, value) in &component_def.kwargs {
-                    match kwargs.get(&Key::Str(key)) {
-                        Some(kwarg_val) => {
-                            if value.type_matches(&kwarg_val) {
-                                context.insert_value(key.clone(), kwarg_val.clone());
-                            } else {
-                                // TODO: we need to pass the span of each element in the map somehow
-                                // so we can point exactly where the issue is
-                                rendering_error!(format!("Component argument `{key}` (type: `{}`) does not match expected type: `{}`", kwarg_val.name(), value.typ.unwrap().as_str()), current_span);
-                            }
-                        }
-                        None => match &value.default {
-                            Some(kwarg_val) => {
-                                context.insert_value(key.clone(), kwarg_val.clone());
-                            }
-                            None => {
-                                // Missing argument that doesn't have a default
-                                let typ_msg = if let Some(t) = value.typ.and_then(|t| Some(t.as_str())) {
-                                    format!("(type: `{t}`)")
-                                } else {
-                                    String::new()
-                                };
-                                rendering_error!(format!("Argument `{key}` {typ_msg} missing."), current_span)
-                            }
-                        },
-                    }
-                }
+                let context = match component_def.build_context(
+                    kwargs.keys().filter_map(|k| k.as_str()),
+                    |key| kwargs.get(&Key::Str(key)).cloned(),
+                    body,
+                ) {
+                    Ok(ctx) => ctx,
+                    Err(msg) => rendering_error!(msg, current_span),
+                };
 
-                if $has_body {
-                    context.insert_value("body", state.stack.pop().0);
-                }
                 let val = self.render_component(&component_chunk, context)?;
-                state
-                    .stack
-                    .push(Value::safe_string(&val), current_span);
+                state.stack.push(Value::safe_string(&val), current_span);
             }};
         }
 
