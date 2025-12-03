@@ -1,0 +1,3 @@
+$$ tpl
+{% if name is unknown_test %}yes{% endif %}
+{% if name is another_unknown %}no{% endif %}

@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_token_test.txt
 ---
+Failed to parse 'unexpected_token_test.txt'
+
  Syntax error --> [unexpected_token_test.txt:1:16]
   |
 1 | {{ a is upper(b=,) }}

@@ -22,31 +22,6 @@ impl<'tera> VirtualMachine<'tera> {
         Self { tera, template }
     }
 
-    // TODO: do that at compile time so we don't need to do it at runtime
-    fn get_block_lineage(&self, block_name: &str) -> TeraResult<Vec<&'tera Chunk>> {
-        // We first get all the chunks we might need to render
-        let mut blocks = Vec::with_capacity(10);
-        // The block is present in the template we are rendering
-        if let Some(bl) = self.template.block_lineage.get(block_name) {
-            for c in bl {
-                blocks.push(c);
-            }
-        } else {
-            // the block is not present, we go up the lineage by 1 until we find a template that has it
-            for parent_tpl_name in self.template.parents.iter().rev() {
-                let parent_tpl = self.tera.get_template(parent_tpl_name)?;
-                if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
-                    for c in bl {
-                        blocks.push(c);
-                    }
-                    break;
-                }
-            }
-        }
-
-        Ok(blocks)
-    }
-
     fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
         let mut ip = 0;
 
@@ -64,7 +39,7 @@ impl<'tera> VirtualMachine<'tera> {
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error");
+                err.generate_report(name, source, "Rendering error", None);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
             // Variant for fused instructions that takes a direct span
@@ -78,7 +53,7 @@ impl<'tera> VirtualMachine<'tera> {
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error");
+                err.generate_report(name, source, "Rendering error", None);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
         }
@@ -326,7 +301,6 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     } else {
                         // Avoiding String as much as possible
-                        // TODO: Add more benchmarks
                         let mut out: Vec<u8> = Vec::new();
                         top.format(&mut out)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
@@ -355,7 +329,6 @@ impl<'tera> VirtualMachine<'tera> {
                         elems.push((key.as_key()?, val));
                     }
                     let map: BTreeMap<_, _> = elems.into_iter().collect();
-                    // TODO: do we need to keep track of the full span?
                     state.stack.push(Value::from(map), None)
                 }
                 Instruction::BuildList(num_elem) => {
@@ -383,13 +356,14 @@ impl<'tera> VirtualMachine<'tera> {
                         }
 
                         let block_chunk = blocks[level + 1];
-                        let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
+                        let old_chunk = state.chunk.replace(block_chunk);
                         state.blocks.insert(current_block_name, (blocks, level + 1));
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
                         res?;
                         state.stack.push(Value::null(), None);
-                    } else if let Some(f) = self.tera.functions.get(name.as_str()) {
+                    } else {
+                        let f = &self.tera.functions[name.as_str()];
                         let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
                             Ok(v) => v,
                             Err(err) => {
@@ -398,66 +372,38 @@ impl<'tera> VirtualMachine<'tera> {
                         };
 
                         state.stack.push(val, Some(current_ip..=current_ip));
-                    } else {
-                        // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(
-                            format!("This function is not registered in Tera"),
-                            Some(current_ip..=current_ip)
-                        )
                     }
                 }
                 Instruction::ApplyFilter(name) => {
-                    if let Some(f) = self.tera.filters.get(name.as_str()) {
-                        let (kwargs, _) = state.stack.pop();
-                        let (value, value_span) = state.stack.pop();
-                        let val =
-                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
-                                Ok(v) => v,
-                                Err(err) => match err.kind {
-                                    ErrorKind::InvalidArgument { .. } => {
-                                        rendering_error!(format!("{err}"), value_span)
-                                    }
-                                    _ => rendering_error!(
-                                        format!("{err}"),
-                                        Some(current_ip..=current_ip)
-                                    ),
-                                },
-                            };
-                        state.stack.push(val, Some(current_ip..=current_ip));
-                    } else {
-                        // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(
-                            format!("This filter is not registered in Tera"),
-                            Some(current_ip..=current_ip)
-                        )
-                    }
+                    let f = &self.tera.filters[name.as_str()];
+                    let (kwargs, _) = state.stack.pop();
+                    let (value, value_span) = state.stack.pop();
+                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                        Ok(v) => v,
+                        Err(err) => match err.kind {
+                            ErrorKind::InvalidArgument { .. } => {
+                                rendering_error!(format!("{err}"), value_span)
+                            }
+                            _ => rendering_error!(format!("{err}"), Some(current_ip..=current_ip)),
+                        },
+                    };
+                    state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::RunTest(name) => {
-                    if let Some(f) = self.tera.tests.get(name.as_str()) {
-                        let (kwargs, _) = state.stack.pop();
-                        let (value, value_span) = state.stack.pop();
-                        let val =
-                            match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
-                                Ok(v) => v,
-                                Err(err) => match err.kind {
-                                    ErrorKind::InvalidArgument { .. } => {
-                                        rendering_error!(format!("{err}"), value_span)
-                                    }
-                                    _ => rendering_error!(
-                                        format!("{err}"),
-                                        Some(current_ip..=current_ip)
-                                    ),
-                                },
-                            };
+                    let f = &self.tera.tests[name.as_str()];
+                    let (kwargs, _) = state.stack.pop();
+                    let (value, value_span) = state.stack.pop();
+                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                        Ok(v) => v,
+                        Err(err) => match err.kind {
+                            ErrorKind::InvalidArgument { .. } => {
+                                rendering_error!(format!("{err}"), value_span)
+                            }
+                            _ => rendering_error!(format!("{err}"), Some(current_ip..=current_ip)),
+                        },
+                    };
 
-                        state.stack.push(val.into(), Some(current_ip..=current_ip));
-                    } else {
-                        // TODO: we _should_ be able to track that at compile time
-                        rendering_error!(
-                            format!("This test is not registered in Tera"),
-                            Some(current_ip..=current_ip)
-                        )
-                    }
+                    state.stack.push(val.into(), Some(current_ip..=current_ip));
                 }
                 Instruction::RenderBodyComponent(name) => {
                     component!(name, current_ip, true);
@@ -466,12 +412,16 @@ impl<'tera> VirtualMachine<'tera> {
                     component!(name, current_ip, false);
                 }
                 Instruction::RenderBlock(block_name) => {
-                    let block_lineage = self.get_block_lineage(block_name)?;
+                    let block_lineage: Vec<_> = self
+                        .template
+                        .block_lineage
+                        .get(block_name)
+                        .map(|bl| bl.iter().collect())
+                        .unwrap_or_default();
                     let block_chunk = block_lineage[0];
-                    let old_chunk = std::mem::replace(&mut state.chunk, Some(block_chunk));
+                    let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));
-                    let old_block_name =
-                        std::mem::replace(&mut state.current_block_name, Some(block_name));
+                    let old_block_name = state.current_block_name.replace(block_name);
                     let res = self.interpret(state, output);
                     state.chunk = old_chunk;
                     state.current_block_name = old_block_name;
@@ -510,7 +460,6 @@ impl<'tera> VirtualMachine<'tera> {
                     state.capture_buffers.push(Vec::with_capacity(128));
                 }
                 Instruction::EndCapture => {
-                    // TODO: we should keep track of the buffer spans?
                     let captured = state.capture_buffers.pop().unwrap();
                     let val = Value::from(String::from_utf8(captured)?);
                     state.stack.push(val, None);
@@ -569,7 +518,36 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::Div => math_binop!(div),
                 Instruction::FloorDiv => math_binop!(floor_div),
                 Instruction::Mod => math_binop!(rem),
-                Instruction::Plus => math_binop!(add),
+                Instruction::Plus => {
+                    let (b, b_span) = state.stack.pop();
+                    let (a, a_span) = state.stack.pop();
+                    let c_span = combine_spans(&a_span, &b_span);
+
+                    // Both arrays: concatenate
+                    if a.is_array() && b.is_array() {
+                        let mut result = a.into_vec().unwrap();
+                        result.extend(b.into_vec().unwrap());
+                        state.stack.push(Value::from(result), c_span);
+                    }
+                    // Both numbers: add
+                    else if a.is_number() && b.is_number() {
+                        match crate::value::number::add(&a, &b) {
+                            Ok(c) => state.stack.push(c, c_span),
+                            Err(e) => rendering_error!(e.to_string(), c_span),
+                        }
+                    }
+                    // Type mismatch: error
+                    else {
+                        rendering_error!(
+                            format!(
+                                "`+` requires operands to be both numbers or arrays, found `{}` and `{}`",
+                                a.name(),
+                                b.name()
+                            ),
+                            c_span
+                        );
+                    }
+                }
                 Instruction::Minus => math_binop!(sub),
                 Instruction::Power => math_binop!(pow),
                 Instruction::LessThan => op_binop!(<),
@@ -715,15 +693,20 @@ impl<'tera> VirtualMachine<'tera> {
         Ok(())
     }
 
-    pub(crate) fn render(&mut self, context: &Context) -> TeraResult<String> {
+    pub(crate) fn render(
+        &mut self,
+        context: &Context,
+        global_context: &Context,
+    ) -> TeraResult<String> {
         let mut output = Vec::with_capacity(self.template.size_hint());
-        self.render_to(context, &mut output)?;
+        self.render_to(context, global_context, &mut output)?;
         Ok(String::from_utf8(output)?)
     }
 
     pub(crate) fn render_to(
         &mut self,
         context: &Context,
+        global_context: &Context,
         mut output: impl Write,
     ) -> TeraResult<()> {
         // TODO(perf): can we optimize this at the bytecode level to avoid hashmap lookups?
@@ -734,6 +717,7 @@ impl<'tera> VirtualMachine<'tera> {
             &self.template.chunk
         };
         let mut state = State::new_with_chunk(context, chunk);
+        state.global_context = Some(global_context);
         state.filters = Some(&self.tera.filters);
         self.interpret(&mut state, &mut output)
     }

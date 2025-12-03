@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/unclosed_variable.txt
 ---
+Failed to parse 'unclosed_variable.txt'
+
  Syntax error --> [unclosed_variable.txt:1:4]
   |
 1 | {{ 1

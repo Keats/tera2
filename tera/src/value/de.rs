@@ -215,7 +215,7 @@ impl<'de> de::Deserializer<'de> for Value {
     }
 }
 
-impl<'de, 'v> de::Deserializer<'de> for &'v Value {
+impl<'de> de::Deserializer<'de> for &Value {
     type Error = DeserializationFailed;
 
     fn deserialize_any<V: de::Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {

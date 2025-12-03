@@ -24,7 +24,6 @@ pub(crate) struct Stack {
 impl Stack {
     pub(crate) fn new() -> Self {
         Self {
-            // TODO: check the size of the stack of an average template
             values: Vec::with_capacity(64),
         }
     }

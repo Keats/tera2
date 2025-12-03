@@ -1,6 +1,7 @@
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::{Chunk, Compiler};
+use crate::utils::Span;
 use crate::{HashMap, Parser};
 
 #[derive(Debug, PartialEq, Clone)]
@@ -11,8 +12,13 @@ pub struct Template {
     pub(crate) chunk: Chunk,
     /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
+    /// Block definitions with their spans for error reporting
+    pub(crate) block_name_spans: HashMap<String, Span>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
-    pub(crate) component_calls: Vec<String>,
+    pub(crate) component_calls: HashMap<String, Vec<Span>>,
+    pub(crate) filter_calls: HashMap<String, Vec<Span>>,
+    pub(crate) test_calls: HashMap<String, Vec<Span>>,
+    pub(crate) function_calls: HashMap<String, Vec<Span>>,
     /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
@@ -33,7 +39,8 @@ impl Template {
             Ok(p) => p,
             Err(e) => match e.kind {
                 ErrorKind::SyntaxError(mut s) => {
-                    s.generate_report(tpl_name, source, "Syntax error");
+                    let title = format!("Failed to parse '{tpl_name}'");
+                    s.generate_report(tpl_name, source, "Syntax error", Some(&title));
                     return Err(Error {
                         kind: ErrorKind::SyntaxError(s),
                         source: None,
@@ -67,35 +74,49 @@ impl Template {
 
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
 
-        // Optimize component chunks
+        let mut filter_calls = body_compiler.filter_calls;
+        let mut test_calls = body_compiler.test_calls;
+        let mut function_calls = body_compiler.function_calls;
+
         let components = parser_output
             .component_definitions
             .into_iter()
             .map(|c| {
-                let mut compiler = Compiler::new(&tpl_name, source);
+                let mut compiler = Compiler::new(tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
+                // Collect filter/test/function calls from component body
+                for (name, spans) in compiler.filter_calls {
+                    filter_calls.entry(name).or_default().extend(spans);
+                }
+                for (name, spans) in compiler.test_calls {
+                    test_calls.entry(name).or_default().extend(spans);
+                }
+                for (name, spans) in compiler.function_calls {
+                    function_calls.entry(name).or_default().extend(spans);
+                }
                 let mut chunk = compiler.chunk;
                 chunk.optimize();
                 (c.name.clone(), (c, chunk))
             })
             .collect();
-        let component_calls = body_compiler
-            .component_calls
-            .into_iter()
-            .map(|c| c.name)
-            .collect();
+        let component_calls = body_compiler.component_calls;
+        let block_name_spans = body_compiler.block_name_spans;
 
         Ok(Self {
             name: tpl_name.to_string(),
             source: source.to_string(),
             path,
             blocks,
+            block_name_spans,
             raw_content_num_bytes,
             chunk,
             parents,
             components,
             component_calls,
+            filter_calls,
+            test_calls,
+            function_calls,
             block_lineage: HashMap::new(),
             from_extend: false,
             autoescape_enabled: true,
@@ -159,5 +180,25 @@ mod tests {
 
         let parents_c = find_parents(&tpls, &tpls["c"], &tpls["c"], vec![]).unwrap();
         assert_eq!(parents_c, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn nested_blocks_are_tracked() {
+        let tpl = Template::new(
+            "mid",
+            r#"{% block hey %}hi {% block ending %}sincerely{% endblock ending %}{% endblock hey %}"#,
+            None,
+        )
+        .unwrap();
+        // All blocks should be in the blocks map (for rendering)
+        assert!(tpl.blocks.contains_key("hey"));
+        assert!(tpl.blocks.contains_key("ending"));
+        // Only top-level blocks should be in block_name_spans (for validation)
+        // Nested blocks define new extension points, not overrides
+        assert!(tpl.block_name_spans.contains_key("hey"));
+        assert!(
+            !tpl.block_name_spans.contains_key("ending"),
+            "nested blocks should not be in block_name_spans"
+        );
     }
 }

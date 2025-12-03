@@ -25,11 +25,8 @@ fn parser_expressions_success() {
         let nodes = &Parser::new(&normalized_contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
-            match node {
-                Node::Expression(n) => {
-                    expr_nodes.push(n.clone());
-                }
-                _ => (),
+            if let Node::Expression(n) = node {
+                expr_nodes.push(n.clone());
             }
         }
         if !expr_nodes.is_empty() {
@@ -72,11 +69,8 @@ fn parser_components_render_success() {
         let nodes = &Parser::new(&contents).parse().unwrap().nodes;
         let mut expr_nodes = Vec::with_capacity(nodes.len());
         for node in nodes {
-            match node {
-                Node::Expression(n) => {
-                    expr_nodes.push(n.clone());
-                }
-                _ => (),
+            if let Node::Expression(n) = node {
+                expr_nodes.push(n.clone());
             }
         }
         if !expr_nodes.is_empty() {

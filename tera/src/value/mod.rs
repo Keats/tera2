@@ -8,6 +8,9 @@ use std::sync::Arc;
 
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
+#[cfg(feature = "unicode")]
+use unicode_segmentation::UnicodeSegmentation;
+
 mod de;
 mod key;
 pub(crate) mod number;
@@ -560,6 +563,15 @@ impl Value {
         }
     }
 
+    pub(crate) fn into_vec(self) -> Option<Vec<Value>> {
+        match self.inner {
+            ValueInner::Array(arc) => {
+                Some(Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone()))
+            }
+            _ => None,
+        }
+    }
+
     /// Returns the Value at the given path, or Undefined if there's nothing there.
     pub fn get_from_path(&self, path: &str) -> Value {
         if matches!(&self.inner, ValueInner::Undefined | ValueInner::Null) {
@@ -625,6 +637,7 @@ impl Value {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Option<usize> {
         match &self.inner {
             ValueInner::Map(v) => Some(v.len()),
@@ -650,17 +663,6 @@ impl Value {
             ))),
         }
     }
-
-    // TODO: do we need that?
-    // pub(crate) fn is_empty(&self) -> bool {
-    //     match self {
-    //         Value::Array(v) => v.is_empty(),
-    //         Value::Bytes(v) => v.is_empty(),
-    //         Value::String(v, _) => v.is_empty(),
-    //         Value::Map(v) => v.is_empty(),
-    //         _ => false,
-    //     }
-    // }
 
     pub(crate) fn can_be_iterated_on(&self) -> bool {
         matches!(
@@ -795,7 +797,7 @@ impl Value {
                 let mut out = Vec::with_capacity(s.len());
 
                 #[cfg(feature = "unicode")]
-                let mut input: Vec<&str> = unic_segment::Graphemes::new(s.as_str()).collect();
+                let mut input: Vec<&str> = s.as_str().graphemes(true).collect();
                 #[cfg(not(feature = "unicode"))]
                 let mut input: Vec<char> = s.as_str().chars().collect();
 

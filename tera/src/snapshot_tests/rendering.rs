@@ -132,11 +132,12 @@ fn rendering_ok() {
         let p = format!("{}", path.file_name().unwrap().to_string_lossy());
         let mut tera = Tera::default();
         tera.autoescape_on(vec![".txt"]);
-        tera.add_raw_templates(vec![(&p, normalized_contents)])
-            .unwrap();
+        // Register filter before adding templates that use it
         tera.register_filter("read_ctx", |x: &str, _: Kwargs, state: &State| {
             state.get_from_path(x)
         });
+        tera.add_raw_templates(vec![(&p, normalized_contents)])
+            .unwrap();
         let out = tera.render(&p, &get_context()).unwrap();
         let normalized_out = normalize_line_endings(&out);
         insta::assert_snapshot!(&normalized_out);
@@ -212,7 +213,7 @@ fn can_iterate_on_graphemes() {
     tera.add_raw_template("tpl", tpl).unwrap();
     let mut context = Context::default();
     // s.chars() would give ['न', 'म', 'स', '्', 'त', 'े']
-    // graphemes are ["न", "म", "स्", "ते"]
+    // graphemes per UAX #29 are ["न", "म", "स्ते"]
     context.insert("string", "नमस्ते");
     let out = tera.render("tpl", &context).unwrap();
     let normalized_out = normalize_line_endings(&out);

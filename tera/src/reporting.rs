@@ -11,6 +11,7 @@ pub fn generate_report(
     filename: &str,
     source: &str,
     err_type: &str,
+    title: Option<&str>,
 ) -> String {
     let line_starts: Vec<_> = get_line_starts(source);
     let start_line = error.span.start_line;
@@ -34,8 +35,13 @@ pub fn generate_report(
     underline.push_str(" ^---");
     let message = &error.message;
 
+    let title_line = match title {
+        Some(t) => format!("{t}\n\n"),
+        None => String::new(),
+    };
+
     format!(
-        "{spacing}{err_type} --> [{filename}:{start_line}:{start_col}]\n\
+        "{title_line}{spacing}{err_type} --> [{filename}:{start_line}:{start_col}]\n\
          {spacing} |\n\
          {start_line} | {line}\n\
          {spacing} | {underline}\n\
@@ -76,7 +82,7 @@ mod tests {
                 range: 4..7,
             },
         );
-        let out = generate_report(&err, "test.html", source, "Syntax error");
+        let out = generate_report(&err, "test.html", source, "Syntax error", None);
         println!("{out}");
         assert_eq!(
             out,

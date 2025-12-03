@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/unexpected_token_component_def_args.txt
 ---
+Failed to parse 'unexpected_token_component_def_args.txt'
+
  Syntax error --> [unexpected_token_component_def_args.txt:1:21]
   |
 1 | {% component hello(a=b) %}{% endcomponent %}

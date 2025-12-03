@@ -13,10 +13,6 @@ pub trait ArgFromValue<'k> {
     fn from_value(value: &'k Value) -> TeraResult<Self::Output>;
 }
 
-// TODO: Need to add 2 error types: one for unsupported ops and one for missing args: same one maybe?
-// TODO: add impl for all primitives/things that can be in value and maybe for Value as well?
-// TODO: write types for filters/fns/tests using Kwargs and make sure it's ergonomic to handle errors
-
 macro_rules! impl_for_literal {
     ($ty:ident, {
         $($pat:pat $(if $if_expr:expr)? => $expr:expr,)*

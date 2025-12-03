@@ -57,3 +57,34 @@ pub fn urlencode(val: &str, _: Kwargs, _: &State) -> String {
 pub fn urlencode_strict(val: &str, _: Kwargs, _: &State) -> String {
     percent_encode(val.as_bytes(), NON_ALPHANUMERIC).to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tera::{Context, Kwargs, State};
+
+    #[test]
+    fn test_urlencode() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        assert_eq!(
+            urlencode("hello world", Kwargs::default(), &state),
+            "hello%20world"
+        );
+        assert_eq!(
+            urlencode("foo/bar?baz=1", Kwargs::default(), &state),
+            "foo/bar%3Fbaz%3D1"
+        );
+    }
+
+    #[test]
+    fn test_urlencode_strict() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        assert_eq!(
+            urlencode_strict("hello", Kwargs::default(), &state),
+            "hello"
+        );
+        assert_eq!(urlencode_strict("a/b", Kwargs::default(), &state), "a%2Fb");
+    }
+}

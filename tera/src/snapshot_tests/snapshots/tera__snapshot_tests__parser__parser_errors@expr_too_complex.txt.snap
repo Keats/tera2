@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/expr_too_complex.txt
 ---
+Failed to parse 'expr_too_complex.txt'
+
  Syntax error --> [expr_too_complex.txt:1:102]
   |
 1 | {{ (((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((

@@ -97,9 +97,7 @@ pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
 }
 
 pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
-    val.replace("\r\n", "<br>")
-        .replace('\n', "<br>")
-        .replace('\r', "<br>")
+    val.replace("\r\n", "<br>").replace(['\n', '\r'], "<br>")
 }
 
 /// Returns a plural suffix if the value is not equal to ±1, or a singular suffix otherwise.
@@ -191,11 +189,12 @@ pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Strin
 
     #[cfg(feature = "unicode")]
     {
-        let graphemes = unic_segment::GraphemeIndices::new(&val).collect::<Vec<(usize, &str)>>();
+        use unicode_segmentation::UnicodeSegmentation;
+        let graphemes = val.grapheme_indices(true).collect::<Vec<(usize, &str)>>();
         if length >= graphemes.len() {
             return Ok(val.to_string());
         }
-        Ok(val[..graphemes[length].0].to_string() + &end)
+        Ok(val[..graphemes[length].0].to_string() + end)
     }
 
     #[cfg(not(feature = "unicode"))]
@@ -203,7 +202,7 @@ pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Strin
         if length >= val.len() {
             return Ok(val.to_string());
         }
-        Ok(val[..length].to_string() + &end)
+        Ok(val[..length].to_string() + end)
     }
 }
 
@@ -556,11 +555,8 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
     let value = kwargs.get::<Value>("value")?.unwrap_or(Value::null());
     let mut res = Vec::with_capacity(val.len());
 
-    // TODO: filter with filters? Eg filter all elements where attribute | length == 3 for example
-    // how would that look from the template?
     for v in val {
         match v.get_from_path(attribute) {
-            // TODO: should we error or not?
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path: {attribute}"
@@ -586,7 +582,6 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
     let mut grouped: HashMap<Key, Vec<Value>> = HashMap::new();
     for v in val {
         match v.get_from_path(attribute) {
-            // TODO: should we error or not?
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
                     "Value {v} does not an attribute after following path; {attribute}"
@@ -606,9 +601,6 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 
     Ok(grouped.into_iter().map(|(k, v)| (k, v.into())).collect())
 }
-
-// TODO: missing from array sort
-// TODO: add indent after making sure it's good. Tests could be insta for easy viz
 
 #[cfg(test)]
 mod tests {
@@ -673,7 +665,7 @@ mod tests {
         let tests: Vec<(&str, i64)> = vec![
             ("0", 0),
             ("-5", -5),
-            ("9223372036854775807", i64::max_value()),
+            ("9223372036854775807", i64::MAX),
             ("1.00", 1),
         ];
         for (input, expected) in tests {
@@ -692,8 +684,8 @@ mod tests {
 
         // We don't do anything in that case
         assert_eq!(
-            int((-5 as i128).into(), Kwargs::default(), &state).unwrap(),
-            (-5 as i128).into()
+            int((-5_i128).into(), Kwargs::default(), &state).unwrap(),
+            (-5_i128).into()
         );
 
         // Can't convert without truncating
@@ -708,23 +700,14 @@ mod tests {
     fn test_float() {
         let ctx = Context::new();
         let state = State::new(&ctx);
+        assert_eq!(float("1".into(), Kwargs::default(), &state).unwrap(), 1.0);
         assert_eq!(
-            float("1".into(), Kwargs::default(), &state).unwrap(),
-            1.0.into()
+            float("3.16".into(), Kwargs::default(), &state).unwrap(),
+            3.16
         );
-        assert_eq!(
-            float("3.14".into(), Kwargs::default(), &state).unwrap(),
-            3.14.into()
-        );
-        assert_eq!(
-            float(1.into(), Kwargs::default(), &state).unwrap(),
-            1.0.into()
-        );
+        assert_eq!(float(1.into(), Kwargs::default(), &state).unwrap(), 1.0);
         // noop
-        assert_eq!(
-            float(1.12.into(), Kwargs::default(), &state).unwrap(),
-            1.12.into()
-        );
+        assert_eq!(float(1.12.into(), Kwargs::default(), &state).unwrap(), 1.12);
         // Doesn't make sense
         assert!(float("hello".into(), Kwargs::default(), &state).is_err());
         assert!(float(vec![1, 2].into(), Kwargs::default(), &state).is_err());
@@ -751,29 +734,26 @@ mod tests {
     fn test_round() {
         let ctx = Context::new();
         let state = State::new(&ctx);
-        assert_eq!(
-            round((2.1).into(), Kwargs::default(), &state).unwrap(),
-            2.into()
-        );
+        assert_eq!(round(2.1, Kwargs::default(), &state).unwrap(), 2.into());
 
         let mut map = Map::new();
         map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round((2.1).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.1, Kwargs::new(Arc::new(map)), &state).unwrap(),
             3.into()
         );
 
         let mut map = Map::new();
         map.insert("method".into(), "floor".into());
         assert_eq!(
-            round((2.9).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.9, Kwargs::new(Arc::new(map)), &state).unwrap(),
             2.into()
         );
 
         let mut map = Map::new();
         map.insert("precision".into(), 2.into());
         assert_eq!(
-            round((2.245).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.245, Kwargs::new(Arc::new(map)), &state).unwrap(),
             (2.25).into()
         );
     }

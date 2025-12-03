@@ -2,6 +2,7 @@
 name = "tera-contrib"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 tera = { version = "2", path = "../tera", default-features = false }
@@ -21,3 +22,6 @@ urlencode = ["dep:percent-encoding"]
 json = ["dep:serde_json"]
 filesize_format = ["dep:humansize"]
 format = ["dep:formatx"]
+slug = ["dep:slug"]
+rand = ["dep:rand"]
+regex = ["dep:regex"]

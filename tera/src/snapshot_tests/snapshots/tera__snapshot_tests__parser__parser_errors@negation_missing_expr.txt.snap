@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/negation_missing_expr.txt
 ---
+Failed to parse 'negation_missing_expr.txt'
+
  Syntax error --> [negation_missing_expr.txt:1:7]
   |
 1 | {{ not }}

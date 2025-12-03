@@ -36,7 +36,6 @@ fn handles_undefined_correctly() {
         if let Some(expected_output) = expected {
             assert_eq!(expected_output, res.unwrap());
         } else {
-            // TODO: test the error message
             println!("{:?}", res);
             assert!(res.is_err());
         }

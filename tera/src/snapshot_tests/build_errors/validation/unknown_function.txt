@@ -1,0 +1,3 @@
+$$ tpl
+{{ unknown_func() }}
+{{ another_unknown() }}

@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/build_errors.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/build_errors/duplicate_component.txt
+---
+Component `hello` is defined in both `a.html` and `b.html`

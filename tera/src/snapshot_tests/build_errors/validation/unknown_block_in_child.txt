@@ -1,0 +1,6 @@
+$$ parent
+{% block main %}default{% endblock main %}
+$$ child
+{% extends "parent" %}
+{% block main %}override{% endblock main %}
+{% block sidebar %}not in parent{% endblock sidebar %}

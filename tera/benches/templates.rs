@@ -167,10 +167,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     });
 
     c.bench_function("realistic", |b| {
-        let mut items = Vec::new();
-        for _ in 0..20 {
-            items.push("Hello world");
-        }
+        let items = vec!["Hello world"; 20];
         let mut tera = Tera::default();
         tera.add_raw_templates(vec![
             (

@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/array_dimensions.txt
 ---
+Failed to parse 'array_dimensions.txt'
+
  Syntax error --> [array_dimensions.txt:1:5]
   |
 1 | {{ [[[1], [2]], [true]] }}

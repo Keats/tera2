@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/block_in_other_tag.txt
 ---
+Failed to parse 'block_in_other_tag.txt'
+
  Syntax error --> [block_in_other_tag.txt:2:3]
   |
 2 | {% block popup -%} hello {%- endblock %}

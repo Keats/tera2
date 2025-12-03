@@ -125,9 +125,8 @@ impl ForLoopIterator {
     fn create_string_iterator(content: Arc<str>) -> ForLoopIterator {
         #[cfg(feature = "unicode")]
         {
-            let graphemes: Vec<String> = unic_segment::Graphemes::new(&*content)
-                .map(|g| g.to_string())
-                .collect();
+            use unicode_segmentation::UnicodeSegmentation;
+            let graphemes: Vec<String> = content.graphemes(true).map(|g| g.to_string()).collect();
             ForLoopIterator::Graphemes {
                 graphemes,
                 index: 0,

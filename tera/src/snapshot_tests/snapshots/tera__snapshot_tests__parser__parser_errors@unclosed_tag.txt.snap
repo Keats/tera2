@@ -3,6 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/unclosed_tag.txt
 ---
+Failed to parse 'unclosed_tag.txt'
+
  Syntax error --> [unclosed_tag.txt:1:27]
   |
 1 | {% if i + 2 | integer > x %

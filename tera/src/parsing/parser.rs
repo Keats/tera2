@@ -100,6 +100,7 @@ pub struct ParserOutput {
 }
 
 pub struct Parser<'a> {
+    #[allow(clippy::type_complexity)]
     lexer: Peekable<Box<dyn Iterator<Item = Result<(Token<'a>, Span), Error>> + 'a>>,
     // The next token/span tuple.
     next: Option<Result<(Token<'a>, Span), Error>>,
@@ -171,9 +172,7 @@ impl<'a> Parser<'a> {
     }
 
     fn is_in_loop(&self) -> bool {
-        self.body_contexts
-            .iter()
-            .any(|b| *b == BodyContext::ForLoop)
+        self.body_contexts.contains(&BodyContext::ForLoop)
     }
 
     // Parse something in brackets [..] after an ident or a literal array/map
@@ -1202,7 +1201,7 @@ impl<'a> Parser<'a> {
                     ));
                 }
                 self.body_contexts.push(BodyContext::Block);
-                let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                let (name, name_span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
                 if self.blocks_seen.contains(name) {
                     return Err(Error::syntax_error(
                         format!("Template already contains a block named `{name}`"),
@@ -1226,7 +1225,7 @@ impl<'a> Parser<'a> {
 
                 self.blocks_seen.insert(name.to_string());
                 Ok(Some(Node::Block(Block {
-                    name: name.to_string(),
+                    name: Spanned::new(name.to_string(), name_span),
                     body,
                 })))
             }

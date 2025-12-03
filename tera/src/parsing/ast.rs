@@ -589,7 +589,7 @@ pub struct Include {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
     /// The block name
-    pub name: String,
+    pub name: Spanned<String>,
     /// The block content
     pub body: Vec<Node>,
 }
@@ -684,9 +684,7 @@ pub struct ComponentArgument {
 impl ComponentArgument {
     #[inline]
     pub fn type_matches(&self, value: &Value) -> bool {
-        self.typ
-            .and_then(|t| Some(t.matches_value(value)))
-            .unwrap_or(true)
+        self.typ.map(|t| t.matches_value(value)).unwrap_or(true)
     }
 }
 

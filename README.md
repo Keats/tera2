@@ -39,7 +39,7 @@ TODO:
   - [x] Make sure strings are escaped automatically (Value::String could be an enum with safe/unsafe string like markupsafe in python?) when printing
   - [ ] Fix/remove all the TODOs
   - [ ] Improve perf till it's better than Tera v1
-  - [x] Iterating on strings should require an optional `unic_segment` feature for unicode
+  - [x] Iterating on strings should require an optional `unicode-segmentation` feature for unicode
   - [x] Ensure that errors point to the right thing (<--- that's the long one, but done after perf work)
   - [x] Finish VM
 - [x] Design filters/functions/tests types
@@ -99,4 +99,4 @@ Thoughts on making LoadName error, we can change the semantics from v1 a bit eg:
 - `truncate` requires the `length` argument and does not default to 255 anymore
 - filters now always take kwargs
 - ISO 8601 dates using format `1996-12-19T16:39:57-08:00` are not supported anymore for the input of date filter, you can use `1996-12-19T16:39:57[-08:00]` instead
-- `addslashes`, `escape_xml`, `get_env`, and `slice` filter have been removed
+- `addslashes`, `escape_xml`, `get_env`, `concat` and `slice` filter have been removed
