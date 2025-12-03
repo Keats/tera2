@@ -11,11 +11,11 @@ static STRIPTAGS_RE: LazyLock<Regex> =
 static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unwrap());
 
 pub fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    STRIPTAGS_RE.replace_all(&val, "")
+    STRIPTAGS_RE.replace_all(val, "")
 }
 
 pub fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    SPACELESS_RE.replace_all(&val, "><")
+    SPACELESS_RE.replace_all(val, "><")
 }
 
 #[derive(Debug, Default)]

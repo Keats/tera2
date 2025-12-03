@@ -129,7 +129,7 @@ mod tests {
             age => &42,
         };
 
-        assert_eq!(ctx.contains_key("age"), true);
+        assert!(ctx.contains_key("age"));
         assert_eq!(ctx.get("age"), Some(&Value::from(42)));
     }
 }

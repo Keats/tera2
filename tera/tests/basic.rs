@@ -126,10 +126,7 @@ fn rendering_include_ok() {
 
 #[test]
 fn rendering_realistic_benchmark() {
-    let mut items = Vec::new();
-    for _ in 0..20 {
-        items.push("Hello world");
-    }
+    let items = vec!["Hello world"; 20];
     let mut tera = Tera::default();
     tera.add_raw_templates(vec![
         (

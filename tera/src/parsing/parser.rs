@@ -100,6 +100,7 @@ pub struct ParserOutput {
 }
 
 pub struct Parser<'a> {
+    #[allow(clippy::type_complexity)]
     lexer: Peekable<Box<dyn Iterator<Item = Result<(Token<'a>, Span), Error>> + 'a>>,
     // The next token/span tuple.
     next: Option<Result<(Token<'a>, Span), Error>>,

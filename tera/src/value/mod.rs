@@ -637,6 +637,7 @@ impl Value {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Option<usize> {
         match &self.inner {
             ValueInner::Map(v) => Some(v.len()),

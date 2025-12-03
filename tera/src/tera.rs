@@ -87,7 +87,7 @@ impl Tera {
     #[cfg(feature = "glob_fs")]
     pub fn full_reload(&mut self) -> TeraResult<()> {
         if let Some(glob) = self.glob.clone().as_ref() {
-            self.load_from_glob(&glob)?;
+            self.load_from_glob(glob)?;
             self.finalize_templates()
         } else {
             Err(Error::message(
@@ -293,9 +293,11 @@ impl Tera {
         for (name, tpl) in &self.templates {
             let parents = find_parents(&self.templates, tpl, tpl, vec![])?;
             for component_name in tpl.components.keys() {
+                // Components in templates added directly by the user override any existing
+                // components extended
                 match component_sources.get(component_name.as_str()) {
+                    // User overrides extended component
                     Some(&(_, true)) if !tpl.from_extend => {
-                        // User overrides extended component
                         component_sources.insert(component_name, (&tpl.name, false));
                     }
                     Some(&(_, false)) if tpl.from_extend => {
@@ -328,7 +330,7 @@ impl Tera {
         // as well as finding each block lineage
         let mut tpl_blocks: HashMap<String, HashMap<String, Vec<Chunk>>> =
             HashMap::with_capacity(self.templates.len());
-        // Collect errors with their location for sorting
+        // Collect errors with their location for stable sorting
         let mut errors: Vec<(&str, usize, String)> = Vec::new();
 
         for (name, tpl) in &self.templates {
@@ -337,7 +339,7 @@ impl Tera {
                     for span in spans {
                         let mut err =
                             ReportError::new(format!("Unknown component `{component}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -346,7 +348,7 @@ impl Tera {
                 if !self.filters.contains_key(filter.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown filter `{filter}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -355,7 +357,7 @@ impl Tera {
                 if !self.tests.contains_key(test.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown test `{test}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -364,7 +366,7 @@ impl Tera {
                 if func != "super" && !self.functions.contains_key(func.as_str()) {
                     for span in spans {
                         let mut err = ReportError::new(format!("Unknown function `{func}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Build error", None);
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
                         errors.push((&tpl.name, span.range.start, err.report));
                     }
                 }
@@ -390,15 +392,12 @@ impl Tera {
         }
 
         // Add inherited blocks from parents that aren't overridden in child templates
-        // This avoids runtime lookups in get_block_lineage()
         for (name, parents) in &tpl_parents {
             for parent_name in parents.iter().rev() {
                 if let Some(parent_blocks) = tpl_blocks.get(parent_name).cloned() {
                     let child_blocks = tpl_blocks.get_mut(name).unwrap();
                     for (block_name, lineage) in parent_blocks {
-                        if !child_blocks.contains_key(&block_name) {
-                            child_blocks.insert(block_name, lineage);
-                        }
+                        child_blocks.entry(block_name).or_insert(lineage);
                     }
                 }
             }

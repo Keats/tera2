@@ -665,7 +665,7 @@ mod tests {
         let tests: Vec<(&str, i64)> = vec![
             ("0", 0),
             ("-5", -5),
-            ("9223372036854775807", i64::max_value()),
+            ("9223372036854775807", i64::MAX),
             ("1.00", 1),
         ];
         for (input, expected) in tests {
@@ -684,8 +684,8 @@ mod tests {
 
         // We don't do anything in that case
         assert_eq!(
-            int((-5 as i128).into(), Kwargs::default(), &state).unwrap(),
-            (-5 as i128).into()
+            int((-5_i128).into(), Kwargs::default(), &state).unwrap(),
+            (-5_i128).into()
         );
 
         // Can't convert without truncating
@@ -700,23 +700,14 @@ mod tests {
     fn test_float() {
         let ctx = Context::new();
         let state = State::new(&ctx);
+        assert_eq!(float("1".into(), Kwargs::default(), &state).unwrap(), 1.0);
         assert_eq!(
-            float("1".into(), Kwargs::default(), &state).unwrap(),
-            1.0.into()
+            float("3.16".into(), Kwargs::default(), &state).unwrap(),
+            3.16
         );
-        assert_eq!(
-            float("3.14".into(), Kwargs::default(), &state).unwrap(),
-            3.14.into()
-        );
-        assert_eq!(
-            float(1.into(), Kwargs::default(), &state).unwrap(),
-            1.0.into()
-        );
+        assert_eq!(float(1.into(), Kwargs::default(), &state).unwrap(), 1.0);
         // noop
-        assert_eq!(
-            float(1.12.into(), Kwargs::default(), &state).unwrap(),
-            1.12.into()
-        );
+        assert_eq!(float(1.12.into(), Kwargs::default(), &state).unwrap(), 1.12);
         // Doesn't make sense
         assert!(float("hello".into(), Kwargs::default(), &state).is_err());
         assert!(float(vec![1, 2].into(), Kwargs::default(), &state).is_err());
@@ -743,29 +734,26 @@ mod tests {
     fn test_round() {
         let ctx = Context::new();
         let state = State::new(&ctx);
-        assert_eq!(
-            round((2.1).into(), Kwargs::default(), &state).unwrap(),
-            2.into()
-        );
+        assert_eq!(round(2.1, Kwargs::default(), &state).unwrap(), 2.into());
 
         let mut map = Map::new();
         map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round((2.1).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.1, Kwargs::new(Arc::new(map)), &state).unwrap(),
             3.into()
         );
 
         let mut map = Map::new();
         map.insert("method".into(), "floor".into());
         assert_eq!(
-            round((2.9).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.9, Kwargs::new(Arc::new(map)), &state).unwrap(),
             2.into()
         );
 
         let mut map = Map::new();
         map.insert("precision".into(), 2.into());
         assert_eq!(
-            round((2.245).into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.245, Kwargs::new(Arc::new(map)), &state).unwrap(),
             (2.25).into()
         );
     }

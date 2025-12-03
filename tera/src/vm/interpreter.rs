@@ -22,16 +22,6 @@ impl<'tera> VirtualMachine<'tera> {
         Self { tera, template }
     }
 
-    /// Returns the block lineage for a given block name.
-    /// All blocks (including inherited ones) are pre-computed during finalize_templates().
-    fn get_block_lineage(&self, block_name: &str) -> Vec<&'tera Chunk> {
-        self.template
-            .block_lineage
-            .get(block_name)
-            .map(|bl| bl.iter().collect())
-            .unwrap_or_default()
-    }
-
     fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
         let mut ip = 0;
 
@@ -422,7 +412,12 @@ impl<'tera> VirtualMachine<'tera> {
                     component!(name, current_ip, false);
                 }
                 Instruction::RenderBlock(block_name) => {
-                    let block_lineage = self.get_block_lineage(block_name);
+                    let block_lineage: Vec<_> = self
+                        .template
+                        .block_lineage
+                        .get(block_name)
+                        .map(|bl| bl.iter().collect())
+                        .unwrap_or_default();
                     let block_chunk = block_lineage[0];
                     let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));

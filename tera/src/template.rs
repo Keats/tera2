@@ -72,7 +72,6 @@ impl Template {
 
         let raw_content_num_bytes = body_compiler.raw_content_num_bytes;
 
-        // Optimize component chunks and collect their filter/test/function calls
         let mut filter_calls = body_compiler.filter_calls;
         let mut test_calls = body_compiler.test_calls;
         let mut function_calls = body_compiler.function_calls;
