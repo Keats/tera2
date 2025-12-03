@@ -22,29 +22,14 @@ impl<'tera> VirtualMachine<'tera> {
         Self { tera, template }
     }
 
-    // TODO: do that at compile time so we don't need to do it at runtime
-    fn get_block_lineage(&self, block_name: &str) -> TeraResult<Vec<&'tera Chunk>> {
-        // We first get all the chunks we might need to render
-        let mut blocks = Vec::with_capacity(10);
-        // The block is present in the template we are rendering
-        if let Some(bl) = self.template.block_lineage.get(block_name) {
-            for c in bl {
-                blocks.push(c);
-            }
-        } else {
-            // the block is not present, we go up the lineage by 1 until we find a template that has it
-            for parent_tpl_name in self.template.parents.iter().rev() {
-                let parent_tpl = self.tera.get_template(parent_tpl_name)?;
-                if let Some(bl) = parent_tpl.block_lineage.get(block_name) {
-                    for c in bl {
-                        blocks.push(c);
-                    }
-                    break;
-                }
-            }
-        }
-
-        Ok(blocks)
+    /// Returns the block lineage for a given block name.
+    /// All blocks (including inherited ones) are pre-computed during finalize_templates().
+    fn get_block_lineage(&self, block_name: &str) -> Vec<&'tera Chunk> {
+        self.template
+            .block_lineage
+            .get(block_name)
+            .map(|bl| bl.iter().collect())
+            .unwrap_or_default()
     }
 
     fn interpret(&self, state: &mut State<'tera>, output: &mut impl Write) -> TeraResult<()> {
@@ -437,7 +422,7 @@ impl<'tera> VirtualMachine<'tera> {
                     component!(name, current_ip, false);
                 }
                 Instruction::RenderBlock(block_name) => {
-                    let block_lineage = self.get_block_lineage(block_name)?;
+                    let block_lineage = self.get_block_lineage(block_name);
                     let block_chunk = block_lineage[0];
                     let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));

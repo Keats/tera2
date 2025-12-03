@@ -389,6 +389,21 @@ impl Tera {
             tpl_blocks.insert(name.clone(), blocks);
         }
 
+        // Add inherited blocks from parents that aren't overridden in child templates
+        // This avoids runtime lookups in get_block_lineage()
+        for (name, parents) in &tpl_parents {
+            for parent_name in parents.iter().rev() {
+                if let Some(parent_blocks) = tpl_blocks.get(parent_name).cloned() {
+                    let child_blocks = tpl_blocks.get_mut(name).unwrap();
+                    for (block_name, lineage) in parent_blocks {
+                        if !child_blocks.contains_key(&block_name) {
+                            child_blocks.insert(block_name, lineage);
+                        }
+                    }
+                }
+            }
+        }
+
         if !errors.is_empty() {
             // Sort by template name, then by position in source
             errors.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
