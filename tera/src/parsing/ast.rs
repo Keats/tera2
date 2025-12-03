@@ -589,7 +589,7 @@ pub struct Include {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Block {
     /// The block name
-    pub name: String,
+    pub name: Spanned<String>,
     /// The block content
     pub body: Vec<Node>,
 }

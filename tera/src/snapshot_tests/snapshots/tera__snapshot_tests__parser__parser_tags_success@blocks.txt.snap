@@ -5,7 +5,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/blocks.txt
 ---
 [
     Block {
-        name: "start",
+        name: "start" @ 1:9-1:14 (9..14),
         body: [
             "Hello ",
             Var {
@@ -13,7 +13,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/blocks.txt
             } @ 2:8-2:13 (27..32),
             "!\n  ",
             Block {
-                name: "nested",
+                name: "nested" @ 3:11-3:17 (47..53),
                 body: [
                     "\n    Even nested!\n  ",
                 ],
@@ -21,7 +21,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/blocks.txt
         ],
     },
     Block {
-        name: "second",
+        name: "second" @ 8:20-8:26 (128..134),
         body: [
             FunctionCall {
                 name: "super",

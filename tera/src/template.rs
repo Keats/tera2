@@ -12,6 +12,8 @@ pub struct Template {
     pub(crate) chunk: Chunk,
     /// The blocks contained in this template only
     pub(crate) blocks: HashMap<String, Chunk>,
+    /// Block definitions with their spans for error reporting
+    pub(crate) block_name_spans: HashMap<String, Span>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
     pub(crate) component_calls: HashMap<String, Vec<Span>>,
     pub(crate) filter_calls: HashMap<String, Vec<Span>>,
@@ -99,12 +101,14 @@ impl Template {
             })
             .collect();
         let component_calls = body_compiler.component_calls;
+        let block_name_spans = body_compiler.block_name_spans;
 
         Ok(Self {
             name: tpl_name.to_string(),
             source: source.to_string(),
             path,
             blocks,
+            block_name_spans,
             raw_content_num_bytes,
             chunk,
             parents,
@@ -176,5 +180,25 @@ mod tests {
 
         let parents_c = find_parents(&tpls, &tpls["c"], &tpls["c"], vec![]).unwrap();
         assert_eq!(parents_c, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn nested_blocks_are_tracked() {
+        let tpl = Template::new(
+            "mid",
+            r#"{% block hey %}hi {% block ending %}sincerely{% endblock ending %}{% endblock hey %}"#,
+            None,
+        )
+        .unwrap();
+        // All blocks should be in the blocks map (for rendering)
+        assert!(tpl.blocks.contains_key("hey"));
+        assert!(tpl.blocks.contains_key("ending"));
+        // Only top-level blocks should be in block_name_spans (for validation)
+        // Nested blocks define new extension points, not overrides
+        assert!(tpl.block_name_spans.contains_key("hey"));
+        assert!(
+            !tpl.block_name_spans.contains_key("ending"),
+            "nested blocks should not be in block_name_spans"
+        );
     }
 }

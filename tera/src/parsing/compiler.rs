@@ -19,7 +19,13 @@ pub(crate) struct Compiler<'s> {
     pub(crate) chunk: Chunk,
     source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
+    /// The actual blocks definition
     pub(crate) blocks: HashMap<String, Chunk>,
+    /// Tracks top-level block definitions with their spans for validation.
+    pub(crate) block_name_spans: HashMap<String, Span>,
+    /// The current block nesting depth for determining if a block is top-level
+    block_depth: usize,
+    /// Tracks all various calls with their location for error reporting
     pub(crate) component_calls: HashMap<String, Vec<Span>>,
     pub(crate) filter_calls: HashMap<String, Vec<Span>>,
     pub(crate) test_calls: HashMap<String, Vec<Span>>,
@@ -37,6 +43,8 @@ impl<'s> Compiler<'s> {
             test_calls: HashMap::new(),
             function_calls: HashMap::new(),
             blocks: HashMap::new(),
+            block_name_spans: HashMap::new(),
+            block_depth: 0,
             source,
             raw_content_num_bytes: 0,
         }
@@ -285,7 +293,11 @@ impl<'s> Compiler<'s> {
     }
 
     fn compile_block(&mut self, block: Block) {
+        let (block_name, block_span) = block.name.into_parts();
+        let is_top_level = self.block_depth == 0;
+
         let mut compiler = Compiler::new(&self.chunk.name, self.source);
+        compiler.block_depth = self.block_depth + 1;
         compiler.component_calls = std::mem::take(&mut self.component_calls);
         compiler.filter_calls = std::mem::take(&mut self.filter_calls);
         compiler.test_calls = std::mem::take(&mut self.test_calls);
@@ -299,8 +311,14 @@ impl<'s> Compiler<'s> {
         self.function_calls = compiler.function_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks);
-        self.blocks.insert(block.name.clone(), compiler.chunk);
-        self.chunk.add(Instruction::RenderBlock(block.name), None);
+        // Only propagate top-level block definitions from nested compilers
+        self.block_name_spans.extend(compiler.block_name_spans);
+        self.blocks.insert(block_name.clone(), compiler.chunk);
+        // Only track this block if it's top-level (not nested inside another block)
+        if is_top_level {
+            self.block_name_spans.insert(block_name.clone(), block_span);
+        }
+        self.chunk.add(Instruction::RenderBlock(block_name), None);
     }
 
     fn end_branch(&mut self, idx: usize) {

@@ -372,6 +372,27 @@ impl Tera {
                 }
             }
 
+            // Check that blocks in child templates exist in at least one parent
+            let parents = &tpl_parents[name];
+            if !parents.is_empty() {
+                for (block_name, span) in &tpl.block_name_spans {
+                    let exists_in_parent = parents.iter().any(|parent_name| {
+                        self.templates
+                            .get(parent_name)
+                            .map(|p| p.blocks.contains_key(block_name))
+                            .unwrap_or(false)
+                    });
+                    if !exists_in_parent {
+                        let mut err = ReportError::new(
+                            format!("Block `{block_name}` is not defined in any parent template"),
+                            span,
+                        );
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
+                }
+            }
+
             let mut blocks = HashMap::with_capacity(tpl.blocks.len());
             for (block_name, chunk) in &tpl.blocks {
                 let mut all_blocks = vec![chunk.clone()];

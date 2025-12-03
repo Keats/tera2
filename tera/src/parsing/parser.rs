@@ -1201,7 +1201,7 @@ impl<'a> Parser<'a> {
                     ));
                 }
                 self.body_contexts.push(BodyContext::Block);
-                let (name, _) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
+                let (name, name_span) = expect_token!(self, Token::Ident(s) => s, "identifier")?;
                 if self.blocks_seen.contains(name) {
                     return Err(Error::syntax_error(
                         format!("Template already contains a block named `{name}`"),
@@ -1225,7 +1225,7 @@ impl<'a> Parser<'a> {
 
                 self.blocks_seen.insert(name.to_string());
                 Ok(Some(Node::Block(Block {
-                    name: name.to_string(),
+                    name: Spanned::new(name.to_string(), name_span),
                     body,
                 })))
             }
