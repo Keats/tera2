@@ -9,7 +9,9 @@ use crate::functions::{Function, StoredFunction};
 use crate::template::{find_parents, Template};
 use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
+use crate::value::Value;
 use crate::vm::interpreter::VirtualMachine;
+use crate::vm::state::State;
 use crate::{escape_html, Context, HashMap};
 
 #[cfg(feature = "glob_fs")]
@@ -21,7 +23,7 @@ use crate::parsing::Chunk;
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
 
 /// The escape function type definition
-pub type EscapeFn = fn(&[u8], &mut dyn std::io::Write) -> std::io::Result<()>;
+pub type EscapeFn = fn(&[u8], &mut dyn Write) -> std::io::Result<()>;
 
 #[derive(Clone)]
 pub struct Tera {
@@ -767,6 +769,95 @@ impl Tera {
 
         tera.render_str(input, context)
     }
+
+    /// Renders a component by name with the given context and optional body content.
+    ///
+    /// The context should contain the component's arguments as key-value pairs.
+    /// Autoescape is determined by the source template's filename (e.g., components defined
+    /// in `.html` files will have autoescape enabled) with the default Tera settings.
+    ///
+    /// # Examples
+    ///
+    /// ```no_compile
+    /// let tera = Tera::new("templates/**/*")?;
+    ///
+    /// // Render a component with arguments
+    /// let html = tera.render_component(
+    ///     "Button",
+    ///     &context! { label => "Click me" },
+    ///     None,
+    /// )?;
+    ///
+    /// // Render a component with body content
+    /// let html = tera.render_component(
+    ///     "Card",
+    ///     &context! { title => "My Card" },
+    ///     Some("<p>Card content here</p>"),
+    /// )?;
+    /// ```
+    pub fn render_component(
+        &self,
+        component_name: &str,
+        context: &Context,
+        body: Option<&str>,
+    ) -> TeraResult<String> {
+        let mut output = Vec::new();
+        self.render_component_to(component_name, context, body, &mut output)?;
+        Ok(String::from_utf8(output)?)
+    }
+
+    /// Renders a component by name to something that implements [`Write`].
+    ///
+    /// Same as [`render_component`](Self::render_component) but writes to a [`Write`] implementor
+    /// instead of returning a String.
+    ///
+    /// # Examples
+    ///
+    /// ```no_compile
+    /// let tera = Tera::new("templates/**/*")?;
+    /// let mut buffer = Vec::new();
+    /// tera.render_component_to(
+    ///     "Button",
+    ///     &context! { label => "Click me" },
+    ///     None,
+    ///     &mut buffer,
+    /// )?;
+    /// ```
+    pub fn render_component_to(
+        &self,
+        component_name: &str,
+        context: &Context,
+        body: Option<&str>,
+        mut write: impl Write,
+    ) -> TeraResult<()> {
+        let (component_def, chunk) = self
+            .components
+            .get(component_name)
+            .ok_or_else(|| Error::component_not_found(component_name))?;
+
+        // Get the source template, we'll need for the VM
+        let template = self
+            .templates
+            .get(&chunk.name)
+            .expect("Component source template must exist");
+
+        // Build the component context by validating and applying defaults
+        let body_value = body.map(Value::safe_string);
+        let component_context = component_def
+            .build_context(
+                context.data.keys().map(|k| k.as_ref()),
+                |key| context.get(key).cloned(),
+                body_value,
+            )
+            .map_err(Error::message)?;
+
+        let vm = VirtualMachine::new(self, template);
+        let mut state = State::new_with_chunk(&component_context, chunk);
+        state.filters = Some(&self.filters);
+        vm.interpret(&mut state, &mut write)?;
+
+        Ok(())
+    }
 }
 
 impl Default for Tera {
@@ -916,5 +1007,64 @@ mod tests {
 
         assert!(tera.get_template("base.html").is_ok());
         assert!(tera.get_template("one").is_ok());
+    }
+
+    #[test]
+    fn test_render_component() {
+        let mut tera = Tera::default();
+        tera.add_raw_template(
+            "components.html",
+            r#"{% component Button(label, variant="primary") %}<button class="{{ variant }}">{{ label }}</button>{% endcomponent Button %}
+{% component Card(title) %}<div><h1>{{ title }}</h1>{{ body }}</div>{% endcomponent Card %}
+{% component Display(content) %}{{ content }}{% endcomponent Display %}"#,
+        )
+        .unwrap();
+        tera.add_raw_template(
+            "components.txt",
+            "{% component Raw(content) %}{{ content }}{% endcomponent Raw %}",
+        )
+        .unwrap();
+
+        // Basic + defaults
+        insta::assert_snapshot!(
+            tera.render_component("Button", &context! { label => "Click" }, None).unwrap(),
+            @"<button class=\"primary\">Click</button>"
+        );
+        // Override default
+        insta::assert_snapshot!(
+            tera.render_component("Button", &context! { label => "X", variant => "secondary" }, None).unwrap(),
+            @"<button class=\"secondary\">X</button>"
+        );
+        // With body
+        insta::assert_snapshot!(
+            tera.render_component("Card", &context! { title => "T" }, Some("<p>body</p>")).unwrap(),
+            @"<div><h1>T</h1><p>body</p></div>"
+        );
+        // Autoescape (.html)
+        insta::assert_snapshot!(
+            tera.render_component("Display", &context! { content => "<script>" }, None).unwrap(),
+            @"&lt;script&gt;"
+        );
+        // No autoescape (.txt)
+        insta::assert_snapshot!(
+            tera.render_component("Raw", &context! { content => "<script>" }, None).unwrap(),
+            @"<script>"
+        );
+        // render_component_to variant
+        let mut buffer = Vec::new();
+        tera.render_component_to("Button", &context! { label => "Y" }, None, &mut buffer)
+            .unwrap();
+        insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @"<button class=\"primary\">Y</button>");
+
+        // Errors
+        assert!(tera
+            .render_component("Nope", &Context::new(), None)
+            .is_err());
+        assert!(tera
+            .render_component("Button", &Context::new(), None)
+            .is_err());
+        assert!(tera
+            .render_component("Button", &context! { label => "x", bad => "y" }, None)
+            .is_err());
     }
 }
