@@ -19,6 +19,7 @@ pub struct Template {
     pub(crate) filter_calls: HashMap<String, Vec<Span>>,
     pub(crate) test_calls: HashMap<String, Vec<Span>>,
     pub(crate) function_calls: HashMap<String, Vec<Span>>,
+    pub(crate) include_calls: HashMap<String, Vec<Span>>,
     /// The number of bytes of raw content in its parents and itself
     pub(crate) raw_content_num_bytes: usize,
     /// The full list of parent templates names
@@ -77,6 +78,7 @@ impl Template {
         let mut filter_calls = body_compiler.filter_calls;
         let mut test_calls = body_compiler.test_calls;
         let mut function_calls = body_compiler.function_calls;
+        let mut include_calls = body_compiler.include_calls;
 
         let components = parser_output
             .component_definitions
@@ -85,7 +87,7 @@ impl Template {
                 let mut compiler = Compiler::new(tpl_name, source);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
-                // Collect filter/test/function calls from component body
+                // Collect filter/test/function/include calls from component body
                 for (name, spans) in compiler.filter_calls {
                     filter_calls.entry(name).or_default().extend(spans);
                 }
@@ -94,6 +96,9 @@ impl Template {
                 }
                 for (name, spans) in compiler.function_calls {
                     function_calls.entry(name).or_default().extend(spans);
+                }
+                for (name, spans) in compiler.include_calls {
+                    include_calls.entry(name).or_default().extend(spans);
                 }
                 let mut chunk = compiler.chunk;
                 chunk.optimize();
@@ -117,6 +122,7 @@ impl Template {
             filter_calls,
             test_calls,
             function_calls,
+            include_calls,
             block_lineage: HashMap::new(),
             from_extend: false,
             autoescape_enabled: true,

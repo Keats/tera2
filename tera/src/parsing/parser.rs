@@ -1164,9 +1164,9 @@ impl<'a> Parser<'a> {
                 self.parse_set(tag_token == Token::Ident("set_global"))?,
             )),
             Token::Ident("include") => {
-                let (name, _) = expect_token!(self, Token::Str(s) => s, "identifier")?;
+                let (name, span) = expect_token!(self, Token::Str(s) => s, "identifier")?;
                 Ok(Some(Node::Include(Include {
-                    name: name.to_string(),
+                    name: Spanned::new(name.to_string(), span),
                 })))
             }
             Token::Ident("extends") => {

@@ -373,6 +373,16 @@ impl Tera {
                     }
                 }
             }
+            for (include_name, spans) in &tpl.include_calls {
+                if !self.templates.contains_key(include_name) {
+                    for span in spans {
+                        let mut err =
+                            ReportError::new(format!("Unknown template `{include_name}`"), span);
+                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
+                        errors.push((&tpl.name, span.range.start, err.report));
+                    }
+                }
+            }
 
             // Check that blocks in child templates exist in at least one parent
             let parents = &tpl_parents[name];
@@ -835,7 +845,7 @@ impl Tera {
             .get(component_name)
             .ok_or_else(|| Error::component_not_found(component_name))?;
 
-        // Get the source template, we'll need for the VM
+        // Get the source template, we'll need it for the VM
         let template = self
             .templates
             .get(&chunk.name)
