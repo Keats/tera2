@@ -4,7 +4,7 @@ use std::io::Write;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
-use crate::value::{Key, Value};
+use crate::value::{Key, Value, ValueInner};
 use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::{combine_spans, SpanRange};
 
@@ -529,8 +529,17 @@ impl<'tera> VirtualMachine<'tera> {
                     let (b, b_span) = state.stack.pop();
                     let (a, a_span) = state.stack.pop();
                     let c_span = combine_spans(&a_span, &b_span);
-                    // TODO: we could push_str if `a` is a string
-                    state.stack.push(Value::from(format!("{a}{b}")), c_span);
+
+                    let result = match (&a.inner, &b.inner) {
+                        (ValueInner::String(a_str), ValueInner::String(b_str)) => {
+                            let mut s = String::with_capacity(a_str.len() + b_str.len());
+                            s.push_str(a_str.as_str());
+                            s.push_str(b_str.as_str());
+                            Value::from(s)
+                        }
+                        _ => Value::from(format!("{a}{b}")),
+                    };
+                    state.stack.push(result, c_span);
                 }
                 Instruction::In => {
                     let (container, container_span) = state.stack.pop();
