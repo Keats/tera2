@@ -299,7 +299,15 @@ impl<'tera> VirtualMachine<'tera> {
                     state.store_global(name, val);
                 }
                 Instruction::Include(name) => {
-                    self.render_include(name, state, output)?;
+                    if let Err(mut e) = self.render_include(name, state, output) {
+                        if let ErrorKind::RenderingError(ref mut report) = e.kind {
+                            let chunk = state.chunk.expect("to have a chunk");
+                            if let Some(span) = chunk.get_span(current_ip) {
+                                report.add_note(&self.template.name, &self.template.source, span);
+                            }
+                        }
+                        return Err(e);
+                    }
                 }
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);

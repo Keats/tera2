@@ -203,6 +203,16 @@ fn rendering_components_errors() {
     });
 }
 
+#[test]
+fn rendering_include_errors() {
+    insta::glob!("rendering_inputs/errors/include/*.txt", |path| {
+        let contents = std::fs::read_to_string(path).unwrap();
+        let (tera, tpl_name) = create_multi_templates_tera(&contents);
+        let err = tera.render(&tpl_name, &get_context()).unwrap_err();
+        insta::assert_snapshot!(&err);
+    });
+}
+
 #[cfg(feature = "unicode")]
 #[test]
 fn can_iterate_on_graphemes() {

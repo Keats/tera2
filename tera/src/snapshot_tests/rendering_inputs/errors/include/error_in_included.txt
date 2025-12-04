@@ -1,0 +1,4 @@
+$$ included
+{{ undefined_var }}
+$$ tpl
+{% include "included" %}
