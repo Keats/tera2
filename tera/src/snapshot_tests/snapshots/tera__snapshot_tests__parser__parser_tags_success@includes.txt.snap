@@ -5,12 +5,12 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/includes.txt
 ---
 [
     Include {
-        name: "a.html",
+        name: "a.html" @ 1:11-1:19 (11..19),
     },
     Include {
-        name: "a.html",
+        name: "a.html" @ 2:11-2:19 (34..42),
     },
     Include {
-        name: "a.html",
+        name: "a.html" @ 3:11-3:19 (57..65),
     },
 ]

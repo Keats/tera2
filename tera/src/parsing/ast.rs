@@ -582,7 +582,7 @@ pub struct BlockSet {
 /// A template to include
 #[derive(Clone, Debug, PartialEq)]
 pub struct Include {
-    pub name: String,
+    pub name: Spanned<String>,
 }
 
 /// A block definition

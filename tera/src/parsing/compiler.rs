@@ -30,6 +30,7 @@ pub(crate) struct Compiler<'s> {
     pub(crate) filter_calls: HashMap<String, Vec<Span>>,
     pub(crate) test_calls: HashMap<String, Vec<Span>>,
     pub(crate) function_calls: HashMap<String, Vec<Span>>,
+    pub(crate) include_calls: HashMap<String, Vec<Span>>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
@@ -42,6 +43,7 @@ impl<'s> Compiler<'s> {
             filter_calls: HashMap::new(),
             test_calls: HashMap::new(),
             function_calls: HashMap::new(),
+            include_calls: HashMap::new(),
             blocks: HashMap::new(),
             block_name_spans: HashMap::new(),
             block_depth: 0,
@@ -302,6 +304,7 @@ impl<'s> Compiler<'s> {
         compiler.filter_calls = std::mem::take(&mut self.filter_calls);
         compiler.test_calls = std::mem::take(&mut self.test_calls);
         compiler.function_calls = std::mem::take(&mut self.function_calls);
+        compiler.include_calls = std::mem::take(&mut self.include_calls);
         for node in block.body {
             compiler.compile_node(node);
         }
@@ -309,6 +312,7 @@ impl<'s> Compiler<'s> {
         self.filter_calls = compiler.filter_calls;
         self.test_calls = compiler.test_calls;
         self.function_calls = compiler.function_calls;
+        self.include_calls = compiler.include_calls;
         self.raw_content_num_bytes += compiler.raw_content_num_bytes;
         self.blocks.extend(compiler.blocks);
         // Only propagate top-level block definitions from nested compilers
@@ -385,7 +389,12 @@ impl<'s> Compiler<'s> {
                 self.chunk.add(instr, None);
             }
             Node::Include(i) => {
-                self.chunk.add(Instruction::Include(i.name), None);
+                let (name, span) = i.name.into_parts();
+                self.include_calls
+                    .entry(name.clone())
+                    .or_default()
+                    .push(span);
+                self.chunk.add(Instruction::Include(name), None);
             }
             Node::Block(b) => {
                 self.compile_block(b);
