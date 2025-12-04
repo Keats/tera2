@@ -3,10 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/negation_missing_expr.txt
 ---
-Failed to parse 'negation_missing_expr.txt'
-
- Syntax error --> [negation_missing_expr.txt:1:7]
+error: Found `}}` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
+ --> negation_missing_expr.txt:1:7
   |
 1 | {{ not }}
-  |        ^---
-  = Found `}}` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
+  |        ^^

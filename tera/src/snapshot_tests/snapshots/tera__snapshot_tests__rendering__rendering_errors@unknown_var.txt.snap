@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_var.txt
 ---
- Rendering error --> [unknown_var.txt:1:9]
+error: Field `hey` is not defined
+ --> unknown_var.txt:1:9
   |
 1 | Hello {{ hey }}
-  |          ^---
-  = Field `hey` is not defined
+  |          ^^^

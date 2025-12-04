@@ -40,8 +40,7 @@ impl Template {
             Ok(p) => p,
             Err(e) => match e.kind {
                 ErrorKind::SyntaxError(mut s) => {
-                    let title = format!("Failed to parse '{tpl_name}'");
-                    s.generate_report(tpl_name, source, "Syntax error", Some(&title));
+                    s.set_source(tpl_name, source);
                     return Err(Error {
                         kind: ErrorKind::SyntaxError(s),
                         source: None,

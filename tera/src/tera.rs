@@ -339,47 +339,65 @@ impl Tera {
             for (component, spans) in &tpl.component_calls {
                 if !component_sources.contains_key(component.as_str()) {
                     for span in spans {
-                        let mut err =
-                            ReportError::new(format!("Unknown component `{component}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        let err = ReportError::new(
+                            format!("Unknown component `{component}`"),
+                            &tpl.name,
+                            &tpl.source,
+                            span,
+                        );
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }
             for (filter, spans) in &tpl.filter_calls {
                 if !self.filters.contains_key(filter.as_str()) {
                     for span in spans {
-                        let mut err = ReportError::new(format!("Unknown filter `{filter}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        let err = ReportError::new(
+                            format!("Unknown filter `{filter}`"),
+                            &tpl.name,
+                            &tpl.source,
+                            span,
+                        );
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }
             for (test, spans) in &tpl.test_calls {
                 if !self.tests.contains_key(test.as_str()) {
                     for span in spans {
-                        let mut err = ReportError::new(format!("Unknown test `{test}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        let err = ReportError::new(
+                            format!("Unknown test `{test}`"),
+                            &tpl.name,
+                            &tpl.source,
+                            span,
+                        );
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }
             for (func, spans) in &tpl.function_calls {
                 if func != "super" && !self.functions.contains_key(func.as_str()) {
                     for span in spans {
-                        let mut err = ReportError::new(format!("Unknown function `{func}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        let err = ReportError::new(
+                            format!("Unknown function `{func}`"),
+                            &tpl.name,
+                            &tpl.source,
+                            span,
+                        );
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }
             for (include_name, spans) in &tpl.include_calls {
                 if !self.templates.contains_key(include_name) {
                     for span in spans {
-                        let mut err =
-                            ReportError::new(format!("Unknown template `{include_name}`"), span);
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        let err = ReportError::new(
+                            format!("Unknown template `{include_name}`"),
+                            &tpl.name,
+                            &tpl.source,
+                            span,
+                        );
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }
@@ -395,12 +413,13 @@ impl Tera {
                             .unwrap_or(false)
                     });
                     if !exists_in_parent {
-                        let mut err = ReportError::new(
+                        let err = ReportError::new(
                             format!("Block `{block_name}` is not defined in any parent template"),
+                            &tpl.name,
+                            &tpl.source,
                             span,
                         );
-                        err.generate_report(&tpl.name, &tpl.source, "Compilation error", None);
-                        errors.push((&tpl.name, span.range.start, err.report));
+                        errors.push((&tpl.name, span.range.start, err.generate_report()));
                     }
                 }
             }

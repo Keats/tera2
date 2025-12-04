@@ -3,10 +3,8 @@ source: tera/src/snapshot_tests/build_errors.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/build_errors/syntax/invalid_expression.txt
 ---
-Failed to parse 'test.html'
-
- Syntax error --> [test.html:1:7]
+error: Found `}}` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
+ --> test.html:1:7
   |
 1 | {{ 1 + }}
-  |        ^---
-  = Found `}}` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
+  |        ^^

@@ -3,10 +3,8 @@ source: tera/src/snapshot_tests/build_errors.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/build_errors/syntax/invalid_tag.txt
 ---
-Failed to parse 'test.html'
-
- Syntax error --> [test.html:2:5]
+error: Unexpected end of input
+ --> test.html:2:5
   |
 2 | hello
-  |      ^---
-  = Unexpected end of input
+  |      ^

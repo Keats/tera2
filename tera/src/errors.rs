@@ -7,34 +7,62 @@ use std::error::Error as StdError;
 use crate::utils::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Note {
+    pub(crate) filename: String,
+    pub(crate) source: String,
+    pub(crate) span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportError {
     pub(crate) message: String,
+    pub(crate) filename: String,
+    pub(crate) source: String,
     pub(crate) span: Span,
-    pub(crate) report: String,
+    pub(crate) notes: Vec<Note>,
 }
 
 impl ReportError {
-    pub fn new(message: String, span: &Span) -> Self {
+    pub fn new(message: String, filename: &str, source: &str, span: &Span) -> Self {
         Self {
             message,
+            filename: filename.to_string(),
+            source: source.to_string(),
             span: span.clone(),
-            report: String::new(),
+            notes: Vec::new(),
         }
     }
 
-    // TODO: clean up so we don't need err_type
-    pub fn generate_report(
-        &mut self,
-        filename: &str,
-        source: &str,
-        err_type: &str,
-        title: Option<&str>,
-    ) {
-        self.report = generate_report(self, filename, source, err_type, title);
+    /// Create a ReportError without filename/source - must call set_source before generating report
+    pub fn new_without_source(message: String, span: &Span) -> Self {
+        Self {
+            message,
+            filename: String::new(),
+            source: String::new(),
+            span: span.clone(),
+            notes: Vec::new(),
+        }
+    }
+
+    pub fn set_source(&mut self, filename: &str, source: &str) {
+        self.filename = filename.to_string();
+        self.source = source.to_string();
+    }
+
+    pub fn add_note(&mut self, filename: &str, source: &str, span: &Span) {
+        self.notes.push(Note {
+            filename: filename.to_string(),
+            source: source.to_string(),
+            span: span.clone(),
+        });
+    }
+
+    pub fn generate_report(&self) -> String {
+        generate_report(self)
     }
 
     pub fn unexpected_end_of_input(span: &Span) -> Self {
-        Self::new("Unexpected end of input".to_string(), span)
+        Self::new_without_source("Unexpected end of input".to_string(), span)
     }
 }
 
@@ -100,8 +128,9 @@ impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ErrorKind::Msg(ref message) => write!(f, "{message}"),
-            ErrorKind::SyntaxError(s) => write!(f, "{}", s.report),
-            ErrorKind::RenderingError(s) => write!(f, "{}", s.report),
+            ErrorKind::SyntaxError(s) | ErrorKind::RenderingError(s) => {
+                write!(f, "{}", s.generate_report())
+            }
             ErrorKind::CircularExtend {
                 ref tpl,
                 ref inheritance_chain,
@@ -178,7 +207,7 @@ impl Error {
 
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
-            kind: ErrorKind::SyntaxError(ReportError::new(message, span)),
+            kind: ErrorKind::SyntaxError(ReportError::new_without_source(message, span)),
             source: None,
         }
     }

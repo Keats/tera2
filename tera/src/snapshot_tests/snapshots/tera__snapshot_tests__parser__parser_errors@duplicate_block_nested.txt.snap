@@ -3,10 +3,8 @@ source: tera/src/snapshot_tests/parser.rs
 expression: res.unwrap_err()
 input_file: tera/src/snapshot_tests/parser_inputs/errors/duplicate_block_nested.txt
 ---
-Failed to parse 'duplicate_block_nested.txt'
-
- Syntax error --> [duplicate_block_nested.txt:1:26]
+error: Template already contains a block named `hello`
+ --> duplicate_block_nested.txt:1:26
   |
 1 | {% block hello %}{% block hello %}{% endblock %}{% endblock %}
-  |                           ^---
-  = Template already contains a block named `hello`
+  |                           ^^^^^
