@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/filter_missing_required_kwarg.txt
 ---
- Rendering error --> [filter_missing_required_kwarg.txt:1:11]
+error: Missing keyword argument `pat`
+ --> filter_missing_required_kwarg.txt:1:11
   |
 1 | {{ "hey" | split }}
-  |            ^---
-  = Missing keyword argument `pat`
+  |            ^^^^^

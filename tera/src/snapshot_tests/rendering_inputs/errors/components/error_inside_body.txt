@@ -1,0 +1,4 @@
+$$ components
+{% component greet(name: string) %}Hello {{ undefined_var }}!{% endcomponent greet %}
+$$ tpl
+{{ <greet name="world"/> }}

@@ -393,8 +393,8 @@ impl<'s> Compiler<'s> {
                 self.include_calls
                     .entry(name.clone())
                     .or_default()
-                    .push(span);
-                self.chunk.add(Instruction::Include(name), None);
+                    .push(span.clone());
+                self.chunk.add(Instruction::Include(name), Some(span));
             }
             Node::Block(b) => {
                 self.compile_block(b);

@@ -36,28 +36,26 @@ impl<'tera> VirtualMachine<'tera> {
                     .as_ref()
                     .and_then(|r| chunk.expand_span(r))
                     .expect("to have a span for error");
-                let mut err = ReportError::new($msg, &span);
                 let (name, source) = if self.template.name != chunk.name {
                     let tpl = &self.tera.templates[&chunk.name];
                     (&tpl.name, &tpl.source)
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error", None);
+                let err = ReportError::new($msg, name, source, &span);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
             // Variant for fused instructions that takes a direct span
             ($msg:expr, span: $span:expr) => {{
                 let chunk = state.chunk.expect("to have a chunk");
                 let span = $span.expect("to have a span for error");
-                let mut err = ReportError::new($msg, span);
                 let (name, source) = if self.template.name != chunk.name {
                     let tpl = &self.tera.templates[&chunk.name];
                     (&tpl.name, &tpl.source)
                 } else {
                     (&self.template.name, &self.template.source)
                 };
-                err.generate_report(name, source, "Rendering error", None);
+                let err = ReportError::new($msg, name, source, span);
                 return Err(Error::new(ErrorKind::RenderingError(err)));
             }};
         }
@@ -133,7 +131,20 @@ impl<'tera> VirtualMachine<'tera> {
                     Err(msg) => rendering_error!(msg, current_span),
                 };
 
-                let val = self.render_component(&component_chunk, context)?;
+                let val = match self.render_component(&component_chunk, context) {
+                    Ok(v) => v,
+                    Err(mut e) => {
+                        if let ErrorKind::RenderingError(ref mut report) = e.kind {
+                            let chunk = state.chunk.expect("to have a chunk");
+                            if let Some(span) =
+                                current_span.as_ref().and_then(|r| chunk.expand_span(r))
+                            {
+                                report.add_note(&self.template.name, &self.template.source, &span);
+                            }
+                        }
+                        return Err(e);
+                    }
+                };
                 state.stack.push(Value::safe_string(&val), current_span);
             }};
         }
@@ -288,7 +299,15 @@ impl<'tera> VirtualMachine<'tera> {
                     state.store_global(name, val);
                 }
                 Instruction::Include(name) => {
-                    self.render_include(name, state, output)?;
+                    if let Err(mut e) = self.render_include(name, state, output) {
+                        if let ErrorKind::RenderingError(ref mut report) = e.kind {
+                            let chunk = state.chunk.expect("to have a chunk");
+                            if let Some(span) = chunk.get_span(current_ip) {
+                                report.add_note(&self.template.name, &self.template.source, span);
+                            }
+                        }
+                        return Err(e);
+                    }
                 }
                 Instruction::BuildMap(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
@@ -637,7 +656,6 @@ impl<'tera> VirtualMachine<'tera> {
     }
 
     fn render_component(&self, chunk: &Chunk, context: Context) -> TeraResult<String> {
-        // TODO: need to keep around the filename the component is defined in to fetch it for errors
         let vm = Self {
             tera: self.tera,
             template: self.template,

@@ -61,10 +61,6 @@ impl<'t> State<'t> {
         }
     }
 
-    pub(crate) fn current_tpl_name(&self) -> &str {
-        &self.chunk.expect("to have a chunk").name
-    }
-
     pub(crate) fn store_local(&mut self, name: &str, value: Value) {
         if let Some(forloop) = self.for_loops.last_mut() {
             forloop.store(name, value);

@@ -7,8 +7,10 @@ Error {
     kind: SyntaxError(
         ReportError {
             message: "Closing comment tag `#}` not found",
+            filename: "",
+            source: "",
             span:  @ 1:0-1:2 (0..2),
-            report: "",
+            notes: [],
         },
     ),
     source: None,

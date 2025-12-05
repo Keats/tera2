@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_field_in_loop.txt
 ---
- Rendering error --> [unknown_field_in_loop.txt:3:5]
+error: Field `random` is not defined
+ --> unknown_field_in_loop.txt:3:5
   |
 3 | {{ r.random }}
-  |      ^---
-  = Field `random` is not defined
+  |      ^^^^^^

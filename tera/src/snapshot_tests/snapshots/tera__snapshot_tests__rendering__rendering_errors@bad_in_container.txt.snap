@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/bad_in_container.txt
 ---
- Rendering error --> [bad_in_container.txt:1:10]
+error: `in` cannot be used on a container of type `i64`. It can only be used on arrays, strings and map/structs
+ --> bad_in_container.txt:1:10
   |
 1 | {{ 'a' in 1 }}
-  |           ^---
-  = `in` cannot be used on a container of type `i64`. It can only be used on arrays, strings and map/structs
+  |           ^
