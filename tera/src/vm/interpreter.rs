@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use std::io::Write;
+use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::{Chunk, Instruction};
@@ -43,7 +43,7 @@ impl<'tera> VirtualMachine<'tera> {
                     (&self.template.name, &self.template.source)
                 };
                 let err = ReportError::new($msg, name, source, &span);
-                return Err(Error::new(ErrorKind::RenderingError(err)));
+                return Err(Error::new(ErrorKind::RenderingError(Box::new(err))));
             }};
             // Variant for fused instructions that takes a direct span
             ($msg:expr, span: $span:expr) => {{
@@ -56,7 +56,7 @@ impl<'tera> VirtualMachine<'tera> {
                     (&self.template.name, &self.template.source)
                 };
                 let err = ReportError::new($msg, name, source, span);
-                return Err(Error::new(ErrorKind::RenderingError(err)));
+                return Err(Error::new(ErrorKind::RenderingError(Box::new(err))));
             }};
         }
 
@@ -316,8 +316,50 @@ impl<'tera> VirtualMachine<'tera> {
                         let (key, _) = state.stack.pop();
                         elems.push((key.as_key()?, val));
                     }
-                    let map: BTreeMap<_, _> = elems.into_iter().collect();
+                    elems.reverse();
+                    let map: crate::value::Map = elems.into_iter().collect();
                     state.stack.push(Value::from(map), None)
+                }
+                Instruction::BuildMapWithSpreads(entry_types) => {
+                    let mut entries: Vec<_> = Vec::with_capacity(entry_types.len());
+
+                    for is_spread in entry_types.iter().rev() {
+                        if *is_spread {
+                            let (val, span) = state.stack.pop();
+                            if !val.is_map() {
+                                rendering_error!(
+                                    format!(
+                                        "Spread operator requires a map, found `{}`",
+                                        val.name()
+                                    ),
+                                    span
+                                );
+                            }
+                            entries.push((None, val));
+                        } else {
+                            let (val, _) = state.stack.pop();
+                            let (key, _) = state.stack.pop();
+                            entries.push((Some(key.as_key()?), val));
+                        }
+                    }
+                    entries.reverse();
+
+                    let mut result_map = crate::value::Map::new();
+
+                    for entry in entries {
+                        match entry {
+                            (Some(key), val) => {
+                                result_map.insert(key, val);
+                            }
+                            (None, spread) => {
+                                for (k, v) in spread.into_map().unwrap() {
+                                    result_map.insert(k, v);
+                                }
+                            }
+                        }
+                    }
+
+                    state.stack.push(Value::from(result_map), None);
                 }
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
@@ -352,7 +394,9 @@ impl<'tera> VirtualMachine<'tera> {
                         state.stack.push(Value::null(), None);
                     } else {
                         let f = &self.tera.functions[name.as_str()];
-                        let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
+                        let val = match f
+                            .call(Kwargs::new(Arc::new(kwargs.into_map().unwrap())), state)
+                        {
                             Ok(v) => v,
                             Err(err) => {
                                 rendering_error!(format!("{err}"), Some(current_ip..=current_ip))
@@ -366,7 +410,11 @@ impl<'tera> VirtualMachine<'tera> {
                     let f = &self.tera.filters[name.as_str()];
                     let (kwargs, _) = state.stack.pop();
                     let (value, value_span) = state.stack.pop();
-                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                    let val = match f.call(
+                        &value,
+                        Kwargs::new(Arc::new(kwargs.into_map().unwrap())),
+                        state,
+                    ) {
                         Ok(v) => v,
                         Err(err) => match err.kind {
                             ErrorKind::InvalidArgument { .. } => {
@@ -381,7 +429,11 @@ impl<'tera> VirtualMachine<'tera> {
                     let f = &self.tera.tests[name.as_str()];
                     let (kwargs, _) = state.stack.pop();
                     let (value, value_span) = state.stack.pop();
-                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                    let val = match f.call(
+                        &value,
+                        Kwargs::new(Arc::new(kwargs.into_map().unwrap())),
+                        state,
+                    ) {
                         Ok(v) => v,
                         Err(err) => match err.kind {
                             ErrorKind::InvalidArgument { .. } => {

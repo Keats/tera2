@@ -119,6 +119,7 @@ pub enum Token<'a> {
     RightParen,
     LeftBrace,
     RightBrace,
+    Spread,
 }
 
 impl<'a> fmt::Debug for Token<'a> {
@@ -168,6 +169,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::RightParen => write!(f, "RIGHT_PAREN"),
             Token::LeftBrace => write!(f, "LEFT_BRACE"),
             Token::RightBrace => write!(f, "RIGHT_BRACE"),
+            Token::Spread => write!(f, "SPREAD"),
         }
     }
 }
@@ -217,6 +219,7 @@ impl<'a> fmt::Display for Token<'a> {
             Token::RightParen => write!(f, "`)`"),
             Token::LeftBrace => write!(f, "`{{`"),
             Token::RightBrace => write!(f, "`}}`"),
+            Token::Spread => write!(f, "`...`"),
         }
     }
 }
@@ -516,6 +519,12 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                         }
                     }
                     _ => unreachable!(),
+                }
+
+                // Check for spread operator
+                if let Some(b"...") = rest.as_bytes().get(..3) {
+                    advance!(3);
+                    return Some(Ok((Token::Spread, make_span!(start_loc))));
                 }
 
                 // Then the longer operators

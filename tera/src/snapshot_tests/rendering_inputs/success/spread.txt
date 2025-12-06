@@ -1,0 +1,9 @@
+{% set base = {"a": 1, "b": 2} %}
+{% set other = {"c": 3} %}
+Simple spread: {{ {...base} | safe }}
+Add key: {{ {...base, "d": 4} | safe }}
+Multiple spreads: {{ {...base, ...other} | safe }}
+Override: {{ {...base, "a": 99} | safe }}
+Interleaved: {{ {"x": 0, ...base, "y": 9} | safe }}
+{% set empty = {} %}
+Empty spread: {{ {...empty} | safe }}

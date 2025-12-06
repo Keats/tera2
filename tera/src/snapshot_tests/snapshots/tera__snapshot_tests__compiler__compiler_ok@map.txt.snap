@@ -10,3 +10,31 @@ input_file: tera/src/snapshot_tests/compiler_inputs/success/map.txt
 0003 LoadName("data")
 0004 BuildMap(1)
 0005 WriteTop
+0006 WriteText("\n")
+0007 LoadName("other")
+0008 BuildMapWithSpreads([true])
+0009 WriteTop
+0010 WriteText("\n")
+0011 LoadName("a")
+0012 LoadConst(String("key"))
+0013 LoadName("value")
+0014 BuildMapWithSpreads([true, false])
+0015 WriteTop
+0016 WriteText("\n")
+0017 LoadConst(String("key"))
+0018 LoadName("value")
+0019 LoadName("other")
+0020 BuildMapWithSpreads([false, true])
+0021 WriteTop
+0022 WriteText("\n")
+0023 LoadName("a")
+0024 LoadName("b")
+0025 BuildMapWithSpreads([true, true])
+0026 WriteTop
+0027 WriteText("\n")
+0028 LoadName("a")
+0029 LoadConst(String("k"))
+0030 LoadName("v")
+0031 LoadName("b")
+0032 BuildMapWithSpreads([true, false, true])
+0033 WriteTop

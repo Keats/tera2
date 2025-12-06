@@ -1,0 +1,12 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&normalized_out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/spread.txt
+---
+Simple spread: {"a": 1, "b": 2}
+Add key: {"a": 1, "b": 2, "d": 4}
+Multiple spreads: {"a": 1, "b": 2, "c": 3}
+Override: {"a": 99, "b": 2}
+Interleaved: {"a": 1, "b": 2, "x": 0, "y": 9}
+
+Empty spread: {}

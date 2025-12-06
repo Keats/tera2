@@ -38,6 +38,9 @@ pub(crate) enum Instruction {
     BuildMap(usize),
     /// Create a list. Inner field is the number of values
     BuildList(usize),
+    /// Build map with spreads. true=spread (pop 1), false=kv (pop 2).
+    /// This is separate from BuildMap for perf reasons
+    BuildMapWithSpreads(Vec<bool>),
     /// Call the named Tera function
     CallFunction(String),
     /// Render the given inline component
