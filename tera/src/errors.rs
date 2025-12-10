@@ -71,9 +71,9 @@ pub enum ErrorKind {
     /// Generic error
     Msg(String),
     /// Both lexer and parser errors. Will point to the source file
-    SyntaxError(ReportError),
+    SyntaxError(Box<ReportError>),
     /// An error that happens while rendering a template. Will point to the source file
-    RenderingError(ReportError),
+    RenderingError(Box<ReportError>),
     /// A loop was found while looking up the inheritance chain
     CircularExtend {
         /// Name of the template with the loop
@@ -207,7 +207,7 @@ impl Error {
 
     pub(crate) fn syntax_error(message: String, span: &Span) -> Self {
         Self {
-            kind: ErrorKind::SyntaxError(ReportError::new_without_source(message, span)),
+            kind: ErrorKind::SyntaxError(Box::new(ReportError::new_without_source(message, span))),
             source: None,
         }
     }

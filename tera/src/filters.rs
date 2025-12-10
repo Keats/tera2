@@ -499,6 +499,7 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, state: &State) -> TeraResult<
         let args_map = kwargs
             .get::<Value>("args")?
             .and_then(|v| v.into_map())
+            .map(Arc::new)
             .unwrap_or_else(|| Arc::new(Map::new()));
         Some(Kwargs::new(args_map))
     } else {

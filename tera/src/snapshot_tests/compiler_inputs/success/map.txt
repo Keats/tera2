@@ -1,1 +1,6 @@
 {{ {"hello": 0} }}{{ {"hello": data} }}
+{{ {...other} }}
+{{ {...a, "key": value} }}
+{{ {"key": value, ...other} }}
+{{ {...a, ...b} }}
+{{ {...a, "k": v, ...b} }}

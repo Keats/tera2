@@ -119,39 +119,48 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
     Set {
         name: "value",
         value: Map {
-            items: {
-                String(
-                    "hello",
-                ): Var {
-                    name: "data",
-                } @ 12:25-12:29 (372..376),
-            },
+            entries: [
+                KeyValue {
+                    key: String(
+                        "hello",
+                    ),
+                    value: Var {
+                        name: "data",
+                    } @ 12:25-12:29 (372..376),
+                },
+            ],
         } @ 12:15-12:30 (362..377),
         global: false,
     },
     Set {
         name: "value",
         value: Map {
-            items: {
-                I64(
-                    1,
-                ): Var {
-                    name: "data",
-                } @ 13:19-13:23 (400..404),
-            },
+            entries: [
+                KeyValue {
+                    key: I64(
+                        1,
+                    ),
+                    value: Var {
+                        name: "data",
+                    } @ 13:19-13:23 (400..404),
+                },
+            ],
         } @ 13:15-13:24 (396..405),
         global: false,
     },
     Set {
         name: "value",
         value: Map {
-            items: {
-                Bool(
-                    true,
-                ): Var {
-                    name: "data",
-                } @ 14:22-14:26 (431..435),
-            },
+            entries: [
+                KeyValue {
+                    key: Bool(
+                        true,
+                    ),
+                    value: Var {
+                        name: "data",
+                    } @ 14:22-14:26 (431..435),
+                },
+            ],
         } @ 14:15-14:27 (424..436),
         global: false,
     },

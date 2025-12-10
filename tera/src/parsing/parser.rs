@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall, ComponentDefinition,
-    Expression, ExpressionMap, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If,
-    Include, Map, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
+    Array, ArrayEntry, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall,
+    ComponentDefinition, Expression, Filter, FilterSection, ForLoop, FunctionCall, GetAttr,
+    GetItem, If, Include, Map, MapEntry, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -150,9 +150,9 @@ impl<'a> Parser<'a> {
         let mut span = self.current_span.clone();
         span.start_col = span.end_col;
         span.start_line = span.end_line;
-        Error::new(ErrorKind::SyntaxError(
+        Error::new(ErrorKind::SyntaxError(Box::new(
             ReportError::unexpected_end_of_input(&span),
-        ))
+        )))
     }
 
     fn different_name_end_tag(&self, start_name: &str, end_name: &str, kind: &str) -> Error {
@@ -471,7 +471,7 @@ impl<'a> Parser<'a> {
 
     fn parse_map(&mut self) -> TeraResult<Expression> {
         let mut literal_only = true;
-        let mut items = ExpressionMap::new();
+        let mut entries = Vec::new();
         let mut span = self.current_span.clone();
 
         loop {
@@ -480,12 +480,21 @@ impl<'a> Parser<'a> {
             }
 
             // trailing commas
-            if !items.is_empty() {
+            if !entries.is_empty() {
                 expect_token!(self, Token::Comma, ",")?;
             }
 
             if matches!(self.next, Some(Ok((Token::RightBrace, _)))) {
                 break;
+            }
+
+            // Check for spread operator
+            if matches!(self.next, Some(Ok((Token::Spread, _)))) {
+                expect_token!(self, Token::Spread, "...")?;
+                let spread_expr = self.inner_parse_expression(0)?;
+                entries.push(MapEntry::Spread(spread_expr));
+                literal_only = false; // Spreads are never literal-only
+                continue;
             }
 
             let key = match self.next_or_error()? {
@@ -497,7 +506,7 @@ impl<'a> Parser<'a> {
                 (token, span) => {
                     return Err(Error::syntax_error(
                         format!(
-                            "Found {} but expected a string, an integer or a bool.",
+                            "Found {} but expected `...`, a string, an integer or a bool.",
                             token
                         ),
                         &span,
@@ -510,21 +519,25 @@ impl<'a> Parser<'a> {
             if !value.is_literal() {
                 literal_only = false;
             }
-            items.insert(key, value);
+            entries.push(MapEntry::KeyValue { key, value });
         }
         expect_token!(self, Token::RightBrace, "}")?;
         span.expand(&self.current_span);
 
         if literal_only {
-            let mut out = crate::value::Map::with_capacity(items.len());
-            for (k, v) in items {
-                if let Expression::Const(val) = v {
-                    out.insert(k, val.into_parts().0);
+            let mut out = crate::value::Map::with_capacity(entries.len());
+            for entry in entries {
+                if let MapEntry::KeyValue {
+                    key,
+                    value: Expression::Const(val),
+                } = entry
+                {
+                    out.insert(key, val.into_parts().0);
                 }
             }
             Ok(Expression::Const(Spanned::new(Value::from(out), span)))
         } else {
-            Ok(Expression::Map(Spanned::new(Map { items }, span)))
+            Ok(Expression::Map(Spanned::new(Map { entries }, span)))
         }
     }
 
@@ -539,6 +552,7 @@ impl<'a> Parser<'a> {
         }
 
         let mut items = Vec::new();
+        let mut literal_only = true;
         loop {
             if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
@@ -553,7 +567,20 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            items.push(self.inner_parse_expression(0)?);
+            // Check for spread operator
+            if matches!(self.next, Some(Ok((Token::Spread, _)))) {
+                expect_token!(self, Token::Spread, "...")?;
+                let spread_expr = self.inner_parse_expression(0)?;
+                items.push(ArrayEntry::Spread(spread_expr));
+                literal_only = false;
+                continue;
+            }
+
+            let expr = self.inner_parse_expression(0)?;
+            if !expr.is_literal() {
+                literal_only = false;
+            }
+            items.push(ArrayEntry::Item(expr));
         }
 
         self.array_dimension -= 1;
@@ -561,11 +588,12 @@ impl<'a> Parser<'a> {
         span.expand(&self.current_span);
         let array = Array { items };
 
-        if let Some(const_array) = array.as_const() {
-            Ok(Expression::Const(Spanned::new(const_array, span)))
-        } else {
-            Ok(Expression::Array(Spanned::new(array, span)))
+        if literal_only {
+            if let Some(const_array) = array.as_const() {
+                return Ok(Expression::Const(Spanned::new(const_array, span)));
+            }
         }
+        Ok(Expression::Array(Spanned::new(array, span)))
     }
 
     /// This is called recursively so we do put a limit as to how many times it can call itself

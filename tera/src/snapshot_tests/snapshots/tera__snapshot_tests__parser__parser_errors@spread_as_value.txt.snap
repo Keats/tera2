@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/spread_as_value.txt
+---
+error: Found `...` but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{`, `[` or `(`
+ --> spread_as_value.txt:1:9
+  |
+1 | {{ {"k": ...a} }}
+  |          ^^^
