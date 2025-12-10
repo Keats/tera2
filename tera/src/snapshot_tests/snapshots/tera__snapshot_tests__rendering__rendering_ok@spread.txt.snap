@@ -7,6 +7,9 @@ Simple spread: {"a": 1, "b": 2}
 Add key: {"a": 1, "b": 2, "d": 4}
 Multiple spreads: {"a": 1, "b": 2, "c": 3}
 Override: {"a": 99, "b": 2}
+
+
+Override 2: {"a": 3, "b": 4}
 Interleaved: {"a": 1, "b": 2, "x": 0, "y": 9}
 
 Empty spread: {}
