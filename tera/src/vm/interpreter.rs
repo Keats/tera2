@@ -342,18 +342,23 @@ impl<'tera> VirtualMachine<'tera> {
                             entries.push((Some(key.as_key()?), val));
                         }
                     }
-                    entries.reverse();
 
+                    // We process the values from right to left because right will always win
+                    // against the same key/val on the left so we don't need to insert multiple times
                     let mut result_map = crate::value::Map::new();
 
                     for entry in entries {
                         match entry {
                             (Some(key), val) => {
-                                result_map.insert(key, val);
+                                if !result_map.contains_key(&key) {
+                                    result_map.insert(key, val);
+                                }
                             }
                             (None, spread) => {
                                 for (k, v) in spread.into_map().unwrap() {
-                                    result_map.insert(k, v);
+                                    if !result_map.contains_key(&k) {
+                                        result_map.insert(k, v);
+                                    }
                                 }
                             }
                         }
