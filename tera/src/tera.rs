@@ -882,6 +882,7 @@ impl Tera {
 
         let vm = VirtualMachine::new(self, template);
         let mut state = State::new_with_chunk(&component_context, chunk);
+        state.global_context = Some(&self.global_context);
         state.filters = Some(&self.filters);
         vm.interpret(&mut state, &mut write)?;
 
@@ -947,6 +948,7 @@ impl Tera {
 
         let vm = VirtualMachine::new(self, template);
         let mut state = State::new_with_chunk(context, block_chunk);
+        state.global_context = Some(&self.global_context);
         state.filters = Some(&self.filters);
 
         // Set up block lineage so super() works
