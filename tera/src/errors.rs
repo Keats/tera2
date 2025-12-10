@@ -109,6 +109,14 @@ pub enum ErrorKind {
     /// A component was missing
     /// Only raised if you're trying to render a specific component
     ComponentNotFound(String),
+    /// Only raised if you're trying to render a specific block via Tera::render_block but we can't
+    /// find it in the template or its parents.
+    BlockNotFound {
+        /// The template name
+        tpl: String,
+        /// The block name
+        block: String,
+    },
     /// A filter/test main value was not the expected type
     InvalidArgument {
         expected_type: String,
@@ -147,6 +155,9 @@ impl fmt::Display for ErrorKind {
             ),
             ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{name}' not found"),
             ErrorKind::ComponentNotFound(ref name) => write!(f, "Component '{name}' not found"),
+            ErrorKind::BlockNotFound { ref tpl, ref block } => {
+                write!(f, "Block '{block}' not found in template '{tpl}' or its parents")
+            }
             ErrorKind::NamespaceNotLoaded {
                 ref tpl,
                 ref namespace,
@@ -249,6 +260,16 @@ impl Error {
     pub(crate) fn component_not_found(name: impl ToString) -> Self {
         Self {
             kind: ErrorKind::ComponentNotFound(name.to_string()),
+            source: None,
+        }
+    }
+
+    pub(crate) fn block_not_found(tpl: impl ToString, block: impl ToString) -> Self {
+        Self {
+            kind: ErrorKind::BlockNotFound {
+                tpl: tpl.to_string(),
+                block: block.to_string(),
+            },
             source: None,
         }
     }

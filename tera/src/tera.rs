@@ -757,7 +757,7 @@ impl Tera {
         &mut self.global_context
     }
 
-    /// Renders a one off template (for example a template coming from a user
+    /// Renders a one-off template (for example a template coming from a user
     /// input) given a `Context` and an instance of Tera. This allows you to
     /// render templates using custom filters or functions.
     ///
@@ -883,6 +883,77 @@ impl Tera {
         let vm = VirtualMachine::new(self, template);
         let mut state = State::new_with_chunk(&component_context, chunk);
         state.filters = Some(&self.filters);
+        vm.interpret(&mut state, &mut write)?;
+
+        Ok(())
+    }
+
+    /// Renders a specific block from a template, respecting inheritance. The `super()` function also works correctly.
+    ///
+    /// # Examples
+    ///
+    /// ```no_compile
+    /// // base.html: {% block content %}default{% endblock %}
+    /// // child.html: {% extends "base.html" %}{% block content %}child{% endblock %}
+    ///
+    /// let tera = Tera::new("templates/**/*")?;
+    /// let context = Context::new();
+    ///
+    /// // Renders "child" (the overridden block content)
+    /// let html = tera.render_block("child.html", "content", &context)?;
+    /// ```
+    pub fn render_block(
+        &self,
+        template_name: &str,
+        block_name: &str,
+        context: &Context,
+    ) -> TeraResult<String> {
+        let mut output = Vec::new();
+        self.render_block_to(template_name, block_name, context, &mut output)?;
+        Ok(String::from_utf8(output)?)
+    }
+
+    /// Renders a specific block from a template to something that implements [`Write`].
+    ///
+    /// Same as [`render_block`](Self::render_block) but writes to a [`Write`] implementor
+    /// instead of returning a String.
+    ///
+    /// # Examples
+    ///
+    /// ```no_compile
+    /// let tera = Tera::new("templates/**/*")?;
+    /// let context = Context::new();
+    /// let mut buffer = Vec::new();
+    /// tera.render_block_to("child.html", "content", &context, &mut buffer)?;
+    /// ```
+    pub fn render_block_to(
+        &self,
+        template_name: &str,
+        block_name: &str,
+        context: &Context,
+        mut write: impl Write,
+    ) -> TeraResult<()> {
+        let template = self
+            .templates
+            .get(template_name)
+            .ok_or_else(|| Error::template_not_found(template_name))?;
+
+        let block_lineage = template
+            .block_lineage
+            .get(block_name)
+            .ok_or_else(|| Error::block_not_found(template_name, block_name))?;
+
+        let block_chunk = &block_lineage[0];
+
+        let vm = VirtualMachine::new(self, template);
+        let mut state = State::new_with_chunk(context, block_chunk);
+        state.filters = Some(&self.filters);
+
+        // Set up block lineage so super() works
+        let lineage_refs: Vec<_> = block_lineage.iter().collect();
+        state.blocks.insert(block_name, (lineage_refs, 0));
+        state.current_block_name = Some(block_name);
+
         vm.interpret(&mut state, &mut write)?;
 
         Ok(())
@@ -1094,6 +1165,68 @@ mod tests {
             .is_err());
         assert!(tera
             .render_component("Button", &context! { label => "x", bad => "y" }, None)
+            .is_err());
+    }
+
+    #[test]
+    fn test_render_block() {
+        let mut tera = Tera::default();
+        tera.add_raw_templates(vec![
+            ("base.html", "{% block content %}default{% endblock content %}{% block footer %}base footer{% endblock footer %}"),
+            ("child.html", "{% extends \"base.html\" %}{% block content %}child content{% endblock content %}"),
+            ("grandchild.html", "{% extends \"child.html\" %}{% block content %}grandchild {{ super() }}{% endblock content %}"),
+        ])
+        .unwrap();
+
+        // Render block from base template
+        insta::assert_snapshot!(
+            tera.render_block("base.html", "content", &Context::new()).unwrap(),
+            @"default"
+        );
+
+        // Render overridden block from child template
+        insta::assert_snapshot!(
+            tera.render_block("child.html", "content", &Context::new()).unwrap(),
+            @"child content"
+        );
+
+        // Render inherited (non-overridden) block from child template
+        insta::assert_snapshot!(
+            tera.render_block("child.html", "footer", &Context::new()).unwrap(),
+            @"base footer"
+        );
+
+        // Render block with super() call
+        insta::assert_snapshot!(
+            tera.render_block("grandchild.html", "content", &Context::new()).unwrap(),
+            @"grandchild child content"
+        );
+
+        // render_block_to variant
+        let mut buffer = Vec::new();
+        tera.render_block_to("child.html", "content", &Context::new(), &mut buffer)
+            .unwrap();
+        insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @"child content");
+
+        // Block with context variable
+        let mut tera2 = Tera::default();
+        tera2
+            .add_raw_template(
+                "tpl.html",
+                "{% block greet %}Hello {{ name }}{% endblock greet %}",
+            )
+            .unwrap();
+        insta::assert_snapshot!(
+            tera2.render_block("tpl.html", "greet", &context! { name => "World" }).unwrap(),
+            @"Hello World"
+        );
+
+        // Errors
+        assert!(tera
+            .render_block("nope.html", "content", &Context::new())
+            .is_err());
+        assert!(tera
+            .render_block("base.html", "nope", &Context::new())
             .is_err());
     }
 }
