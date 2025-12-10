@@ -41,6 +41,9 @@ pub(crate) enum Instruction {
     /// Build map with spreads. true=spread (pop 1), false=kv (pop 2).
     /// This is separate from BuildMap for perf reasons
     BuildMapWithSpreads(Vec<bool>),
+    /// Build list with spreads. true=spread false=item
+    /// This is separate from BuildList for perf reasons
+    BuildListWithSpreads(Vec<bool>),
     /// Call the named Tera function
     CallFunction(String),
     /// Render the given inline component

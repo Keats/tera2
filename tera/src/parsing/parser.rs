@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
-    Array, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall, ComponentDefinition,
-    Expression, Filter, FilterSection, ForLoop, FunctionCall, GetAttr, GetItem, If, Include, Map,
-    MapEntry, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
+    Array, ArrayEntry, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall,
+    ComponentDefinition, Expression, Filter, FilterSection, ForLoop, FunctionCall, GetAttr,
+    GetItem, If, Include, Map, MapEntry, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
 use crate::parsing::lexer::{tokenize, Token};
@@ -552,6 +552,7 @@ impl<'a> Parser<'a> {
         }
 
         let mut items = Vec::new();
+        let mut literal_only = true;
         loop {
             if matches!(self.next, Some(Ok((Token::RightBracket, _)))) {
                 break;
@@ -566,7 +567,20 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            items.push(self.inner_parse_expression(0)?);
+            // Check for spread operator
+            if matches!(self.next, Some(Ok((Token::Spread, _)))) {
+                expect_token!(self, Token::Spread, "...")?;
+                let spread_expr = self.inner_parse_expression(0)?;
+                items.push(ArrayEntry::Spread(spread_expr));
+                literal_only = false;
+                continue;
+            }
+
+            let expr = self.inner_parse_expression(0)?;
+            if !expr.is_literal() {
+                literal_only = false;
+            }
+            items.push(ArrayEntry::Item(expr));
         }
 
         self.array_dimension -= 1;
@@ -574,11 +588,12 @@ impl<'a> Parser<'a> {
         span.expand(&self.current_span);
         let array = Array { items };
 
-        if let Some(const_array) = array.as_const() {
-            Ok(Expression::Const(Spanned::new(const_array, span)))
-        } else {
-            Ok(Expression::Array(Spanned::new(array, span)))
+        if literal_only {
+            if let Some(const_array) = array.as_const() {
+                return Ok(Expression::Const(Spanned::new(const_array, span)));
+            }
         }
+        Ok(Expression::Array(Spanned::new(array, span)))
     }
 
     /// This is called recursively so we do put a limit as to how many times it can call itself

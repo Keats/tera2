@@ -351,19 +351,37 @@ impl fmt::Display for Map {
     }
 }
 
+/// An entry in an array literal - either a single item or a spread expression
+#[derive(Clone, Debug, PartialEq)]
+pub enum ArrayEntry {
+    /// A single item: `expr`
+    Item(Expression),
+    /// A spread expression: `...expr`
+    Spread(Expression),
+}
+
+impl fmt::Display for ArrayEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArrayEntry::Item(expr) => write!(f, "{expr}"),
+            ArrayEntry::Spread(expr) => write!(f, "...{expr}"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Array {
-    pub items: Vec<Expression>,
+    pub items: Vec<ArrayEntry>,
 }
 
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
-        for (i, s) in self.items.iter().enumerate() {
+        for (i, entry) in self.items.iter().enumerate() {
             if i == self.items.len() - 1 {
-                write!(f, "{s}")?
+                write!(f, "{entry}")?
             } else {
-                write!(f, "{s}, ")?
+                write!(f, "{entry}, ")?
             }
         }
         write!(f, "]")
@@ -373,9 +391,9 @@ impl fmt::Display for Array {
 impl Array {
     pub(crate) fn as_const(&self) -> Option<Value> {
         let mut res = Vec::with_capacity(self.items.len());
-        for v in &self.items {
-            match v {
-                Expression::Const(v) => res.push(v.node().clone()),
+        for entry in &self.items {
+            match entry {
+                ArrayEntry::Item(Expression::Const(v)) => res.push(v.node().clone()),
                 _ => return None,
             }
         }

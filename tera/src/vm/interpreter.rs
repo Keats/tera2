@@ -374,6 +374,33 @@ impl<'tera> VirtualMachine<'tera> {
                     elems.reverse();
                     state.stack.push(Value::from(elems), None);
                 }
+                Instruction::BuildListWithSpreads(entry_types) => {
+                    let mut elems = Vec::with_capacity(entry_types.len());
+                    for _ in 0..entry_types.len() {
+                        elems.push(state.stack.pop());
+                    }
+                    elems.reverse();
+
+                    let mut result = Vec::new();
+                    for ((val, span), is_spread) in elems.into_iter().zip(entry_types.iter()) {
+                        if *is_spread {
+                            if !val.is_array() {
+                                rendering_error!(
+                                    format!(
+                                        "Spread operator requires an array, found `{}`",
+                                        val.name()
+                                    ),
+                                    span
+                                );
+                            }
+                            result.extend(val.into_vec().unwrap());
+                        } else {
+                            result.push(val);
+                        }
+                    }
+
+                    state.stack.push(Value::from(result), None);
+                }
                 Instruction::CallFunction(name) => {
                     let (kwargs, _) = state.stack.pop();
                     if name == "super" {

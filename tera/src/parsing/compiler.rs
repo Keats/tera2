@@ -1,5 +1,7 @@
 //! AST -> bytecode
-use crate::parsing::ast::{BinaryOperator, Block, Expression, MapEntry, Node, UnaryOperator};
+use crate::parsing::ast::{
+    ArrayEntry, BinaryOperator, Block, Expression, MapEntry, Node, UnaryOperator,
+};
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::utils::Span;
 use crate::value::Value;
@@ -114,12 +116,39 @@ impl<'s> Compiler<'s> {
             }
             Expression::Array(e) => {
                 let (array, span) = e.into_parts();
-                let num_elems = array.items.len();
-                for val in array.items {
-                    self.compile_expr(val);
+                let has_spreads = array
+                    .items
+                    .iter()
+                    .any(|e| matches!(e, ArrayEntry::Spread(_)));
+
+                if has_spreads {
+                    let mut entry_types = Vec::with_capacity(array.items.len());
+
+                    for entry in array.items {
+                        match entry {
+                            ArrayEntry::Item(expr) => {
+                                self.compile_expr(expr);
+                                entry_types.push(false);
+                            }
+                            ArrayEntry::Spread(expr) => {
+                                self.compile_expr(expr);
+                                entry_types.push(true);
+                            }
+                        }
+                    }
+
+                    self.chunk
+                        .add(Instruction::BuildListWithSpreads(entry_types), Some(span));
+                } else {
+                    let num_elems = array.items.len();
+                    for entry in array.items {
+                        if let ArrayEntry::Item(expr) = entry {
+                            self.compile_expr(expr);
+                        }
+                    }
+                    self.chunk
+                        .add(Instruction::BuildList(num_elems), Some(span));
                 }
-                self.chunk
-                    .add(Instruction::BuildList(num_elems), Some(span));
             }
             Expression::Var(e) => {
                 let (val, span) = e.into_parts();
