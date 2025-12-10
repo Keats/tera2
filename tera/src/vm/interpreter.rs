@@ -350,15 +350,11 @@ impl<'tera> VirtualMachine<'tera> {
                     for entry in entries {
                         match entry {
                             (Some(key), val) => {
-                                if !result_map.contains_key(&key) {
-                                    result_map.insert(key, val);
-                                }
+                                result_map.entry(key).or_insert(val);
                             }
                             (None, spread) => {
                                 for (k, v) in spread.into_map().unwrap() {
-                                    if !result_map.contains_key(&k) {
-                                        result_map.insert(k, v);
-                                    }
+                                    result_map.entry(k).or_insert(v);
                                 }
                             }
                         }
