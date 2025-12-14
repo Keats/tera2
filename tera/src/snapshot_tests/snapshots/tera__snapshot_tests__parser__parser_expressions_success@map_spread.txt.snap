@@ -1,0 +1,8 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: Expressions(expr_nodes)
+input_file: tera/src/snapshot_tests/parser_inputs/success/expr/map_spread.txt
+---
+{...a}
+{...a, k: v}
+{k: v, ...a}

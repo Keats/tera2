@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use std::io::Write;
+use std::sync::Arc;
 
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::{Chunk, Instruction};
@@ -43,7 +43,7 @@ impl<'tera> VirtualMachine<'tera> {
                     (&self.template.name, &self.template.source)
                 };
                 let err = ReportError::new($msg, name, source, &span);
-                return Err(Error::new(ErrorKind::RenderingError(err)));
+                return Err(Error::new(ErrorKind::RenderingError(Box::new(err))));
             }};
             // Variant for fused instructions that takes a direct span
             ($msg:expr, span: $span:expr) => {{
@@ -56,7 +56,7 @@ impl<'tera> VirtualMachine<'tera> {
                     (&self.template.name, &self.template.source)
                 };
                 let err = ReportError::new($msg, name, source, span);
-                return Err(Error::new(ErrorKind::RenderingError(err)));
+                return Err(Error::new(ErrorKind::RenderingError(Box::new(err))));
             }};
         }
 
@@ -316,8 +316,51 @@ impl<'tera> VirtualMachine<'tera> {
                         let (key, _) = state.stack.pop();
                         elems.push((key.as_key()?, val));
                     }
-                    let map: BTreeMap<_, _> = elems.into_iter().collect();
+                    elems.reverse();
+                    let map: crate::value::Map = elems.into_iter().collect();
                     state.stack.push(Value::from(map), None)
+                }
+                Instruction::BuildMapWithSpreads(entry_types) => {
+                    let mut entries: Vec<_> = Vec::with_capacity(entry_types.len());
+
+                    for is_spread in entry_types.iter().rev() {
+                        if *is_spread {
+                            let (val, span) = state.stack.pop();
+                            if !val.is_map() {
+                                rendering_error!(
+                                    format!(
+                                        "Spread operator requires a map, found `{}`",
+                                        val.name()
+                                    ),
+                                    span
+                                );
+                            }
+                            entries.push((None, val));
+                        } else {
+                            let (val, _) = state.stack.pop();
+                            let (key, _) = state.stack.pop();
+                            entries.push((Some(key.as_key()?), val));
+                        }
+                    }
+
+                    // We process the values from right to left because right will always win
+                    // against the same key/val on the left so we don't need to insert multiple times
+                    let mut result_map = crate::value::Map::new();
+
+                    for entry in entries {
+                        match entry {
+                            (Some(key), val) => {
+                                result_map.entry(key).or_insert(val);
+                            }
+                            (None, spread) => {
+                                for (k, v) in spread.into_map().unwrap() {
+                                    result_map.entry(k).or_insert(v);
+                                }
+                            }
+                        }
+                    }
+
+                    state.stack.push(Value::from(result_map), None);
                 }
                 Instruction::BuildList(num_elem) => {
                     let mut elems = Vec::with_capacity(*num_elem);
@@ -326,6 +369,33 @@ impl<'tera> VirtualMachine<'tera> {
                     }
                     elems.reverse();
                     state.stack.push(Value::from(elems), None);
+                }
+                Instruction::BuildListWithSpreads(entry_types) => {
+                    let mut elems = Vec::with_capacity(entry_types.len());
+                    for _ in 0..entry_types.len() {
+                        elems.push(state.stack.pop());
+                    }
+                    elems.reverse();
+
+                    let mut result = Vec::new();
+                    for ((val, span), is_spread) in elems.into_iter().zip(entry_types.iter()) {
+                        if *is_spread {
+                            if !val.is_array() {
+                                rendering_error!(
+                                    format!(
+                                        "Spread operator requires an array, found `{}`",
+                                        val.name()
+                                    ),
+                                    span
+                                );
+                            }
+                            result.extend(val.into_vec().unwrap());
+                        } else {
+                            result.push(val);
+                        }
+                    }
+
+                    state.stack.push(Value::from(result), None);
                 }
                 Instruction::CallFunction(name) => {
                     let (kwargs, _) = state.stack.pop();
@@ -352,7 +422,9 @@ impl<'tera> VirtualMachine<'tera> {
                         state.stack.push(Value::null(), None);
                     } else {
                         let f = &self.tera.functions[name.as_str()];
-                        let val = match f.call(Kwargs::new(kwargs.into_map().unwrap()), state) {
+                        let val = match f
+                            .call(Kwargs::new(Arc::new(kwargs.into_map().unwrap())), state)
+                        {
                             Ok(v) => v,
                             Err(err) => {
                                 rendering_error!(format!("{err}"), Some(current_ip..=current_ip))
@@ -366,7 +438,11 @@ impl<'tera> VirtualMachine<'tera> {
                     let f = &self.tera.filters[name.as_str()];
                     let (kwargs, _) = state.stack.pop();
                     let (value, value_span) = state.stack.pop();
-                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                    let val = match f.call(
+                        &value,
+                        Kwargs::new(Arc::new(kwargs.into_map().unwrap())),
+                        state,
+                    ) {
                         Ok(v) => v,
                         Err(err) => match err.kind {
                             ErrorKind::InvalidArgument { .. } => {
@@ -381,7 +457,11 @@ impl<'tera> VirtualMachine<'tera> {
                     let f = &self.tera.tests[name.as_str()];
                     let (kwargs, _) = state.stack.pop();
                     let (value, value_span) = state.stack.pop();
-                    let val = match f.call(&value, Kwargs::new(kwargs.into_map().unwrap()), state) {
+                    let val = match f.call(
+                        &value,
+                        Kwargs::new(Arc::new(kwargs.into_map().unwrap())),
+                        state,
+                    ) {
                         Ok(v) => v,
                         Err(err) => match err.kind {
                             ErrorKind::InvalidArgument { .. } => {
@@ -511,24 +591,15 @@ impl<'tera> VirtualMachine<'tera> {
                     let (a, a_span) = state.stack.pop();
                     let c_span = combine_spans(&a_span, &b_span);
 
-                    // Both arrays: concatenate
-                    if a.is_array() && b.is_array() {
-                        let mut result = a.into_vec().unwrap();
-                        result.extend(b.into_vec().unwrap());
-                        state.stack.push(Value::from(result), c_span);
-                    }
-                    // Both numbers: add
-                    else if a.is_number() && b.is_number() {
+                    if a.is_number() && b.is_number() {
                         match crate::value::number::add(&a, &b) {
                             Ok(c) => state.stack.push(c, c_span),
                             Err(e) => rendering_error!(e.to_string(), c_span),
                         }
-                    }
-                    // Type mismatch: error
-                    else {
+                    } else {
                         rendering_error!(
                             format!(
-                                "`+` requires operands to be both numbers or arrays, found `{}` and `{}`",
+                                "`+` requires both operands to be numbers, found `{}` and `{}`",
                                 a.name(),
                                 b.name()
                             ),

@@ -556,9 +556,9 @@ impl Value {
         }
     }
 
-    pub fn into_map(self) -> Option<Arc<Map>> {
+    pub fn into_map(self) -> Option<Map> {
         match self.inner {
-            ValueInner::Map(s) => Some(s),
+            ValueInner::Map(arc) => Some(Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone())),
             _ => None,
         }
     }

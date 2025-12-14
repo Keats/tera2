@@ -1,0 +1,13 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&normalized_out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/array_spread.txt
+---
+[1, 2, 3]
+[1, 2, 3, 4]
+[1, 2, 3]
+[1, 2]
+[1, 2]
+[1, 2, 3]
+[0, 1, 2, 3, 99]
+[1, 2, 3, 1, 2, 3]
