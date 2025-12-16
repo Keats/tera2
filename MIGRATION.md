@@ -100,6 +100,16 @@ Since we only allow one level of undefined-ness and we don't want to write a def
 optional chaining like in JS: `{{ a?.b?.c or "should print" }}`. This will try to load `a.b.c` but short-circuiting if any
 value is null or undefined.
 
+### set blocks
+
+You can use `set` with a body and apply filters to it:
+
+```j2
+{% set hero | upper | trans(lang="fr") %}
+Hello {{ world }}
+{% endset %}
+```
+
 ### Global context
 
 You can now set a context on the Tera instance that will be passed automatically to all render calls.
