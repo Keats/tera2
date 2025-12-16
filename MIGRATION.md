@@ -94,6 +94,26 @@ Spread also work for arrays:
 {{ [0, ...numbers, 99] }}
 ```
 
+### Slicing
+
+You can now use slicing on your arrays without the need to use the filter, similar to Python slicing:
+
+```j2
+{{ numbers[0] }}
+{{ numbers[-1] }}
+{{ numbers[:-1] }}
+{{ numbers[:2] }}
+{{ numbers[1:2] }}
+{{ numbers[0:2:2] }}
+{{ numbers[::-1] }}
+{{ product.name[-1] }}
+{{ product.name[::-1] }}
+{{ product.name[1:] }}
+{{ product.name[:-1] }}
+```
+
+`-1` means the last item of the array and you the syntax is `[start:stop:step]`, like Python.
+
 ### Optional chaining
 
 Since we only allow one level of undefined-ness and we don't want to write a default filter for each access, we can use
