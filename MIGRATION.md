@@ -21,7 +21,7 @@ A lot of things have changed for the better.
 Note that the built-in things requiring dependencies have been moved to a `tera-contrib` crate where 
 they can be enabled one by one.
 
-- tests now always take kwargs
+- tests now always take keyword arguments (kwargs)
 - trim filters have been merged in trim/trim_start/trim_end with an optional `pat` argument for start/end rather than separate filters
 - `int` and `float` filter do not have a default anymore
 - `round` filter does not take a `common` method anymore, it's the default and should not be filled if needed
@@ -120,6 +120,9 @@ Since we only allow one level of undefined-ness and we don't want to write a def
 optional chaining like in JS: `{{ a?.b?.c or "should print" }}`. This will try to load `a.b.c` but short-circuiting if any
 value is null or undefined.
 
+The syntax for optional arrays access is different from JS: `{{ a?['b']?.c or "should print" }}` is different from JS where
+you would do `a?.['b']`.
+
 ### set blocks
 
 You can use `set` with a body and apply filters to it:
@@ -208,7 +211,7 @@ The cool part is:
     {{<ui.button label="Sign up" variant="primary"/>}}
   {% </ui.forms.widget> %}
 ```
-If you have a variable name that matches the argument, you can use the shorthand approach to save some typing. If you look
+If you have a variable name that matches the argument (eg `title` in the example), you can use the shorthand approach to save some typing. If you look
 at the definition above for `ui.forms.widget` you will see it's using `{{body}}` which is not defined anywhere: Tera will pass the
 component of the body automatically as the `body` variable. You can of course nest it as much as you want.
 
