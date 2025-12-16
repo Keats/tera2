@@ -133,6 +133,10 @@ Hello {{ world }}
 {% endset %}
 ```
 
+### Ternary
+
+You can now do `{{ "majeur" if age >= 18 else "mineur" }}`. Both if and else are required.
+
 ### Global context
 
 You can now set a context on the Tera instance that will be passed automatically to all render calls.
