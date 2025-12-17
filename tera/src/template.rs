@@ -1,3 +1,4 @@
+use crate::delimiters::Delimiters;
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::{Chunk, Compiler};
@@ -34,8 +35,13 @@ pub struct Template {
 }
 
 impl Template {
-    pub(crate) fn new(tpl_name: &str, source: &str, path: Option<String>) -> TeraResult<Self> {
-        let parser = Parser::new(source);
+    pub(crate) fn new(
+        tpl_name: &str,
+        source: &str,
+        path: Option<String>,
+        delimiters: Delimiters,
+    ) -> TeraResult<Self> {
+        let parser = Parser::new(source, delimiters);
         let parser_output = match parser.parse() {
             Ok(p) => p,
             Err(e) => match e.kind {
@@ -166,15 +172,19 @@ mod tests {
 
     #[test]
     fn can_find_parents() {
+        let delimiters = Delimiters::default();
         let mut tpls = HashMap::new();
-        tpls.insert("a".to_string(), Template::new("a", "", None).unwrap());
+        tpls.insert(
+            "a".to_string(),
+            Template::new("a", "", None, delimiters).unwrap(),
+        );
         tpls.insert(
             "b".to_string(),
-            Template::new("b", "{% extends 'a' %}", None).unwrap(),
+            Template::new("b", "{% extends 'a' %}", None, delimiters).unwrap(),
         );
         tpls.insert(
             "c".to_string(),
-            Template::new("c", "{% extends 'b' %}", None).unwrap(),
+            Template::new("c", "{% extends 'b' %}", None, delimiters).unwrap(),
         );
 
         let parents_a = find_parents(&tpls, &tpls["a"], &tpls["a"], vec![]).unwrap();
@@ -193,6 +203,7 @@ mod tests {
             "mid",
             r#"{% block hey %}hi {% block ending %}sincerely{% endblock ending %}{% endblock hey %}"#,
             None,
+            Delimiters::default(),
         )
         .unwrap();
         // All blocks should be in the blocks map (for rendering)

@@ -3,6 +3,7 @@ use std::iter::Peekable;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use crate::delimiters::Delimiters;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::ast::{
     Array, ArrayEntry, BinaryOperation, Block, BlockSet, ComponentArgument, ComponentCall,
@@ -120,8 +121,8 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(source: &'a str) -> Self {
-        let iter = Box::new(tokenize(source)) as Box<dyn Iterator<Item = _>>;
+    pub fn new(source: &'a str, delimiters: Delimiters) -> Self {
+        let iter = Box::new(tokenize(source, delimiters)) as Box<dyn Iterator<Item = _>>;
         Self {
             lexer: iter.peekable(),
             next: None,
