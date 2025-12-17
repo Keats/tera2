@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
+use crate::delimiters::Delimiters;
 use crate::snapshot_tests::utils::{create_multi_templates_tera, normalize_line_endings};
 use crate::tera::Tera;
 
@@ -265,5 +266,34 @@ fn inline_map_preserve_order() {
     let out = tera.render("tpl", &context).unwrap();
     let normalized_out = normalize_line_endings(&out);
 
+    insta::assert_snapshot!(&normalized_out);
+}
+
+#[test]
+fn rendering_custom_delimiters() {
+    let tpl = r#"Hello, << name >>!
+<% if some_bool %>Bool is true<% endif %>
+<% for num in numbers %>[<< num >>]<% endfor %>
+<# This comment should not appear #>
+Age: << age >>
+<<- " trimmed " ->>
+<% raw %><<not a variable>><% endraw %>"#;
+
+    let mut tera = Tera::default();
+    tera.set_delimiters(Delimiters {
+        block_start: "<%",
+        block_end: "%>",
+        variable_start: "<<",
+        variable_end: ">>",
+        comment_start: "<#",
+        comment_end: "#>",
+    })
+    .unwrap();
+    tera.add_raw_template("custom_delimiters.txt", tpl).unwrap();
+
+    let out = tera
+        .render("custom_delimiters.txt", &get_context())
+        .unwrap();
+    let normalized_out = normalize_line_endings(&out);
     insta::assert_snapshot!(&normalized_out);
 }

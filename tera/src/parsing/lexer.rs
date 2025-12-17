@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::delimiters::Delimiters;
 use crate::errors::Error;
 use crate::utils::Span;
 
@@ -11,9 +12,9 @@ fn memstr(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
-/// Will try to go over `-? {name} -?%}`.
+/// Will try to go over `-? {name} -?{block_end}`.
 /// Returns None if the name doesn't match the tag or the (offset, ws) tuple for the end of the tag
-fn skip_tag(block_str: &str, name: &str) -> Option<(usize, bool)> {
+fn skip_tag(block_str: &str, name: &str, block_end: &'static str) -> Option<(usize, bool)> {
     let mut ptr = block_str;
 
     if let Some(rest) = ptr.strip_prefix('-') {
@@ -33,30 +34,28 @@ fn skip_tag(block_str: &str, name: &str) -> Option<(usize, bool)> {
         ptr = rest;
         outer_ws = true;
     }
-    ptr = ptr.strip_prefix("%}")?;
+    ptr = ptr.strip_prefix(block_end)?;
 
     Some((block_str.len() - ptr.len(), outer_ws))
 }
 
-/// We want to find the next time we see `{{`, `{%` or `{#`
-fn find_start_marker(tpl: &str) -> Option<usize> {
-    let bytes = tpl.as_bytes();
-    let mut offset = 0;
-    loop {
-        let idx = &bytes[offset..].iter().position(|&x| x == b'{')?;
-        if let Some(b'{') | Some(b'%') | Some(b'#') = bytes.get(offset + idx + 1) {
-            return Some(offset + idx);
-        }
-        offset += idx + 1;
-    }
+/// We want to find the next time we see any start marker (variable, block, or comment)
+fn find_start_marker(tpl: &str, delimiters: Delimiters) -> Option<usize> {
+    let var_start = delimiters.variable_start.as_bytes();
+    let block_start = delimiters.block_start.as_bytes();
+    let comment_start = delimiters.comment_start.as_bytes();
+
+    tpl.as_bytes()
+        .windows(2)
+        .position(|w| w == var_start || w == block_start || w == comment_start)
 }
 
 enum State {
     /// Anything not in the other two states
     Template,
-    /// In `{{ ... }}`
+    /// In `{{ ... }}` (or the custom delimiters)
     Variable,
-    /// In `{% ... %}`
+    /// In `{% ... %}` (or the custom delimiters)
     Tag,
 }
 
@@ -224,7 +223,10 @@ impl<'a> fmt::Display for Token<'a> {
     }
 }
 
-fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
+fn basic_tokenize(
+    input: &str,
+    delimiters: Delimiters,
+) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
     let mut rest = input;
     let mut stack = vec![State::Template];
     let mut current_line = 1;
@@ -403,26 +405,32 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
         match stack.last() {
             Some(State::Template) => {
                 match rest.get(..2) {
-                    Some("{{") => {
+                    Some(s) if s == delimiters.variable_start => {
                         let ws = check_ws_start!();
                         stack.push(State::Variable);
                         return Some(Ok((Token::VariableStart(ws), make_span!(start_loc))));
                     }
-                    Some("{%") => {
+                    Some(s) if s == delimiters.block_start => {
                         // If we have a `{% raw %}` block, we ignore everything until we see a `{% endraw %}`
                         // while still respecting whitespace
                         let ws = check_ws_start!();
 
-                        if let Some((mut offset, end_ws_start_tag)) = skip_tag(rest, "raw") {
+                        if let Some((mut offset, end_ws_start_tag)) =
+                            skip_tag(rest, "raw", delimiters.block_end)
+                        {
                             let body_start_offset = offset;
                             // Then we see whether we find the start of the tag
-                            while let Some(block) = memstr(&rest.as_bytes()[offset..], b"{%") {
+                            while let Some(block) = memstr(
+                                &rest.as_bytes()[offset..],
+                                delimiters.block_start.as_bytes(),
+                            ) {
                                 let body_end_offset = offset + block;
                                 offset += block + 2;
                                 // Check if the tag starts with a {%- so we know we need to end trim the body
                                 let start_ws_end_tag =
                                     rest.as_bytes().get(offset + 1) == Some(&b'-');
-                                if let Some((endraw, ws_end)) = skip_tag(&rest[offset..], "endraw")
+                                if let Some((endraw, ws_end)) =
+                                    skip_tag(&rest[offset..], "endraw", delimiters.block_end)
                                 {
                                     let mut result = &rest[body_start_offset..body_end_offset];
                                     // Then we trim the inner body of the raw tag as needed directly here
@@ -445,22 +453,27 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                         stack.push(State::Tag);
                         return Some(Ok((Token::TagStart(ws), make_span!(start_loc))));
                     }
-                    Some("{#") => {
+                    Some(s) if s == delimiters.comment_start => {
                         let ws_start = check_ws_start!();
-                        if let Some(comment_end) = memstr(rest.as_bytes(), b"#}") {
-                            let ws_end = if comment_end > 0 {
-                                rest.as_bytes().get(comment_end - 1) == Some(&b'-')
+                        if let Some(end_pos) =
+                            memstr(rest.as_bytes(), delimiters.comment_end.as_bytes())
+                        {
+                            let ws_end = if end_pos > 0 {
+                                rest.as_bytes().get(end_pos - 1) == Some(&b'-')
                             } else {
                                 false
                             };
-                            advance!(comment_end + 2);
+                            advance!(end_pos + 2);
                             return Some(Ok((
                                 Token::Comment(ws_start, ws_end),
                                 make_span!(start_loc),
                             )));
                         } else {
                             syntax_error!(
-                                "Closing comment tag `#}` not found",
+                                format!(
+                                    "Closing comment tag `{}` not found",
+                                    delimiters.comment_end
+                                ),
                                 make_span!(start_loc)
                             );
                         }
@@ -468,7 +481,7 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                     _ => {}
                 }
 
-                let text = match find_start_marker(rest) {
+                let text = match find_start_marker(rest, delimiters) {
                     Some(start) => advance!(start),
                     None => advance!(rest.len()),
                 };
@@ -495,24 +508,30 @@ fn basic_tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span),
                 // First we check if we are the end of a tag/variable, safe unwrap
                 match stack.last().unwrap() {
                     State::Tag => {
-                        if let Some("-%}") = rest.get(..3) {
+                        // Check for whitespace control: -{block_end}
+                        if rest.get(..1) == Some("-")
+                            && rest.get(1..3) == Some(delimiters.block_end)
+                        {
                             stack.pop();
                             advance!(3);
                             return Some(Ok((Token::TagEnd(true), make_span!(start_loc))));
                         }
-                        if let Some("%}") = rest.get(..2) {
+                        if rest.get(..2) == Some(delimiters.block_end) {
                             stack.pop();
                             advance!(2);
                             return Some(Ok((Token::TagEnd(false), make_span!(start_loc))));
                         }
                     }
                     State::Variable => {
-                        if let Some("-}}") = rest.get(..3) {
+                        // Check for whitespace control: -{variable_end}
+                        if rest.get(..1) == Some("-")
+                            && rest.get(1..3) == Some(delimiters.variable_end)
+                        {
                             stack.pop();
                             advance!(3);
                             return Some(Ok((Token::VariableEnd(true), make_span!(start_loc))));
                         }
-                        if let Some("}}") = rest.get(..2) {
+                        if rest.get(..2) == Some(delimiters.variable_end) {
                             stack.pop();
                             advance!(2);
                             return Some(Ok((Token::VariableEnd(false), make_span!(start_loc))));
@@ -673,6 +692,9 @@ fn whitespace_filter<'a, I: Iterator<Item = Result<(Token<'a>, Span), Error>>>(
     })
 }
 
-pub fn tokenize(input: &str) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
-    whitespace_filter(basic_tokenize(input))
+pub fn tokenize(
+    input: &str,
+    delimiters: Delimiters,
+) -> impl Iterator<Item = Result<(Token<'_>, Span), Error>> {
+    whitespace_filter(basic_tokenize(input, delimiters))
 }

@@ -1,5 +1,6 @@
 mod args;
 mod context;
+mod delimiters;
 mod errors;
 mod filters;
 mod functions;
@@ -17,6 +18,7 @@ pub(crate) mod vm;
 pub use crate::tera::{EscapeFn, Tera};
 pub use args::Kwargs;
 pub use context::Context;
+pub use delimiters::Delimiters;
 pub use errors::{Error, ErrorKind, TeraResult};
 pub use filters::Filter;
 pub use parsing::parser::Parser;

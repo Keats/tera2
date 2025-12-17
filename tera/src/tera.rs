@@ -14,6 +14,7 @@ use crate::vm::interpreter::VirtualMachine;
 use crate::vm::state::State;
 use crate::{escape_html, Context, HashMap};
 
+use crate::delimiters::Delimiters;
 #[cfg(feature = "glob_fs")]
 use crate::globbing::load_from_glob;
 use crate::parsing::ast::ComponentDefinition;
@@ -45,6 +46,8 @@ pub struct Tera {
     pub(crate) tests: HashMap<&'static str, StoredTest>,
     pub(crate) functions: HashMap<&'static str, StoredFunction>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
+    /// Custom delimiters for template syntax
+    delimiters: Delimiters,
 }
 
 impl Tera {
@@ -127,6 +130,38 @@ impl Tera {
     pub fn autoescape_on(&mut self, suffixes: Vec<&'static str>) {
         self.autoescape_suffixes = suffixes;
         self.set_templates_auto_escape();
+    }
+
+    /// Set custom delimiters for template syntax.
+    ///
+    /// This must be called before adding any templates.
+    /// Returns an error if any delimiter is empty, if start delimiters conflict or if there are
+    /// already templates added to the Tera instance.
+    ///
+    /// # Example
+    /// ```
+    /// use tera::{Tera, Delimiters};
+    ///
+    /// let mut tera = Tera::new();
+    /// tera.set_delimiters(Delimiters {
+    ///     block_start: "<%",
+    ///     block_end: "%>",
+    ///     variable_start: "<<",
+    ///     variable_end: ">>",
+    ///     comment_start: "<#",
+    ///     comment_end: "#>",
+    /// }).unwrap();
+    /// tera.add_raw_template("example", "<< name >>").unwrap();
+    /// ```
+    pub fn set_delimiters(&mut self, delimiters: Delimiters) -> TeraResult<()> {
+        if !self.templates.is_empty() {
+            return Err(Error::message(
+                "Delimiters cannot be modified if templates have already been added",
+            ));
+        }
+        delimiters.validate()?;
+        self.delimiters = delimiters;
+        Ok(())
     }
 
     /// Set user-defined function that is used to escape content.
@@ -502,7 +537,7 @@ impl Tera {
     /// tera.add_raw_template("new.html", "Blabla").unwrap();
     /// ```
     pub fn add_raw_template(&mut self, name: &str, content: &str) -> TeraResult<()> {
-        let template = Template::new(name, content, None)?;
+        let template = Template::new(name, content, None, self.delimiters)?;
         self.templates.insert(name.to_string(), template);
         self.finalize_templates()?;
         Ok(())
@@ -526,7 +561,7 @@ impl Tera {
         C: AsRef<str>,
     {
         for (name, content) in templates {
-            let template = Template::new(name.as_ref(), content.as_ref(), None)?;
+            let template = Template::new(name.as_ref(), content.as_ref(), None, self.delimiters)?;
             self.templates.insert(name.as_ref().to_string(), template);
         }
 
@@ -549,7 +584,12 @@ impl Tera {
         f.read_to_string(&mut content)
             .map_err(|e| Error::chain(format!("Failed to read template '{:?}'", path), e))?;
 
-        let template = Template::new(tpl_name, &content, Some(path.to_str().unwrap().to_string()))?;
+        let template = Template::new(
+            tpl_name,
+            &content,
+            Some(path.to_str().unwrap().to_string()),
+            self.delimiters,
+        )?;
 
         self.templates.insert(tpl_name.to_string(), template);
         Ok(())
@@ -901,6 +941,7 @@ impl Default for Tera {
             tests: HashMap::new(),
             functions: HashMap::new(),
             components: HashMap::new(),
+            delimiters: Delimiters::default(),
         };
         tera.register_builtin_filters();
         tera.register_builtin_tests();
@@ -1095,5 +1136,29 @@ mod tests {
         assert!(tera
             .render_component("Button", &context! { label => "x", bad => "y" }, None)
             .is_err());
+    }
+
+    #[test]
+    fn custom_delimiters() {
+        let mut tera = Tera::new();
+        tera.set_delimiters(Delimiters {
+            block_start: "<%",
+            block_end: "%>",
+            variable_start: "<<",
+            variable_end: ">>",
+            comment_start: "<#",
+            comment_end: "#>",
+        })
+        .unwrap();
+
+        tera.add_raw_template(
+            "test",
+            "Hello, <# This is a comment #><% if show %><< name >>!<% endif %>",
+        )
+        .unwrap();
+        let result = tera
+            .render("test", &context! { name => "World", show => &true })
+            .unwrap();
+        insta::assert_snapshot!(result, @"Hello, World!");
     }
 }
