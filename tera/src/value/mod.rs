@@ -238,6 +238,7 @@ impl PartialEq for Value {
 
 impl Eq for Value {}
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (&self.inner, &other.inner) {

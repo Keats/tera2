@@ -23,7 +23,7 @@ jobs:
             os: windows-2025
             rust: stable
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
