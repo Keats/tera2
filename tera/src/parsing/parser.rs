@@ -591,10 +591,9 @@ impl<'a> Parser<'a> {
         span.expand(&self.current_span);
         let array = Array { items };
 
-        if literal_only
-            && let Some(const_array) = array.as_const() {
-                return Ok(Expression::Const(Spanned::new(const_array, span)));
-            }
+        if literal_only && let Some(const_array) = array.as_const() {
+            return Ok(Expression::Const(Spanned::new(const_array, span)));
+        }
         Ok(Expression::Array(Spanned::new(array, span)))
     }
 
@@ -765,12 +764,13 @@ impl<'a> Parser<'a> {
 
                     // unary operators are not allowed after a ~
                     if op == BinaryOperator::StrConcat
-                        && let Expression::UnaryOperation(uop) = rhs {
-                            return Err(Error::syntax_error(
-                                format!("`{}` is not allowed after `~`", uop.op),
-                                &self.current_span,
-                            ));
-                        }
+                        && let Expression::UnaryOperation(uop) = rhs
+                    {
+                        return Err(Error::syntax_error(
+                            format!("`{}` is not allowed after `~`", uop.op),
+                            &self.current_span,
+                        ));
+                    }
 
                     Expression::BinaryOperation(Spanned::new(
                         BinaryOperation {
