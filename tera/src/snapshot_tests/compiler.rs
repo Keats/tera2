@@ -1,7 +1,7 @@
 use super::utils::normalize_line_endings;
 use crate::delimiters::Delimiters;
-use crate::parsing::parser::Parser;
 use crate::parsing::Compiler;
+use crate::parsing::parser::Parser;
 
 #[test]
 fn compiler_ok() {

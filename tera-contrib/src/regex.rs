@@ -53,8 +53,8 @@ impl Test<&str, TeraResult<bool>> for Matching {
 mod tests {
     use super::*;
     use std::sync::Arc;
-    use tera::value::Map;
     use tera::Context;
+    use tera::value::Map;
 
     #[test]
     fn test_striptags() {

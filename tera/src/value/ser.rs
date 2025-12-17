@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::value::key::Key;
-use serde::{ser, Serialize, Serializer};
+use serde::{Serialize, Serializer, ser};
 
 use crate::value::utils::SerializationFailed;
 use crate::value::{Map, SmartString, StringKind, Value, ValueInner};

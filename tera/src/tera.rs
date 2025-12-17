@@ -6,19 +6,19 @@ use crate::args::ArgFromValue;
 use crate::errors::{Error, ReportError, TeraResult};
 use crate::filters::{Filter, StoredFilter};
 use crate::functions::{Function, StoredFunction};
-use crate::template::{find_parents, Template};
+use crate::template::{Template, find_parents};
 use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::value::Value;
 use crate::vm::interpreter::VirtualMachine;
 use crate::vm::state::State;
-use crate::{escape_html, Context, HashMap};
+use crate::{Context, HashMap, escape_html};
 
 use crate::delimiters::Delimiters;
 #[cfg(feature = "glob_fs")]
 use crate::globbing::load_from_glob;
-use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::Chunk;
+use crate::parsing::ast::ComponentDefinition;
 
 /// Default template name used for `Tera::render_str` and `Tera::one_off`.
 const ONE_OFF_TEMPLATE_NAME: &str = "__tera_one_off";
@@ -952,7 +952,7 @@ impl Default for Tera {
 
 #[cfg(test)]
 mod tests {
-    use crate::{context, Kwargs, State};
+    use crate::{Kwargs, State, context};
 
     use super::*;
 
@@ -1127,15 +1127,18 @@ mod tests {
         insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @"<button class=\"primary\">Y</button>");
 
         // Errors
-        assert!(tera
-            .render_component("Nope", &Context::new(), None)
-            .is_err());
-        assert!(tera
-            .render_component("Button", &Context::new(), None)
-            .is_err());
-        assert!(tera
-            .render_component("Button", &context! { label => "x", bad => "y" }, None)
-            .is_err());
+        assert!(
+            tera.render_component("Nope", &Context::new(), None)
+                .is_err()
+        );
+        assert!(
+            tera.render_component("Button", &Context::new(), None)
+                .is_err()
+        );
+        assert!(
+            tera.render_component("Button", &context! { label => "x", bad => "y" }, None)
+                .is_err()
+        );
     }
 
     #[test]

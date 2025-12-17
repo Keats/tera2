@@ -1,8 +1,8 @@
+use crate::Value;
 use crate::args::Kwargs;
 use crate::errors::{Error, TeraResult};
 use crate::value::FunctionResult;
 use crate::vm::state::State;
-use crate::Value;
 use std::sync::Arc;
 
 /// The function function type definition

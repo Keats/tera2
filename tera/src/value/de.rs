@@ -1,8 +1,8 @@
-use crate::value::utils::DeserializationFailed;
-use crate::value::ValueInner;
 use crate::Value;
+use crate::value::ValueInner;
+use crate::value::utils::DeserializationFailed;
 use serde::de::{self, Unexpected, Visitor};
-use serde::{forward_to_deserialize_any, Deserializer};
+use serde::{Deserializer, forward_to_deserialize_any};
 
 #[derive(Debug)]
 pub struct ValueDeserializer {

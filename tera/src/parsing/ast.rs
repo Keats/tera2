@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str::FromStr;
 
-use crate::utils::{Span, Spanned};
-use crate::value::{format_map, Key, Value, ValueInner};
 use crate::HashMap;
+use crate::utils::{Span, Spanned};
+use crate::value::{Key, Value, ValueInner, format_map};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
@@ -670,9 +670,9 @@ impl FromStr for Type {
             "number" => Ok(Type::Number),
             "array" => Ok(Type::Array),
             "map" => Ok(Type::Map),
-            _ => Err(Error::message(
-                format!("Found {s} but the only types allowed are: string, bool, integer, float, number, array and map"),
-            )),
+            _ => Err(Error::message(format!(
+                "Found {s} but the only types allowed are: string, bool, integer, float, number, array and map"
+            ))),
         }
     }
 }

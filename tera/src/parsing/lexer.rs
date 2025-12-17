@@ -395,243 +395,248 @@ fn basic_tokenize(
         }};
     }
 
-    std::iter::from_fn(move || loop {
-        if rest.is_empty() | errored {
-            return None;
-        }
+    std::iter::from_fn(move || {
+        loop {
+            if rest.is_empty() | errored {
+                return None;
+            }
 
-        let start_loc = loc!();
+            let start_loc = loc!();
 
-        match stack.last() {
-            Some(State::Template) => {
-                match rest.get(..2) {
-                    Some(s) if s == delimiters.variable_start => {
-                        let ws = check_ws_start!();
-                        stack.push(State::Variable);
-                        return Some(Ok((Token::VariableStart(ws), make_span!(start_loc))));
-                    }
-                    Some(s) if s == delimiters.block_start => {
-                        // If we have a `{% raw %}` block, we ignore everything until we see a `{% endraw %}`
-                        // while still respecting whitespace
-                        let ws = check_ws_start!();
+            match stack.last() {
+                Some(State::Template) => {
+                    match rest.get(..2) {
+                        Some(s) if s == delimiters.variable_start => {
+                            let ws = check_ws_start!();
+                            stack.push(State::Variable);
+                            return Some(Ok((Token::VariableStart(ws), make_span!(start_loc))));
+                        }
+                        Some(s) if s == delimiters.block_start => {
+                            // If we have a `{% raw %}` block, we ignore everything until we see a `{% endraw %}`
+                            // while still respecting whitespace
+                            let ws = check_ws_start!();
 
-                        if let Some((mut offset, end_ws_start_tag)) =
-                            skip_tag(rest, "raw", delimiters.block_end)
-                        {
-                            let body_start_offset = offset;
-                            // Then we see whether we find the start of the tag
-                            while let Some(block) = memstr(
-                                &rest.as_bytes()[offset..],
-                                delimiters.block_start.as_bytes(),
-                            ) {
-                                let body_end_offset = offset + block;
-                                offset += block + 2;
-                                // Check if the tag starts with a {%- so we know we need to end trim the body
-                                let start_ws_end_tag =
-                                    rest.as_bytes().get(offset + 1) == Some(&b'-');
-                                if let Some((endraw, ws_end)) =
-                                    skip_tag(&rest[offset..], "endraw", delimiters.block_end)
-                                {
-                                    let mut result = &rest[body_start_offset..body_end_offset];
-                                    // Then we trim the inner body of the raw tag as needed directly here
-                                    if end_ws_start_tag {
-                                        result = result.trim_start();
+                            if let Some((mut offset, end_ws_start_tag)) =
+                                skip_tag(rest, "raw", delimiters.block_end)
+                            {
+                                let body_start_offset = offset;
+                                // Then we see whether we find the start of the tag
+                                while let Some(block) = memstr(
+                                    &rest.as_bytes()[offset..],
+                                    delimiters.block_start.as_bytes(),
+                                ) {
+                                    let body_end_offset = offset + block;
+                                    offset += block + 2;
+                                    // Check if the tag starts with a {%- so we know we need to end trim the body
+                                    let start_ws_end_tag =
+                                        rest.as_bytes().get(offset + 1) == Some(&b'-');
+                                    if let Some((endraw, ws_end)) =
+                                        skip_tag(&rest[offset..], "endraw", delimiters.block_end)
+                                    {
+                                        let mut result = &rest[body_start_offset..body_end_offset];
+                                        // Then we trim the inner body of the raw tag as needed directly here
+                                        if end_ws_start_tag {
+                                            result = result.trim_start();
+                                        }
+                                        if start_ws_end_tag {
+                                            result = result.trim_end();
+                                        }
+                                        advance!(offset + endraw);
+                                        return Some(Ok((
+                                            Token::RawContent(ws, result, ws_end),
+                                            make_span!(start_loc),
+                                        )));
                                     }
-                                    if start_ws_end_tag {
-                                        result = result.trim_end();
-                                    }
-                                    advance!(offset + endraw);
-                                    return Some(Ok((
-                                        Token::RawContent(ws, result, ws_end),
-                                        make_span!(start_loc),
-                                    )));
                                 }
+                                syntax_error!("unexpected end of raw block", make_span!(start_loc));
                             }
-                            syntax_error!("unexpected end of raw block", make_span!(start_loc));
-                        }
 
-                        stack.push(State::Tag);
-                        return Some(Ok((Token::TagStart(ws), make_span!(start_loc))));
-                    }
-                    Some(s) if s == delimiters.comment_start => {
-                        let ws_start = check_ws_start!();
-                        if let Some(end_pos) =
-                            memstr(rest.as_bytes(), delimiters.comment_end.as_bytes())
-                        {
-                            let ws_end = if end_pos > 0 {
-                                rest.as_bytes().get(end_pos - 1) == Some(&b'-')
+                            stack.push(State::Tag);
+                            return Some(Ok((Token::TagStart(ws), make_span!(start_loc))));
+                        }
+                        Some(s) if s == delimiters.comment_start => {
+                            let ws_start = check_ws_start!();
+                            if let Some(end_pos) =
+                                memstr(rest.as_bytes(), delimiters.comment_end.as_bytes())
+                            {
+                                let ws_end = if end_pos > 0 {
+                                    rest.as_bytes().get(end_pos - 1) == Some(&b'-')
+                                } else {
+                                    false
+                                };
+                                advance!(end_pos + 2);
+                                return Some(Ok((
+                                    Token::Comment(ws_start, ws_end),
+                                    make_span!(start_loc),
+                                )));
                             } else {
-                                false
-                            };
-                            advance!(end_pos + 2);
-                            return Some(Ok((
-                                Token::Comment(ws_start, ws_end),
-                                make_span!(start_loc),
-                            )));
-                        } else {
-                            syntax_error!(
-                                format!(
-                                    "Closing comment tag `{}` not found",
-                                    delimiters.comment_end
-                                ),
-                                make_span!(start_loc)
-                            );
+                                syntax_error!(
+                                    format!(
+                                        "Closing comment tag `{}` not found",
+                                        delimiters.comment_end
+                                    ),
+                                    make_span!(start_loc)
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    let text = match find_start_marker(rest, delimiters) {
+                        Some(start) => advance!(start),
+                        None => advance!(rest.len()),
+                    };
+                    return Some(Ok((Token::Content(text), make_span!(start_loc))));
+                }
+                Some(State::Variable) | Some(State::Tag) => {
+                    // Whitespaces are ignored in there
+                    match rest
+                        .as_bytes()
+                        .iter()
+                        .position(|&x| !x.is_ascii_whitespace())
+                    {
+                        Some(0) => {} // we got something to parse
+                        Some(offset) => {
+                            advance!(offset); // ignoring some ws
+                            continue;
+                        }
+                        None => {
+                            advance!(rest.len());
+                            continue;
                         }
                     }
-                    _ => {}
-                }
 
-                let text = match find_start_marker(rest, delimiters) {
-                    Some(start) => advance!(start),
-                    None => advance!(rest.len()),
-                };
-                return Some(Ok((Token::Content(text), make_span!(start_loc))));
+                    // First we check if we are the end of a tag/variable, safe unwrap
+                    match stack.last().unwrap() {
+                        State::Tag => {
+                            // Check for whitespace control: -{block_end}
+                            if rest.get(..1) == Some("-")
+                                && rest.get(1..3) == Some(delimiters.block_end)
+                            {
+                                stack.pop();
+                                advance!(3);
+                                return Some(Ok((Token::TagEnd(true), make_span!(start_loc))));
+                            }
+                            if rest.get(..2) == Some(delimiters.block_end) {
+                                stack.pop();
+                                advance!(2);
+                                return Some(Ok((Token::TagEnd(false), make_span!(start_loc))));
+                            }
+                        }
+                        State::Variable => {
+                            // Check for whitespace control: -{variable_end}
+                            if rest.get(..1) == Some("-")
+                                && rest.get(1..3) == Some(delimiters.variable_end)
+                            {
+                                stack.pop();
+                                advance!(3);
+                                return Some(Ok((Token::VariableEnd(true), make_span!(start_loc))));
+                            }
+                            if rest.get(..2) == Some(delimiters.variable_end) {
+                                stack.pop();
+                                advance!(2);
+                                return Some(Ok((
+                                    Token::VariableEnd(false),
+                                    make_span!(start_loc),
+                                )));
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+
+                    // Check for spread operator
+                    if let Some(b"...") = rest.as_bytes().get(..3) {
+                        advance!(3);
+                        return Some(Ok((Token::Spread, make_span!(start_loc))));
+                    }
+
+                    // Then the longer operators
+                    let op = match rest.as_bytes().get(..2) {
+                        Some(b"//") => Some(Token::FloorDiv),
+                        Some(b"**") => Some(Token::Power),
+                        Some(b"==") => Some(Token::Equal),
+                        Some(b"!=") => Some(Token::NotEqual),
+                        Some(b">=") => Some(Token::GreaterThanOrEqual),
+                        Some(b"<=") => Some(Token::LessThanOrEqual),
+                        Some(b"?.") => Some(Token::QuestionMarkDot),
+                        Some(b"?[") => Some(Token::QuestionMarkLeftBracket),
+                        _ => None,
+                    };
+                    if let Some(op) = op {
+                        advance!(2);
+                        return Some(Ok((op, make_span!(start_loc))));
+                    }
+
+                    // Then the rest of the ops, strings and numbers
+                    // strings and numbers will get returned inside the match so only operators are returned
+                    let op = match rest.as_bytes().first() {
+                        Some(b'+') => Some(Token::Plus),
+                        Some(b'-') => Some(Token::Minus),
+                        Some(b'*') => Some(Token::Mul),
+                        Some(b'/') => Some(Token::Div),
+                        Some(b'%') => Some(Token::Mod),
+                        Some(b'!') => Some(Token::Bang),
+                        Some(b'.') => Some(Token::Dot),
+                        Some(b',') => Some(Token::Comma),
+                        Some(b':') => Some(Token::Colon),
+                        Some(b'~') => Some(Token::Tilde),
+                        Some(b'|') => Some(Token::Pipe),
+                        Some(b'=') => Some(Token::Assign),
+                        Some(b'>') => Some(Token::GreaterThan),
+                        Some(b'<') => Some(Token::LessThan),
+                        Some(b'(') => Some(Token::LeftParen),
+                        Some(b')') => Some(Token::RightParen),
+                        Some(b'[') => Some(Token::LeftBracket),
+                        Some(b']') => Some(Token::RightBracket),
+                        Some(b'{') => Some(Token::LeftBrace),
+                        Some(b'}') => Some(Token::RightBrace),
+                        Some(b'\'') => lex_string!(b'\''),
+                        Some(b'"') => lex_string!(b'"'),
+                        Some(b'`') => lex_string!(b'`'),
+                        Some(c) if c.is_ascii_digit() => lex_number!(false),
+                        _ => None,
+                    };
+                    if let Some(op) = op {
+                        advance!(1);
+                        return Some(Ok((op, make_span!(start_loc))));
+                    }
+
+                    // Lastly, idents
+                    let ident_len = rest
+                        .as_bytes()
+                        .iter()
+                        .enumerate()
+                        .take_while(|&(idx, &c)| {
+                            if c == b'_' {
+                                true
+                            } else if idx == 0 {
+                                c.is_ascii_alphabetic()
+                            } else {
+                                c.is_ascii_alphanumeric()
+                            }
+                        })
+                        .count();
+                    if ident_len > 0 {
+                        let ident = advance!(ident_len);
+
+                        if ident == "true" || ident == "True" {
+                            return Some(Ok((Token::Bool(true), make_span!(start_loc))));
+                        }
+                        if ident == "false" || ident == "False" {
+                            return Some(Ok((Token::Bool(false), make_span!(start_loc))));
+                        }
+
+                        if ident == "none" || ident == "None" {
+                            return Some(Ok((Token::None, make_span!(start_loc))));
+                        }
+
+                        return Some(Ok((Token::Ident(ident), make_span!(start_loc))));
+                    }
+
+                    syntax_error!("Unexpected character", make_span!(start_loc));
+                }
+                None => unreachable!("Lexer should never be in that state"),
             }
-            Some(State::Variable) | Some(State::Tag) => {
-                // Whitespaces are ignored in there
-                match rest
-                    .as_bytes()
-                    .iter()
-                    .position(|&x| !x.is_ascii_whitespace())
-                {
-                    Some(0) => {} // we got something to parse
-                    Some(offset) => {
-                        advance!(offset); // ignoring some ws
-                        continue;
-                    }
-                    None => {
-                        advance!(rest.len());
-                        continue;
-                    }
-                }
-
-                // First we check if we are the end of a tag/variable, safe unwrap
-                match stack.last().unwrap() {
-                    State::Tag => {
-                        // Check for whitespace control: -{block_end}
-                        if rest.get(..1) == Some("-")
-                            && rest.get(1..3) == Some(delimiters.block_end)
-                        {
-                            stack.pop();
-                            advance!(3);
-                            return Some(Ok((Token::TagEnd(true), make_span!(start_loc))));
-                        }
-                        if rest.get(..2) == Some(delimiters.block_end) {
-                            stack.pop();
-                            advance!(2);
-                            return Some(Ok((Token::TagEnd(false), make_span!(start_loc))));
-                        }
-                    }
-                    State::Variable => {
-                        // Check for whitespace control: -{variable_end}
-                        if rest.get(..1) == Some("-")
-                            && rest.get(1..3) == Some(delimiters.variable_end)
-                        {
-                            stack.pop();
-                            advance!(3);
-                            return Some(Ok((Token::VariableEnd(true), make_span!(start_loc))));
-                        }
-                        if rest.get(..2) == Some(delimiters.variable_end) {
-                            stack.pop();
-                            advance!(2);
-                            return Some(Ok((Token::VariableEnd(false), make_span!(start_loc))));
-                        }
-                    }
-                    _ => unreachable!(),
-                }
-
-                // Check for spread operator
-                if let Some(b"...") = rest.as_bytes().get(..3) {
-                    advance!(3);
-                    return Some(Ok((Token::Spread, make_span!(start_loc))));
-                }
-
-                // Then the longer operators
-                let op = match rest.as_bytes().get(..2) {
-                    Some(b"//") => Some(Token::FloorDiv),
-                    Some(b"**") => Some(Token::Power),
-                    Some(b"==") => Some(Token::Equal),
-                    Some(b"!=") => Some(Token::NotEqual),
-                    Some(b">=") => Some(Token::GreaterThanOrEqual),
-                    Some(b"<=") => Some(Token::LessThanOrEqual),
-                    Some(b"?.") => Some(Token::QuestionMarkDot),
-                    Some(b"?[") => Some(Token::QuestionMarkLeftBracket),
-                    _ => None,
-                };
-                if let Some(op) = op {
-                    advance!(2);
-                    return Some(Ok((op, make_span!(start_loc))));
-                }
-
-                // Then the rest of the ops, strings and numbers
-                // strings and numbers will get returned inside the match so only operators are returned
-                let op = match rest.as_bytes().first() {
-                    Some(b'+') => Some(Token::Plus),
-                    Some(b'-') => Some(Token::Minus),
-                    Some(b'*') => Some(Token::Mul),
-                    Some(b'/') => Some(Token::Div),
-                    Some(b'%') => Some(Token::Mod),
-                    Some(b'!') => Some(Token::Bang),
-                    Some(b'.') => Some(Token::Dot),
-                    Some(b',') => Some(Token::Comma),
-                    Some(b':') => Some(Token::Colon),
-                    Some(b'~') => Some(Token::Tilde),
-                    Some(b'|') => Some(Token::Pipe),
-                    Some(b'=') => Some(Token::Assign),
-                    Some(b'>') => Some(Token::GreaterThan),
-                    Some(b'<') => Some(Token::LessThan),
-                    Some(b'(') => Some(Token::LeftParen),
-                    Some(b')') => Some(Token::RightParen),
-                    Some(b'[') => Some(Token::LeftBracket),
-                    Some(b']') => Some(Token::RightBracket),
-                    Some(b'{') => Some(Token::LeftBrace),
-                    Some(b'}') => Some(Token::RightBrace),
-                    Some(b'\'') => lex_string!(b'\''),
-                    Some(b'"') => lex_string!(b'"'),
-                    Some(b'`') => lex_string!(b'`'),
-                    Some(c) if c.is_ascii_digit() => lex_number!(false),
-                    _ => None,
-                };
-                if let Some(op) = op {
-                    advance!(1);
-                    return Some(Ok((op, make_span!(start_loc))));
-                }
-
-                // Lastly, idents
-                let ident_len = rest
-                    .as_bytes()
-                    .iter()
-                    .enumerate()
-                    .take_while(|&(idx, &c)| {
-                        if c == b'_' {
-                            true
-                        } else if idx == 0 {
-                            c.is_ascii_alphabetic()
-                        } else {
-                            c.is_ascii_alphanumeric()
-                        }
-                    })
-                    .count();
-                if ident_len > 0 {
-                    let ident = advance!(ident_len);
-
-                    if ident == "true" || ident == "True" {
-                        return Some(Ok((Token::Bool(true), make_span!(start_loc))));
-                    }
-                    if ident == "false" || ident == "False" {
-                        return Some(Ok((Token::Bool(false), make_span!(start_loc))));
-                    }
-
-                    if ident == "none" || ident == "None" {
-                        return Some(Ok((Token::None, make_span!(start_loc))));
-                    }
-
-                    return Some(Ok((Token::Ident(ident), make_span!(start_loc))));
-                }
-
-                syntax_error!("Unexpected character", make_span!(start_loc));
-            }
-            None => unreachable!("Lexer should never be in that state"),
         }
     })
 }

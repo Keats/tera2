@@ -12,9 +12,7 @@ struct Expressions(pub Vec<Expression>);
 
 impl fmt::Display for Expressions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.iter().fold(Ok(()), |result, expr| {
-            result.and_then(|_| writeln!(f, "{expr}"))
-        })
+        self.0.iter().try_fold((), |(), expr| writeln!(f, "{expr}"))
     }
 }
 

@@ -95,10 +95,10 @@ impl<'t> State<'t> {
             return val.clone();
         }
 
-        if let Some(global) = self.global_context {
-            if let Some(val) = global.data.get(name) {
-                return val.clone();
-            }
+        if let Some(global) = self.global_context
+            && let Some(val) = global.data.get(name)
+        {
+            return val.clone();
         }
 
         if let Some(parent) = self.include_parent {

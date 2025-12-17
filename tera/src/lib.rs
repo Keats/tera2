@@ -24,8 +24,8 @@ pub use filters::Filter;
 pub use parsing::parser::Parser;
 pub use tests::Test;
 pub use utils::escape_html;
-pub use value::number::Number;
 pub use value::Value;
+pub use value::number::Number;
 pub use vm::state::State;
 
 #[cfg(feature = "fast_hash")]

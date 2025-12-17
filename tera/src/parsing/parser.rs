@@ -11,7 +11,7 @@ use crate::parsing::ast::{
     GetItem, If, Include, Map, MapEntry, Set, Slice, Ternary, Test, Type, UnaryOperation, Var,
 };
 use crate::parsing::ast::{BinaryOperator, Node, UnaryOperator};
-use crate::parsing::lexer::{tokenize, Token};
+use crate::parsing::lexer::{Token, tokenize};
 use crate::utils::{Span, Spanned};
 use crate::value::{Key, Value};
 use crate::{HashMap, HashSet};
@@ -289,7 +289,9 @@ impl<'a> Parser<'a> {
                             "length" => "__tera_loop_length",
                             _ => {
                                 return Err(Error::syntax_error(
-                                    format!("Found invalid field of `loop`: {attr}. Only `index`, `index0`, `first`, `last` and `length` exist."),
+                                    format!(
+                                        "Found invalid field of `loop`: {attr}. Only `index`, `index0`, `first`, `last` and `length` exist."
+                                    ),
                                     &self.current_span,
                                 ));
                             }
@@ -589,10 +591,8 @@ impl<'a> Parser<'a> {
         span.expand(&self.current_span);
         let array = Array { items };
 
-        if literal_only {
-            if let Some(const_array) = array.as_const() {
-                return Ok(Expression::Const(Spanned::new(const_array, span)));
-            }
+        if literal_only && let Some(const_array) = array.as_const() {
+            return Ok(Expression::Const(Spanned::new(const_array, span)));
         }
         Ok(Expression::Array(Spanned::new(array, span)))
     }
@@ -669,7 +669,9 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 return Err(Error::syntax_error(
-                    format!("Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{{`, `[` or `(`"),
+                    format!(
+                        "Found {token} but expected one of: integer, float, string, bool, ident, `-`, `not`, `<`, `{{`, `[` or `(`"
+                    ),
                     &self.current_span,
                 ));
             }
@@ -761,13 +763,13 @@ impl<'a> Parser<'a> {
                     span.expand(&self.current_span);
 
                     // unary operators are not allowed after a ~
-                    if op == BinaryOperator::StrConcat {
-                        if let Expression::UnaryOperation(uop) = rhs {
-                            return Err(Error::syntax_error(
-                                format!("`{}` is not allowed after `~`", uop.op),
-                                &self.current_span,
-                            ));
-                        }
+                    if op == BinaryOperator::StrConcat
+                        && let Expression::UnaryOperation(uop) = rhs
+                    {
+                        return Err(Error::syntax_error(
+                            format!("`{}` is not allowed after `~`", uop.op),
+                            &self.current_span,
+                        ));
                     }
 
                     Expression::BinaryOperation(Spanned::new(
@@ -825,7 +827,7 @@ impl<'a> Parser<'a> {
                 return Err(Error {
                     kind: e.kind.clone(),
                     source: None,
-                })
+                });
             }
             None => return Err(self.eoi()),
         };
@@ -1032,7 +1034,9 @@ impl<'a> Parser<'a> {
                     }
                     Some(Ok((token, span))) => {
                         return Err(Error::syntax_error(
-                            format!("Found {token} but the only types allowed are: string, bool, integer, float, number, array and map"),
+                            format!(
+                                "Found {token} but the only types allowed are: string, bool, integer, float, number, array and map"
+                            ),
                             span,
                         ));
                     }
@@ -1072,7 +1076,9 @@ impl<'a> Parser<'a> {
                     }
                     Some(Ok((token, span))) => {
                         return Err(Error::syntax_error(
-                            format!("Found {token} but component default arguments can only be one of: string, bool, integer, float, array or map"),
+                            format!(
+                                "Found {token} but component default arguments can only be one of: string, bool, integer, float, array or map"
+                            ),
                             span,
                         ));
                     }
@@ -1353,7 +1359,7 @@ impl<'a> Parser<'a> {
                     let tok = match &self.next {
                         None => return Err(self.eoi()),
                         Some(Ok((tok, _))) => tok,
-                        Some(Err(ref e)) => {
+                        Some(Err(e)) => {
                             return Err(Error {
                                 kind: e.kind.clone(),
                                 source: None,

@@ -53,7 +53,7 @@ pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
                 Err(e) => {
                     return Err(tera::Error::message(format!(
                         "The string {s} cannot be parsed as a RFC3339 or RFC2822: {e}"
-                    )))
+                    )));
                 }
             };
             if let Some(tz) = timezone {

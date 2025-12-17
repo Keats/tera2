@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use crate::Value;
 use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
 use crate::value::{Key, ValueKind};
 use crate::vm::state::State;
-use crate::Value;
 
 pub trait TestResult {
     fn into_result(self) -> TeraResult<bool>;

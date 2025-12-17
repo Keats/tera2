@@ -6,7 +6,7 @@ use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
 use crate::value::{Key, Value, ValueInner};
 use crate::vm::for_loop::ForLoop;
-use crate::vm::stack::{combine_spans, SpanRange};
+use crate::vm::stack::{SpanRange, combine_spans};
 
 use crate::args::Kwargs;
 use crate::vm::state::State;
