@@ -221,6 +221,10 @@ component of the body automatically as the `body` variable. You can of course ne
 
 If you are building with something like HTMX you can also re-render a single component from the `Tera` instance.
 
+## Custom delimiters
+
+The default delimiters `{{ }}`, `{% %}` and `{# #}` are the same as in Tera v1 but you can now customise them via `Tera::set_delimiters`
+
 ## Performance
 
 It will depend on what you are doing inside the template and the size of your context but it is about 2x faster than Tera v1.
