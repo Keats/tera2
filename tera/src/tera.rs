@@ -135,7 +135,7 @@ impl Tera {
     /// Set custom delimiters for template syntax.
     ///
     /// This must be called before adding any templates.
-    /// Returns an error if any delimiter is empty, if start delimiters conflict of if there are
+    /// Returns an error if any delimiter is empty, if start delimiters conflict or if there are
     /// already templates added to the Tera instance.
     ///
     /// # Example
@@ -162,11 +162,6 @@ impl Tera {
         delimiters.validate()?;
         self.delimiters = delimiters;
         Ok(())
-    }
-
-    /// Get the current delimiters configuration.
-    pub fn delimiters(&self) -> &Delimiters {
-        &self.delimiters
     }
 
     /// Set user-defined function that is used to escape content.

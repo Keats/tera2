@@ -2,7 +2,7 @@ use crate::errors::{Error, TeraResult};
 
 /// This allows customizing the delimiters used for blocks, variables, and comments in case
 /// you want to template files that contains text like `{{`, like LaTeX.
-/// Delimiters need to be 2 characters.
+/// Delimiters need to be 2 ASCII characters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Delimiters {
     /// Start delimiter for blocks, default: `{%`
@@ -35,30 +35,30 @@ impl Default for Delimiters {
 impl Delimiters {
     /// Returns an error if any delimiter is empty or if there are conflicts
     pub(crate) fn validate(&self) -> TeraResult<()> {
-        if self.block_start.len() != 2 {
+        if self.block_start.chars().count() != 2 {
             return Err(Error::message(
                 "`block_start` delimiter must be 2 characters",
             ));
         }
-        if self.block_end.len() != 2 {
+        if self.block_end.chars().count() != 2 {
             return Err(Error::message("`block_end` delimiter must be 2 characters"));
         }
-        if self.variable_start.len() != 2 {
+        if self.variable_start.chars().count() != 2 {
             return Err(Error::message(
                 "`variable_start` delimiter must be 2 characters",
             ));
         }
-        if self.variable_end.len() != 2 {
+        if self.variable_end.chars().count() != 2 {
             return Err(Error::message(
                 "`variable_end` delimiter must be 2 characters",
             ));
         }
-        if self.comment_start.len() != 2 {
+        if self.comment_start.chars().count() != 2 {
             return Err(Error::message(
                 "`comment_start` delimiter must be 2 characters",
             ));
         }
-        if self.comment_end.len() != 2 {
+        if self.comment_end.chars().count() != 2 {
             return Err(Error::message(
                 "`comment_end` delimiter must be 2 characters",
             ));
@@ -77,10 +77,38 @@ impl Delimiters {
         }
         if self.variable_start == self.comment_start {
             return Err(Error::message(
-                "`variable_start` and `comment_star`t cannot have the same value",
+                "`variable_start` and `comment_start` cannot have the same value",
             ));
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_on_invalid_delimiters() {
+        let inputs = vec![
+            Delimiters {
+                block_start: "",
+                ..Delimiters::default()
+            },
+            Delimiters {
+                block_start: "[[[",
+                ..Delimiters::default()
+            },
+            Delimiters {
+                block_start: "[[",
+                comment_start: "[[",
+                ..Delimiters::default()
+            },
+        ];
+
+        for i in inputs {
+            assert!(i.validate().is_err());
+        }
     }
 }
