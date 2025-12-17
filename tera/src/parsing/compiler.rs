@@ -1,11 +1,11 @@
 //! AST -> bytecode
+use crate::HashMap;
 use crate::parsing::ast::{
     ArrayEntry, BinaryOperator, Block, Expression, MapEntry, Node, UnaryOperator,
 };
 use crate::parsing::instructions::{Chunk, Instruction};
 use crate::utils::Span;
 use crate::value::Value;
-use crate::HashMap;
 
 /// We need to handle some pc jumps but we only know to where after we are done processing it
 #[derive(Debug)]
@@ -305,7 +305,7 @@ impl<'s> Compiler<'s> {
                         self.processing_bodies
                             .push(ProcessingBody::ShortCircuit(vec![]));
                         self.compile_expr(op.left);
-                        if let Some(ProcessingBody::ShortCircuit(ref mut instr)) =
+                        if let Some(ProcessingBody::ShortCircuit(instr)) =
                             self.processing_bodies.last_mut()
                         {
                             instr.push(self.chunk.add(
@@ -326,8 +326,8 @@ impl<'s> Compiler<'s> {
                         {
                             for i in instr {
                                 match self.chunk.get_mut(i) {
-                                    Some((Instruction::JumpIfFalseOrPop(ref mut target), _))
-                                    | Some((Instruction::JumpIfTrueOrPop(ref mut target), _)) => {
+                                    Some((Instruction::JumpIfFalseOrPop(target), _))
+                                    | Some((Instruction::JumpIfTrueOrPop(target), _)) => {
                                         *target = end;
                                     }
                                     _ => {}
@@ -386,8 +386,8 @@ impl<'s> Compiler<'s> {
     fn end_branch(&mut self, idx: usize) {
         match self.processing_bodies.pop() {
             Some(ProcessingBody::Branch(instr)) => match self.chunk.get_mut(instr) {
-                Some((Instruction::Jump(ref mut target), _))
-                | Some((Instruction::PopJumpIfFalse(ref mut target), _)) => {
+                Some((Instruction::Jump(target), _))
+                | Some((Instruction::PopJumpIfFalse(target), _)) => {
                     *target = idx;
                 }
                 _ => {}
@@ -485,7 +485,7 @@ impl<'s> Compiler<'s> {
                         }
 
                         self.chunk.add(Instruction::PopLoop, None);
-                        if let Some((Instruction::Iterate(ref mut jump_target), _)) =
+                        if let Some((Instruction::Iterate(jump_target), _)) =
                             self.chunk.get_mut(start_idx)
                         {
                             *jump_target = loop_end;

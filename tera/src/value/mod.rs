@@ -17,9 +17,9 @@ pub(crate) mod number;
 mod ser;
 mod utils;
 
+use crate::HashMap;
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
-use crate::HashMap;
 pub use key::Key;
 
 #[cfg(not(feature = "preserve_order"))]
@@ -595,7 +595,7 @@ impl Value {
                     _ => {
                         return Value {
                             inner: ValueInner::Undefined,
-                        }
+                        };
                     }
                 },
                 Err(_) => match &res.inner {
@@ -611,7 +611,7 @@ impl Value {
                     _ => {
                         return Value {
                             inner: ValueInner::Undefined,
-                        }
+                        };
                     }
                 },
             }
@@ -700,9 +700,10 @@ impl Value {
                 Ok(k) => Ok(m.contains_key(k)),
                 Err(_) => Ok(false),
             },
-            _ => Err(Error::message(
-                format!("`in` cannot be used on a container of type `{}`. It can only be used on arrays, strings and map/structs", self.name()),
-            )),
+            _ => Err(Error::message(format!(
+                "`in` cannot be used on a container of type `{}`. It can only be used on arrays, strings and map/structs",
+                self.name()
+            ))),
         }
     }
 
@@ -721,30 +722,34 @@ impl Value {
     /// When doing hello[0], hello[name] etc, item is the value in the brackets
     pub(crate) fn get_item(&self, item: Value) -> TeraResult<Value> {
         match &self.inner {
-            ValueInner::Map(m) => {
-                match item.as_key() {
-                    Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value { inner: ValueInner::Undefined })),
-                    Err(_) => Err(Error::message(
-                        format!("`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed", item.name()),
-                    ))
+            ValueInner::Map(m) => match item.as_key() {
+                Ok(k) => Ok(m.get(&k).cloned().unwrap_or(Value {
+                    inner: ValueInner::Undefined,
+                })),
+                Err(_) => Err(Error::message(format!(
+                    "`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed",
+                    item.name()
+                ))),
+            },
+            ValueInner::Array(arr) => match item.as_i128() {
+                Some(idx) => {
+                    let correct_idx = if idx < 0 {
+                        arr.len() as i128 + idx
+                    } else {
+                        idx
+                    } as usize;
+                    Ok(arr.get(correct_idx).cloned().unwrap_or(Value {
+                        inner: ValueInner::Undefined,
+                    }))
                 }
-            }
-            ValueInner::Array(arr) => {
-                match item.as_i128() {
-                    Some(idx) => {
-                        let correct_idx = if idx < 0 {
-                            arr.len() as i128 + idx
-                        } else {
-                            idx
-                        } as usize;
-                        Ok(arr.get(correct_idx).cloned().unwrap_or(Value { inner: ValueInner::Undefined }))
-                    },
-                    None =>  Err(Error::message(
-                        format!("Array indices can only be integers, not `{}`.", item.name()),
-                    ))
-                }
-            }
-            _ => Ok(Value { inner: ValueInner::Undefined }),
+                None => Err(Error::message(format!(
+                    "Array indices can only be integers, not `{}`.",
+                    item.name()
+                ))),
+            },
+            _ => Ok(Value {
+                inner: ValueInner::Undefined,
+            }),
         }
     }
 
@@ -759,11 +764,7 @@ impl Value {
 
         let get_actual_idx = |size: i128, param: Option<i128>| -> i128 {
             if let Some(p) = param {
-                if p < 0 {
-                    size + p
-                } else {
-                    p
-                }
+                if p < 0 { size + p } else { p }
             } else {
                 size
             }

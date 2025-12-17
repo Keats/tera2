@@ -1,4 +1,4 @@
-use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_encode};
 use tera::{Kwargs, State};
 
 /// https://url.spec.whatwg.org/#fragment-percent-encode-set

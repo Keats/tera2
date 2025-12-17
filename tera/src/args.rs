@@ -2,10 +2,10 @@ use serde::Deserialize;
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use crate::Value;
 use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
 use crate::value::{Key, Map, ValueInner};
-use crate::Value;
 
 pub trait ArgFromValue<'k> {
     type Output;

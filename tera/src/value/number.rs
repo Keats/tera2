@@ -134,7 +134,7 @@ pub(crate) fn floor_div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
                 (Number::Integer(a), Number::Integer(b)) => match a.checked_div_euclid(b) {
                     Some(val) => Value::from(val),
                     None => {
-                        return Err(Error::message(format!("Unable to perform {lhs} // {rhs}")))
+                        return Err(Error::message(format!("Unable to perform {lhs} // {rhs}")));
                     }
                 },
                 (Number::Float(a), Number::Float(b)) => Value::from(a.div_euclid(b)),
@@ -159,7 +159,7 @@ pub(crate) fn pow(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
                 (Number::Integer(a), Number::Integer(b)) => match a.checked_pow(b as u32) {
                     Some(val) => Value::from(val),
                     None => {
-                        return Err(Error::message(format!("Unable to perform {lhs} ** {rhs}")))
+                        return Err(Error::message(format!("Unable to perform {lhs} ** {rhs}")));
                     }
                 },
                 (Number::Float(a), Number::Float(b)) => Value::from(a.powf(b)),

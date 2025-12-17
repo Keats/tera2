@@ -523,7 +523,7 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, state: &State) -> TeraResult<
         };
 
         // Step 2: Apply filter if specified
-        let final_val = if let (Some(name), Some(ref f_kwargs)) = (filter_name, &filter_kwargs) {
+        let final_val = if let (Some(name), Some(f_kwargs)) = (filter_name, &filter_kwargs) {
             state.call_filter(name, &extracted, f_kwargs.clone())?
         } else {
             extracted
@@ -606,10 +606,10 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value::Map;
     use crate::Context;
     #[cfg(feature = "unicode")]
     use crate::Tera;
+    use crate::value::Map;
 
     #[test]
     fn test_title() {

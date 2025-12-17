@@ -127,47 +127,55 @@ pub enum ErrorKind {
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::Msg(ref message) => write!(f, "{message}"),
+            ErrorKind::Msg(message) => write!(f, "{message}"),
             ErrorKind::SyntaxError(s) | ErrorKind::RenderingError(s) => {
                 write!(f, "{}", s.generate_report())
             }
             ErrorKind::CircularExtend {
-                ref tpl,
-                ref inheritance_chain,
+                tpl,
+                inheritance_chain,
             } => write!(
                 f,
                 "Circular extend detected for template '{tpl}'. Inheritance chain: `{inheritance_chain:?}`",
             ),
-            ErrorKind::MissingParent {
-                ref current,
-                ref parent,
-            } => write!(
+            ErrorKind::MissingParent { current, parent } => write!(
                 f,
                 "Template '{current}' is inheriting from '{parent}', which doesn't exist or isn't loaded.",
             ),
-            ErrorKind::TemplateNotFound(ref name) => write!(f, "Template '{name}' not found"),
-            ErrorKind::ComponentNotFound(ref name) => write!(f, "Component '{name}' not found"),
-            ErrorKind::NamespaceNotLoaded {
-                ref tpl,
-                ref namespace,
-            } => write!(
+            ErrorKind::TemplateNotFound(name) => write!(f, "Template '{name}' not found"),
+            ErrorKind::ComponentNotFound(name) => write!(f, "Component '{name}' not found"),
+            ErrorKind::NamespaceNotLoaded { tpl, namespace } => write!(
                 f,
                 "Template '{tpl}' is trying to use namespace `{namespace}` which is not loaded",
             ),
             ErrorKind::MacroNotFound {
-                ref tpl,
-                ref namespace,
-                ref name,
+                tpl,
+                namespace,
+                name,
             } => write!(
                 f,
                 "Template '{tpl}' is using macro `{namespace}::{name}` which is not found in the namespace",
             ),
-            ErrorKind::InvalidArgument {expected_type, actual_type} => write!(f, "Invalid type for the value, expected `{expected_type}` but got `{actual_type}`"),
-            ErrorKind::MissingArgument {arg_name} => write!(f, "Missing keyword argument `{arg_name}`"),
-            ErrorKind::Io(ref io_error) => {
-                write!(f, "Io error while writing rendered value to output: {:?}", io_error)
+            ErrorKind::InvalidArgument {
+                expected_type,
+                actual_type,
+            } => write!(
+                f,
+                "Invalid type for the value, expected `{expected_type}` but got `{actual_type}`"
+            ),
+            ErrorKind::MissingArgument { arg_name } => {
+                write!(f, "Missing keyword argument `{arg_name}`")
             }
-            ErrorKind::Utf8Conversion => write!(f, "Invalid UTF-8 characters found while rendering.")
+            ErrorKind::Io(io_error) => {
+                write!(
+                    f,
+                    "Io error while writing rendered value to output: {:?}",
+                    io_error
+                )
+            }
+            ErrorKind::Utf8Conversion => {
+                write!(f, "Invalid UTF-8 characters found while rendering.")
+            }
         }
     }
 }
