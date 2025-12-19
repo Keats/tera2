@@ -1,0 +1,18 @@
+$$ components
+{% component button(name, age) %}Hello {{name}}, you are {{age}}{% endcomponent %}
+{% component open_button(name, age, ...rest) %}Hello {{name}}, age {{age}}, extras: {{rest | length}}{% endcomponent %}
+$$ tpl
+{% set props = {"name": "Alice", "age": 25} %}
+Basic spread: {{<button {...props}/>}}
+Spread with override (explicit wins): {{<button {...props} age={30}/>}}
+Override then spread (spread wins): {{<button age={30} {...props}/>}}
+{% set base = {"name": "Charlie"} %}
+{% set more = {"age": 35} %}
+Multiple spreads: {{<button {...base} {...more}/>}}
+Mix explicit and spread: {{<button name="Explicit" {...more}/>}}
+--- Rest param tests ---
+{% set extra = {"name": "Bob", "age": 20, "class": "btn", "id": "my-btn"} %}
+Open component accepts extras: {{<open_button {...extra}/>}}
+Forward extras to child: {{<open_button name="Test" age={10} foo="bar" baz={123}/>}}
+{% set empty = {} %}
+Open component with empty spread: {{<open_button name="a" age={2} {...empty}/>}}

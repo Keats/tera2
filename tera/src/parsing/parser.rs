@@ -376,57 +376,78 @@ impl<'a> Parser<'a> {
         Ok(name)
     }
 
-    fn parse_component_attributes(&mut self) -> TeraResult<HashMap<String, Expression>> {
-        let mut attrs = HashMap::new();
+    fn parse_component_attributes(&mut self) -> TeraResult<Vec<MapEntry>> {
+        let mut attrs = Vec::new();
 
-        while matches!(self.next, Some(Ok((Token::Ident(_), _)))) {
-            let (name, name_span) = expect_token!(self, Token::Ident(id) => id, "attribute name")?;
+        loop {
+            match &self.next {
+                // Regular attribute: name="value", name={expr} or name (shorthand)
+                Some(Ok((Token::Ident(_), _))) => {
+                    let (name, name_span) =
+                        expect_token!(self, Token::Ident(id) => id, "attribute name")?;
 
-            let value = match &self.next {
-                // Check if there's an assignment
-                Some(Ok((Token::Assign, _))) => {
-                    self.next_or_error()?; // consume '='
-
-                    match self.next.as_ref() {
-                        // If it starts with quotes, it's a string literal
-                        Some(Ok((Token::Str(s), _))) => {
-                            let s_copy = *s;
-                            let span = self.current_span.clone();
+                    let value = match &self.next {
+                        // Check if there's an assignment
+                        Some(Ok((Token::Assign, _))) => {
                             self.next_or_error()?;
-                            Expression::Const(Spanned::new(Value::from(s_copy), span))
-                        }
-                        // If it starts with {, parse as expression until matching }
-                        Some(Ok((Token::LeftBrace, _))) => {
-                            self.next_or_error()?; // consume '{'
-                            let expr = self.parse_expression(0)?;
-                            expect_token!(self, Token::RightBrace, "}")?;
-                            expr
-                        }
-                        Some(Ok((token, span))) => {
-                            return Err(Error::syntax_error(
-                                format!("Expected \"string\" or {{expression}} but found {token}"),
-                                span,
-                            ));
-                        }
-                        Some(Err(e)) => {
-                            return Err(Error {
-                                kind: e.kind.clone(),
-                                source: None,
-                            });
-                        }
-                        None => return Err(self.eoi()),
-                    }
-                }
-                // No assignment - shorthand syntax: treat as {attributeName}
-                _ => Expression::Var(Spanned::new(
-                    Var {
-                        name: name.to_string(),
-                    },
-                    name_span,
-                )),
-            };
 
-            attrs.insert(name.to_string(), value);
+                            match self.next.as_ref() {
+                                // If it starts with quotes, it's a string literal
+                                Some(Ok((Token::Str(s), _))) => {
+                                    let s_copy = *s;
+                                    let span = self.current_span.clone();
+                                    self.next_or_error()?;
+                                    Expression::Const(Spanned::new(Value::from(s_copy), span))
+                                }
+                                // If it starts with {, parse as expression until matching }
+                                Some(Ok((Token::LeftBrace, _))) => {
+                                    self.next_or_error()?;
+                                    let expr = self.parse_expression(0)?;
+                                    expect_token!(self, Token::RightBrace, "}")?;
+                                    expr
+                                }
+                                Some(Ok((token, span))) => {
+                                    return Err(Error::syntax_error(
+                                        format!(
+                                            "Expected \"string\" or {{expression}} but found {token}"
+                                        ),
+                                        span,
+                                    ));
+                                }
+                                Some(Err(e)) => {
+                                    return Err(Error {
+                                        kind: e.kind.clone(),
+                                        source: None,
+                                    });
+                                }
+                                None => return Err(self.eoi()),
+                            }
+                        }
+                        // No assignment - shorthand syntax: treat as {attributeName}
+                        _ => Expression::Var(Spanned::new(
+                            Var {
+                                name: name.to_string(),
+                            },
+                            name_span,
+                        )),
+                    };
+
+                    attrs.push(MapEntry::KeyValue {
+                        key: Key::from(name.to_string()),
+                        value,
+                    });
+                }
+                // Spread syntax: {...expr}
+                Some(Ok((Token::LeftBrace, _))) => {
+                    self.next_or_error()?; // consume '{'
+                    expect_token!(self, Token::Spread, "...")?;
+                    let expr = self.parse_expression(0)?;
+                    expect_token!(self, Token::RightBrace, "}")?;
+                    attrs.push(MapEntry::Spread(expr));
+                }
+                // No more attributes
+                _ => break,
+            }
         }
 
         Ok(attrs)
@@ -1015,6 +1036,34 @@ impl<'a> Parser<'a> {
 
         loop {
             if matches!(self.next, Some(Ok((Token::RightParen, _)))) {
+                self.next_or_error()?;
+                break;
+            }
+
+            // Check for rest parameter: ...ident
+            if matches!(self.next, Some(Ok((Token::Spread, _)))) {
+                self.next_or_error()?;
+                let (rest_name, span) = expect_token!(self, Token::Ident(id) => id, "identifier")?;
+
+                // Rest param name must not conflict with existing params
+                if kwargs.contains_key(rest_name) {
+                    return Err(Error::syntax_error(
+                        format!(
+                            "Rest parameter `{rest_name}` conflicts with an existing parameter."
+                        ),
+                        &span,
+                    ));
+                }
+
+                component_def.rest_param_name = Some(rest_name.to_string());
+
+                if !matches!(self.next, Some(Ok((Token::RightParen, _)))) {
+                    return Err(Error::syntax_error(
+                        "Rest parameter must be the last parameter in component definition."
+                            .to_string(),
+                        &self.current_span,
+                    ));
+                }
                 self.next_or_error()?;
                 break;
             }
