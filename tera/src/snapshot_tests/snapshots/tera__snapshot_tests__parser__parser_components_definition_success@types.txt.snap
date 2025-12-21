@@ -27,6 +27,7 @@ ComponentDefinition {
             ),
         },
     },
+    rest_param_name: None,
     metadata: {},
     body: [
         "Hello",

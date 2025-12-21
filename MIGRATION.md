@@ -159,6 +159,19 @@ This is mostly the same as macros, except the block is called `component`/`endco
 The other change is adding optional typing to component parameters and an optional component metadata that doesn't need to 
 be explained here.
 
+The component above is closed: any templates using an argument not listed will error. You can make it open by adding a 
+spread operator:
+
+```rust
+{% component button(label: string, variant: string = "primary", ...rest) %}
+<button class="btn btn-{{variant}}">{{label}}</button>
+{% endcomponent button %}
+```
+
+By doing that, any extra parameters other than `label` and `variant` will be collected into a map called `rest` that
+can be used like any other maps.
+
+
 #### Using a component
 
 That's where things change.
@@ -170,8 +183,8 @@ JSX but it's kind of a mix between Jinja2 and JSX.
 First some definition:
 
 ```j2
-{% component ui.button(label: string, variant: string = "primary") %}
-    <button class="btn btn-{{variant}}">{{label}}</button>
+{% component ui.button(label: string, variant: string = "primary", ...attrs) %}
+    <button class="btn btn-{{variant}}">{{label}}{% if attrs.important %}!!{% endif %}</button>
 {% endcomponent ui.button %}
 
 {% component forms.input(name: string, label: string, required: bool = false) %}
@@ -191,7 +204,7 @@ And then actually calling it:
 
 ```j2
 <div class="page">
-  {{<ui.button label="Click me" variant="secondary"/>}}
+  {{<ui.button label="Click me" variant="secondary" {...obj} />}}
 
   {{<forms.input name="email" label="Email Address" required={true}/>}}
 

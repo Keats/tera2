@@ -1,0 +1,5 @@
+$$ components
+{% component strict(name) %}Hello {{name}}{% endcomponent %}
+$$ tpl
+{% set props = {"name": "Alice", "extra_key": "should_error"} %}
+{{ <strict {...props}/> }}

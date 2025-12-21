@@ -1,0 +1,18 @@
+---
+source: tera/src/snapshot_tests/rendering.rs
+expression: "&out"
+input_file: tera/src/snapshot_tests/rendering_inputs/success/components/spread.txt
+---
+Basic spread: Hello Alice, you are 25
+Spread with override (explicit wins): Hello Alice, you are 30
+Override then spread (spread wins): Hello Alice, you are 25
+
+
+Multiple spreads: Hello Charlie, you are 35
+Mix explicit and spread: Hello Explicit, you are 35
+--- Rest param tests ---
+
+Open component accepts extras: Hello Bob, age 20, extras: 2
+Forward extras to child: Hello Test, age 10, extras: 2
+
+Open component with empty spread: Hello a, age 2, extras: 0

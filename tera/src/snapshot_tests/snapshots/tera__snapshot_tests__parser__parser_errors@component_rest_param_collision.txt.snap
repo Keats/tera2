@@ -1,0 +1,10 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: res.unwrap_err()
+input_file: tera/src/snapshot_tests/parser_inputs/errors/component_rest_param_collision.txt
+---
+error: Rest parameter `name` conflicts with an existing parameter.
+ --> component_rest_param_collision.txt:1:27
+  |
+1 | {% component test(name, ...name) %}body{% endcomponent %}
+  |                            ^^^^

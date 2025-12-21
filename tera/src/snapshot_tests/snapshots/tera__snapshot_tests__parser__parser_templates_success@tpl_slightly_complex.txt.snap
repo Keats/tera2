@@ -109,9 +109,14 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_slightly_compl
                     Filter {
                         expr: ComponentCall {
                             name: "cta",
-                            kwargs: {
-                                "title": "Buy now" @ 17:25-17:26 (489..490),
-                            },
+                            kwargs: [
+                                KeyValue {
+                                    key: String(
+                                        "title",
+                                    ),
+                                    value: "Buy now" @ 17:25-17:26 (489..490),
+                                },
+                            ],
                             body: [],
                             self_closing: true,
                         } @ 17:15-17:37 (479..501),

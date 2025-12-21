@@ -13,6 +13,7 @@ ComponentDefinition {
             ),
         },
     },
+    rest_param_name: None,
     metadata: {
         "css": String("./array.css"),
     },

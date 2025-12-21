@@ -1,9 +1,9 @@
-use crate::errors::Error;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::str::FromStr;
 
 use crate::HashMap;
+use crate::errors::Error;
 use crate::utils::{Span, Spanned};
 use crate::value::{Key, Value, ValueInner, format_map};
 
@@ -431,7 +431,7 @@ impl fmt::Display for Test {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComponentCall {
     pub name: String,
-    pub kwargs: HashMap<String, Expression>,
+    pub kwargs: Vec<MapEntry>,
     pub body: Vec<Node>,
     pub self_closing: bool,
 }
@@ -440,13 +440,11 @@ impl fmt::Display for ComponentCall {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "<{}", self.name)?;
         write!(f, "{{",)?;
-        let mut keys = self.kwargs.keys().collect::<Vec<_>>();
-        keys.sort();
-        for (i, k) in keys.iter().enumerate() {
+        for (i, entry) in self.kwargs.iter().enumerate() {
             if i == self.kwargs.len() - 1 {
-                write!(f, "{}={}", k, self.kwargs[*k])?
+                write!(f, "{entry}")?
             } else {
-                write!(f, "{}={}, ", k, self.kwargs[*k])?
+                write!(f, "{entry}, ")?
             }
         }
         write!(f, "}}",)?;
@@ -729,6 +727,9 @@ pub struct ComponentDefinition {
     /// The args for that component: name -> optional default value
     /// Expression for default args can only be literals
     pub kwargs: BTreeMap<String, ComponentArgument>,
+    /// Rest parameter name (e.g., `...rest` collects extra kwargs into `rest`)
+    /// If None, unknown kwargs will error.
+    pub rest_param_name: Option<String>,
     /// Component metadata that you might need at compile time
     pub metadata: BTreeMap<String, Value>,
     pub body: Vec<Node>,
@@ -740,34 +741,55 @@ impl ComponentDefinition {
     }
 
     /// Builds a validated context from provided kwargs, checking types and applying defaults.
+    /// If rest_param_name is defined, unknown kwargs are collected into it.
+    /// Otherwise, unknown kwargs will error.
     pub fn build_context<'a>(
         &self,
-        provided_param_names: impl Iterator<Item = &'a str>,
+        provided_keys: impl Iterator<Item = &'a str>,
         get_value: impl Fn(&str) -> Option<Value>,
         body: Option<Value>,
     ) -> Result<crate::Context, String> {
         let mut context = crate::Context::new();
+        let mut rest_map = crate::value::Map::new();
+        let mut unknown_keys = HashSet::new();
 
-        // Check for unknown arguments
-        for key in provided_param_names {
+        // Process all provided keys - collect unknowns into rest or track for error
+        for key in provided_keys {
             if !self.kwargs.contains_key(key) {
-                let kwargs_list = self.kwargs_list();
-                let kwargs_msg = if kwargs_list.is_empty() {
-                    String::new()
+                if self.rest_param_name.is_some() {
+                    if let Some(value) = get_value(key) {
+                        rest_map.insert(Key::from(key.to_string()), value);
+                    } else {
+                        unreachable!("that shouldn't be possible to get a kwarg without a value")
+                    }
                 } else {
-                    format!(
-                        " Possible argument(s) are: {}",
-                        kwargs_list
-                            .iter()
-                            .map(|s| format!("`{}`", s))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                };
-                return Err(format!(
-                    "Argument `{key}` not found in component definition.{kwargs_msg}"
-                ));
+                    unknown_keys.insert(key.to_string());
+                }
             }
+        }
+
+        if !unknown_keys.is_empty() {
+            let kwargs_list = self.kwargs_list();
+            let kwargs_msg = if kwargs_list.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " Possible argument(s) are: {}",
+                    kwargs_list
+                        .iter()
+                        .map(|s| format!("`{s}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            let unknown_list = unknown_keys
+                .iter()
+                .map(|s| format!("`{s}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "Unknown argument(s) {unknown_list} in component call.{kwargs_msg}"
+            ));
         }
 
         // Validate and apply each expected argument
@@ -796,6 +818,11 @@ impl ComponentDefinition {
                     }
                 },
             }
+        }
+
+        // Add rest param if defined
+        if let Some(ref rest_name) = self.rest_param_name {
+            context.insert_value(rest_name.clone(), Value::from(rest_map));
         }
 
         // Add body if provided

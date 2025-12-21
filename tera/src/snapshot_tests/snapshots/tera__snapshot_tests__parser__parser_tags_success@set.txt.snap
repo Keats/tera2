@@ -33,7 +33,7 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tags/set.txt
         name: "a",
         value: ComponentCall {
             name: "something",
-            kwargs: {},
+            kwargs: [],
             body: [],
             self_closing: true,
         } @ 4:11-4:23 (76..88),

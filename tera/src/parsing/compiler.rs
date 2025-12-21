@@ -67,6 +67,44 @@ impl<'s> Compiler<'s> {
         self.chunk.add(Instruction::BuildMap(num_args), None);
     }
 
+    fn compile_map_entries(&mut self, entries: Vec<MapEntry>, span: Option<Span>) {
+        let has_spreads = entries.iter().any(|e| matches!(e, MapEntry::Spread(_)));
+
+        if has_spreads {
+            let mut entry_types = Vec::with_capacity(entries.len());
+            for entry in entries {
+                match entry {
+                    MapEntry::KeyValue { key, value } => {
+                        self.chunk.add(
+                            Instruction::LoadConst(Value::from(key)),
+                            Some(value.span().clone()),
+                        );
+                        self.compile_expr(value);
+                        entry_types.push(false);
+                    }
+                    MapEntry::Spread(expr) => {
+                        self.compile_expr(expr);
+                        entry_types.push(true);
+                    }
+                }
+            }
+            self.chunk
+                .add(Instruction::BuildMapWithSpreads(entry_types), span);
+        } else {
+            let num_items = entries.len();
+            for entry in entries {
+                if let MapEntry::KeyValue { key, value } = entry {
+                    self.chunk.add(
+                        Instruction::LoadConst(Value::from(key)),
+                        Some(value.span().clone()),
+                    );
+                    self.compile_expr(value);
+                }
+            }
+            self.chunk.add(Instruction::BuildMap(num_items), span);
+        }
+    }
+
     fn compile_expr(&mut self, expr: Expression) {
         match expr {
             Expression::Const(e) => {
@@ -75,44 +113,7 @@ impl<'s> Compiler<'s> {
             }
             Expression::Map(e) => {
                 let (map, span) = e.into_parts();
-                let has_spreads = map.entries.iter().any(|e| matches!(e, MapEntry::Spread(_)));
-
-                // We use different instructions depending on whether a map has spreads or not
-                if has_spreads {
-                    let mut entry_types = Vec::with_capacity(map.entries.len());
-
-                    for entry in map.entries {
-                        match entry {
-                            MapEntry::KeyValue { key, value } => {
-                                self.chunk.add(
-                                    Instruction::LoadConst(Value::from(key)),
-                                    Some(value.span().clone()),
-                                );
-                                self.compile_expr(value);
-                                entry_types.push(false);
-                            }
-                            MapEntry::Spread(expr) => {
-                                self.compile_expr(expr);
-                                entry_types.push(true);
-                            }
-                        }
-                    }
-
-                    self.chunk
-                        .add(Instruction::BuildMapWithSpreads(entry_types), Some(span));
-                } else {
-                    let num_items = map.entries.len();
-                    for entry in map.entries {
-                        if let MapEntry::KeyValue { key, value } = entry {
-                            self.chunk.add(
-                                Instruction::LoadConst(Value::from(key)),
-                                Some(value.span().clone()),
-                            );
-                            self.compile_expr(value);
-                        }
-                    }
-                    self.chunk.add(Instruction::BuildMap(num_items), Some(span));
-                }
+                self.compile_map_entries(map.entries, Some(span));
             }
             Expression::Array(e) => {
                 let (array, span) = e.into_parts();
@@ -251,7 +252,8 @@ impl<'s> Compiler<'s> {
                     }
                     self.chunk.add(Instruction::EndCapture, None);
                 }
-                self.compile_kwargs(component_call.kwargs.clone());
+
+                self.compile_map_entries(component_call.kwargs, None);
 
                 if is_inline {
                     self.chunk.add(
