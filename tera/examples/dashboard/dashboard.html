@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ site_name }}{% endblock %}
+
+{% block body_class %}dashboard-page{% endblock %}
+
+{% block header_nav %}
+<ul class="nav">
+    <li><a href="/">Home</a></li>
+    <li><a href="/dashboard" class="active">Dashboard</a></li>
+    <li><a href="/settings">Settings</a></li>
+</ul>
+{% endblock %}
+
+{% block sidebar %}
+{# Recursive navigation component - data comes from context #}
+<nav class="sidebar-nav">
+    <ul class="nav-menu">
+        {%- for item in nav_items %}
+        {{ <ui.nav.item label={item.label} href={item.href} icon={item.icon} children={item.children} active={item.active} /> }}
+        {%- endfor %}
+    </ul>
+</nav>
+{% endblock %}
+
+{% block content %}
+
+<section class="stats-grid">
+    {{ <ui.stat label="Total Orders" value={orders | length} icon="shopping-cart" trend="up" /> }}
+    {{ <ui.stat label="Revenue" value={"$" ~ total_revenue} icon="dollar" trend="up" /> }}
+    {{ <ui.stat label="Customers" value={customers | length} icon="users" /> }}
+    {{ <ui.stat label="Products" value={products | length} icon="box" trend="down" /> }}
+</section>
+
+<section class="alerts">
+    {% for notification in notifications %}
+        {% <ui.alert variant={notification.type} dismissible={notification.dismissible or false}> %}
+            <strong>{{ notification.title }}:</strong> {{ notification.message }}
+        {% </ui.alert> %}
+    {% else %}
+        {% <ui.alert variant="info"> %}
+        No new notifications.
+        {% </ui.alert> %}
+    {% endfor %}
+</section>
+
+{% <ui.card title="Product Inventory" class="card-lg"> %}
+    {{ <ui.table headers={["Name", "Category", "Price", "Stock", "Status"]} rows={product_rows} class="table-striped table-hover" /> }}
+{% </ui.card> %}
+
+
+{% set btn_defaults = {"type": "button", "class": "shadow-sm"} %}
+
+<section class="button-group">
+    {{ <ui.button label="Add Product" variant="primary" icon="plus" {...btn_defaults} /> }}
+    {{ <ui.button label="Export Data" variant="secondary" icon="download" {...btn_defaults} /> }}
+    {{ <ui.button label="Delete Selected" variant="danger" {...btn_defaults} disabled={selected_count == 0} /> }}
+
+    {# Spread wins when it comes after explicit #}
+    {% set special_btn = {"type": "submit", "class": "special-action", "icon": "star"} %}
+    {{ <ui.button label="Special Action" variant="warning" type="button" {...special_btn} /> }}
+</section>
+
+<section class="shorthand-demo">
+    {% set label = "Quick Save" %}
+    {% set variant = "success" %}
+    {{ <ui.button label variant {...btn_defaults} /> }}
+</section>
+
+<section class="badge-list">
+    {% set statuses = [
+        {"label": "Pending", "variant": "warning", "count": pending_count},
+        {"label": "Processing", "variant": "info", "count": processing_count},
+        {"label": "Shipped", "variant": "primary", "count": shipped_count},
+        {"label": "Delivered", "variant": "success", "count": delivered_count},
+        {"label": "Cancelled", "variant": "danger", "count": cancelled_count}
+    ] %}
+    {% for status in statuses %}
+        {{ <ui.badge label={status.label ~ " (" ~ status.count ~ ")"} variant={status.variant} /> }}
+    {% endfor %}
+</section>
+
+{% <ui.card title="Outer Card"> %}
+    <p>This card contains another card inside it:</p>
+    {% <ui.card title="Inner Card" class="card-nested"> %}
+        <p>Nested block components work!</p>
+        {{ <ui.button label="Nested Button 1" variant="primary" size="sm" /> }}
+        {{ <ui.button label="Nested Button 2" variant="secondary" size="sm" /> }}
+        {% <ui.alert variant="success"> %}
+            Deeply nested alert inside inner card!
+        {% </ui.alert> %}
+    {% </ui.card> %}
+{% </ui.card> %}
+
+{% endblock %}
+
+{% block footer %}
+<p>Dashboard rendered with Tera2 Components</p>
+<p>&copy; {{ current_year }} {{ site_name }} - All rights reserved</p>
+{% endblock %}

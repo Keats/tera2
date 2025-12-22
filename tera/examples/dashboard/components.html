@@ -1,0 +1,117 @@
+{% component ui.icon(name: string) -%}
+<i class="icon icon-{{ name }}"></i>
+{%- endcomponent ui.icon %}
+
+{% component ui.badge(label: string, variant: string = "default") -%}
+<span class="badge badge-{{ variant }}">{{ label }}</span>
+{%- endcomponent ui.badge %}
+
+{% component ui.button(label: string, variant: string = "primary", size: string = "md", ...attrs) -%}
+<button class="btn btn-{{ variant }} btn-{{ size }}{% if attrs.class %} {{ attrs.class }}{% endif %}"
+    {%- if attrs.type %} type="{{ attrs.type }}"{% endif %}
+    {%- if attrs.disabled %} disabled{% endif %}
+    {%- if attrs.id %} id="{{ attrs.id }}"{% endif %}>
+    {%- if attrs.icon %}{{ <ui.icon name={attrs.icon} /> }} {% endif -%}
+    {{ label }}
+</button>
+{%- endcomponent ui.button %}
+
+{% component ui.card(title: string = "", ...attrs) %}
+<div class="card{% if attrs.class %} {{ attrs.class }}{% endif %}">
+    {%- if title %}
+    <div class="card-header">
+        <h3 class="card-title">{{ title }}</h3>
+    </div>
+    {%- endif %}
+    <div class="card-body">
+        {{ body | safe }}
+    </div>
+</div>
+{% endcomponent ui.card %}
+
+{% component ui.alert(variant: string = "info", dismissible: bool = false) %}
+<div class="alert alert-{{ variant }}{% if dismissible %} alert-dismissible{% endif %}" role="alert">
+    {{ body | safe }}
+    {%- if dismissible %}
+    <button type="button" class="btn-close" aria-label="Close"></button>
+    {%- endif %}
+</div>
+{% endcomponent ui.alert %}
+
+{% component ui.stat(label: string, value, icon: string = "", trend: string = "") -%}
+<div class="stat-card">
+    {%- if icon %}
+    <div class="stat-icon">{{ <ui.icon name={icon} /> }}</div>
+    {%- endif %}
+    <div class="stat-content">
+        <div class="stat-value">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+        {%- if trend %}
+        <div class="stat-trend stat-trend-{{ trend }}">
+            {{ <ui.icon name={trend ~ "-arrow"} /> }}
+        </div>
+        {%- endif %}
+    </div>
+</div>
+{%- endcomponent ui.stat %}
+
+{% component ui.nav.item(label: string, href: string = "#", icon: string = "", children: array = [], active: bool = false) %}
+<li class="nav-item{% if children | length > 0 %} has-children{% endif %}{% if active %} active{% endif %}">
+    <a href="{{ href }}" class="nav-link">
+        {%- if icon %}{{ <ui.icon name={icon} /> }} {% endif -%}
+        {{ label }}
+        {%- if children | length > 0 %} {{ <ui.icon name="chevron-down" /> }}{% endif %}
+    </a>
+    {%- if children | length > 0 %}
+    <ul class="nav-submenu">
+        {%- for child in children %}
+        {{ <ui.nav.item
+            label={child.label}
+            href={child.href | default(value="#")}
+            icon={child.icon | default(value="")}
+            children={child.children | default(value=[])}
+            active={child.active | default(value=false)}
+        /> }}
+        {%- endfor %}
+    </ul>
+    {%- endif %}
+</li>
+{% endcomponent ui.nav.item %}
+
+{% component ui.table(headers: array, rows: array, ...attrs) %}
+<table class="table{% if attrs.class %} {{ attrs.class }}{% endif %}">
+    <thead>
+        <tr>
+        {%- for header in headers %}
+            <th>{{ header }}</th>
+        {%- endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {%- for row in rows %}
+        <tr>
+            {%- for cell in row %}
+            <td>{{ cell }}</td>
+            {%- endfor %}
+        </tr>
+        {%- endfor %}
+    </tbody>
+</table>
+{% endcomponent ui.table %}
+
+{% component layout.section(title: string = "", subtitle: string = "", ...attrs) %}
+<section class="section{% if attrs.class %} {{ attrs.class }}{% endif %}"
+    {%- if attrs.id %} id="{{ attrs.id }}"{% endif %}>
+    {%- if title %}
+    <div class="section-header">
+        <h2 class="section-title">{{ title }}</h2>
+        {%- if subtitle %}
+        <p class="section-subtitle">{{ subtitle }}</p>
+        {%- endif %}
+    </div>
+    {%- endif %}
+    <div class="section-content">
+        {{ body }}
+    </div>
+</section>
+{% endcomponent layout.section %}
