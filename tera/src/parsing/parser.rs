@@ -892,11 +892,18 @@ impl<'a> Parser<'a> {
         expect_token!(self, Token::TagEnd(..), "%}")?;
 
         // Parse body content until {% </component> %}
-        let body = self.parse_until(|tok| matches!(tok, Token::LessThan))?;
+        let body = self.parse_until(|tok| matches!(tok, Token::ClosingTagStart))?;
+
+        // Check for unclosed component (EOF reached)
+        if self.next.is_none() {
+            return Err(Error::syntax_error(
+                format!("Unclosed component '{name}'"),
+                &self.current_span,
+            ));
+        }
 
         // Parse the closing tag: </component>
-        expect_token!(self, Token::LessThan, "<")?;
-        expect_token!(self, Token::Div, "/")?;
+        expect_token!(self, Token::ClosingTagStart, "</")?;
         let end_name = self.parse_dotted_component_name()?;
         if end_name != name {
             return Err(Error::syntax_error(

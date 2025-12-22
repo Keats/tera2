@@ -94,6 +94,8 @@ pub enum Token<'a> {
 
     // logic
     LessThan,
+    // only exists to make parser code a bit easier
+    ClosingTagStart, // </
     GreaterThan,
     LessThanOrEqual,
     GreaterThanOrEqual,
@@ -161,6 +163,7 @@ impl<'a> fmt::Debug for Token<'a> {
             Token::GreaterThan => write!(f, "GT"),
             Token::GreaterThanOrEqual => write!(f, "GTE"),
             Token::LessThan => write!(f, "LT"),
+            Token::ClosingTagStart => write!(f, "CLOSING_TAG_START"),
             Token::LessThanOrEqual => write!(f, "LTE"),
             Token::LeftBracket => write!(f, "LEFT_BRACKET"),
             Token::RightBracket => write!(f, "RIGHT_BRACKET"),
@@ -211,6 +214,7 @@ impl<'a> fmt::Display for Token<'a> {
             Token::GreaterThan => write!(f, "`>`"),
             Token::GreaterThanOrEqual => write!(f, "`>=`"),
             Token::LessThan => write!(f, "`<`"),
+            Token::ClosingTagStart => write!(f, "`</`"),
             Token::LessThanOrEqual => write!(f, "`<=`"),
             Token::LeftBracket => write!(f, "`[`"),
             Token::RightBracket => write!(f, "`]`"),
@@ -558,6 +562,7 @@ fn basic_tokenize(
                         Some(b"!=") => Some(Token::NotEqual),
                         Some(b">=") => Some(Token::GreaterThanOrEqual),
                         Some(b"<=") => Some(Token::LessThanOrEqual),
+                        Some(b"</") => Some(Token::ClosingTagStart),
                         Some(b"?.") => Some(Token::QuestionMarkDot),
                         Some(b"?[") => Some(Token::QuestionMarkLeftBracket),
                         _ => None,

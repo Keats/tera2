@@ -1,0 +1,8 @@
+$$ components.html
+{% component card(title) %}
+<div class="card">{{ title }}{{ body | safe }}</div>
+{% endcomponent card %}
+$$ test.html
+{% include "components.html" %}
+{% <card title="Hello"> %}
+content without closing tag
