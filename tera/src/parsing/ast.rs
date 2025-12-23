@@ -704,6 +704,22 @@ impl Type {
             Type::Array => value.is_array(),
         }
     }
+
+    /// Try to infer a type from a Value. When there is no equivalent, it returns None.
+    pub fn from_value(val: &Value) -> Option<Self> {
+        use crate::value::ValueKind;
+        match val.kind() {
+            ValueKind::String => Some(Type::String),
+            ValueKind::Bool => Some(Type::Bool),
+            ValueKind::I64 | ValueKind::I128 | ValueKind::U64 | ValueKind::U128 => {
+                Some(Type::Integer)
+            }
+            ValueKind::F64 => Some(Type::Float),
+            ValueKind::Array => Some(Type::Array),
+            ValueKind::Map => Some(Type::Map),
+            ValueKind::Undefined | ValueKind::Null | ValueKind::Bytes => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]

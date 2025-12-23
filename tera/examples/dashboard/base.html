@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard{% endblock %}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, sans-serif; line-height: 1.5; color: #333; background: #f5f5f5; }
+        a { color: #0066cc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .header { background: #fff; padding: 1rem 2rem; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .header-brand a { font-size: 1.25rem; font-weight: 600; color: #333; }
+        .header-nav .nav { display: flex; gap: 1.5rem; list-style: none; }
+
+        .sidebar { position: fixed; left: 0; top: 60px; width: 240px; height: calc(100vh - 60px); background: #fff; border-right: 1px solid #ddd; padding: 1rem 0; overflow-y: auto; }
+        .nav-menu { list-style: none; }
+        .nav-item { margin: 0.25rem 0; }
+        .nav-link { display: block; padding: 0.5rem 1.5rem; color: #555; }
+        .nav-link:hover { background: #f0f0f0; text-decoration: none; }
+        .nav-item.active > .nav-link { background: #e8f0fe; color: #0066cc; }
+        .nav-submenu { list-style: none; padding-left: 1rem; }
+
+        .main-content { margin-left: 240px; padding: 2rem; min-height: calc(100vh - 120px); }
+        .footer { margin-left: 240px; padding: 1rem 2rem; background: #fff; border-top: 1px solid #ddd; font-size: 0.875rem; color: #666; }
+
+        section { margin-bottom: 1.5rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: #fff; padding: 1.25rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 1.75rem; font-weight: 600; }
+        .stat-label { color: #666; font-size: 0.875rem; }
+
+        .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; }
+        .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid #eee; }
+        .card-title { font-size: 1rem; font-weight: 600; }
+        .card-body { padding: 1.25rem; }
+
+        .alert { padding: 1rem; border-radius: 6px; margin-bottom: 0.75rem; }
+        .alert-info { background: #e8f4fd; color: #0c5460; }
+        .alert-warning { background: #fff3cd; color: #856404; }
+        .alert-success { background: #d4edda; color: #155724; }
+        .alert-danger { background: #f8d7da; color: #721c24; }
+
+        .btn { display: inline-block; padding: 0.5rem 1rem; border: none; border-radius: 6px; font-size: 0.875rem; cursor: pointer; }
+        .btn-primary { background: #0066cc; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-success { background: #28a745; color: #fff; }
+        .btn-warning { background: #ffc107; color: #333; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+        .button-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+
+        .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; margin: 0.25rem; }
+        .badge-default { background: #e9ecef; color: #333; }
+        .badge-primary { background: #0066cc; color: #fff; }
+        .badge-success { background: #28a745; color: #fff; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .badge-danger { background: #dc3545; color: #fff; }
+        .badge-info { background: #17a2b8; color: #fff; }
+
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+        .table th { font-weight: 600; background: #f8f9fa; }
+        .table-striped tr:nth-child(even) { background: #f8f9fa; }
+
+        .icon { font-style: normal; margin-right: 0.25rem; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <header class="header">
+        {% block header %}
+        <div class="header-brand">
+            <a href="/">{{ site_name }}</a>
+        </div>
+        <nav class="header-nav">
+            {% block header_nav %}{% endblock %}
+        </nav>
+        {% endblock %}
+    </header>
+
+    <aside class="sidebar">
+        {% block sidebar %}{% endblock %}
+    </aside>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        {% block footer %}
+        <p>&copy; {{ current_year }} {{ site_name }}</p>
+        {% endblock %}
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

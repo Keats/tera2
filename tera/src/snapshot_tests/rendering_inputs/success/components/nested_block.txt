@@ -1,0 +1,20 @@
+$$ components
+{% component outer(title) %}
+<div class="outer">
+  <h1>{{ title }}</h1>
+  {{ body | safe }}
+</div>
+{% endcomponent outer %}
+
+{% component inner(text) %}
+<p class="inner">{{ text }}</p>
+{{ body | safe }}
+{% endcomponent inner %}
+$$ tpl
+{% <outer title="Hello"> %}
+  Before inner
+  {% <inner text="World"> %}
+    Nested content
+  {% </inner> %}
+  After inner
+{% </outer> %}

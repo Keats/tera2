@@ -892,11 +892,18 @@ impl<'a> Parser<'a> {
         expect_token!(self, Token::TagEnd(..), "%}")?;
 
         // Parse body content until {% </component> %}
-        let body = self.parse_until(|tok| matches!(tok, Token::LessThan))?;
+        let body = self.parse_until(|tok| matches!(tok, Token::ClosingTagStart))?;
+
+        // Check for unclosed component (EOF reached)
+        if self.next.is_none() {
+            return Err(Error::syntax_error(
+                format!("Unclosed component '{name}'"),
+                &self.current_span,
+            ));
+        }
 
         // Parse the closing tag: </component>
-        expect_token!(self, Token::LessThan, "<")?;
-        expect_token!(self, Token::Div, "/")?;
+        expect_token!(self, Token::ClosingTagStart, "</")?;
         let end_name = self.parse_dotted_component_name()?;
         if end_name != name {
             return Err(Error::syntax_error(
@@ -1143,7 +1150,12 @@ impl<'a> Parser<'a> {
                     self.next_or_error()?;
                 }
 
-                kwarg.default = Some(val);
+                kwarg.default = Some(val.clone());
+
+                // Infer type from default value if not explicitly specified
+                if kwarg.typ.is_none() {
+                    kwarg.typ = Type::from_value(&val);
+                }
             }
 
             // And finally maybe a comma
@@ -1367,7 +1379,7 @@ impl<'a> Parser<'a> {
                 }))
             }
             Token::LessThan => {
-                // Handle React-like component calls in tag context: {% <component()> %}...{% </component> %}
+                // Handle JSX-like component calls in tag context: {% <component()> %}...{% </component> %}
                 match &self.next {
                     Some(Ok((Token::Ident(_), _))) => {
                         // This looks like an XML component call
