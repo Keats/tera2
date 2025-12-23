@@ -10,19 +10,25 @@ ComponentDefinition {
             default: Some(
                 Array([]),
             ),
-            typ: None,
+            typ: Some(
+                Array,
+            ),
         },
         "array_of_maps": ComponentArgument {
             default: Some(
                 Array([Map({String("hello"): I64(1)})]),
             ),
-            typ: None,
+            typ: Some(
+                Array,
+            ),
         },
         "map": ComponentArgument {
             default: Some(
                 Map({}),
             ),
-            typ: None,
+            typ: Some(
+                Map,
+            ),
         },
     },
     rest_param_name: None,

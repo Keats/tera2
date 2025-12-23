@@ -1150,7 +1150,12 @@ impl<'a> Parser<'a> {
                     self.next_or_error()?;
                 }
 
-                kwarg.default = Some(val);
+                kwarg.default = Some(val.clone());
+
+                // Infer type from default value if not explicitly specified
+                if kwarg.typ.is_none() {
+                    kwarg.typ = Type::from_value(&val);
+                }
             }
 
             // And finally maybe a comma
@@ -1374,7 +1379,7 @@ impl<'a> Parser<'a> {
                 }))
             }
             Token::LessThan => {
-                // Handle React-like component calls in tag context: {% <component()> %}...{% </component> %}
+                // Handle JSX-like component calls in tag context: {% <component()> %}...{% </component> %}
                 match &self.next {
                     Some(Ok((Token::Ident(_), _))) => {
                         // This looks like an XML component call

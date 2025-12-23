@@ -156,7 +156,7 @@ This is mostly the same as macros, except the block is called `component`/`endco
 {% endcomponent button %}
 ```
 
-The other change is adding optional typing to component parameters and an optional component metadata that doesn't need to 
+The other change is adding optional typing to component parameters (parameters with a default value can have their type inferred) and an optional component metadata that doesn't need to 
 be explained here.
 
 The component above is closed: any templates using an argument not listed will error. You can make it open by adding a 
