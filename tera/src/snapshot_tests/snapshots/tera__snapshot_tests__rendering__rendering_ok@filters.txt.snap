@@ -58,6 +58,9 @@ indent3:one
 Bob
 7
 Child
+[]
+[1, 2]
+["a", "b"]
 ["Tchoupi", "Pilou", "Fanny"]
 [1]
 hello

@@ -46,6 +46,9 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ "name" | read_ctx }}
 {{ "vectors.1.2" | read_ctx }}
 {{ "objects.0.label" | read_ctx }}
+{{ {} | values }}
+{{ { "a": 2, "b": 1 } | values | sort }}
+{{ { 1: "b", 2: "a" } | values | sort | safe }}
 {{ data | get(key="names") | safe }}
 {{ data | get(key="ages", default=[1]) }}
 {{ "hello" | truncate(length=255) }}
