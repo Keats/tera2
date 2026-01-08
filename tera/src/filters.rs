@@ -534,6 +534,10 @@ pub(crate) fn map(val: Vec<Value>, kwargs: Kwargs, state: &State) -> TeraResult<
     Ok(res)
 }
 
+pub(crate) fn values(val: Map, _: Kwargs, _: &State) -> TeraResult<Vec<Value>> {
+    Ok(val.into_values().collect())
+}
+
 pub(crate) fn get(val: Map, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let key = kwargs.must_get::<&str>("key")?;
     let default = kwargs.get::<Value>("default")?;
