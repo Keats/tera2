@@ -36,7 +36,7 @@ fast = ["no_fmt", "fast_escape", "fast_hash"]
 glob_fs = ["dep:walkdir", "dep:globset"]
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8"
 insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
 tempfile = "3"

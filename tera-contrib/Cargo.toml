@@ -5,9 +5,9 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-tera = { version = "2", path = "../tera", default-features = false }
+tera = { path = "../tera", default-features = false }
 
-regex = { version = "1.11.1", optional = true}
+regex = { version = "1.12.2", optional = true}
 slug = {version = "0.1", optional = true}
 rand = {version = "0.9", optional = true}
 jiff = {version = "0.2.1", optional = true}
