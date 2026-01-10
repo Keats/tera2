@@ -49,6 +49,9 @@ indent3:{{ "one\ntwo\nthree\n\n" | indent(blank=true) }}
 {{ {} | values }}
 {{ { "a": 2, "b": 1 } | values | sort }}
 {{ { 1: "b", 2: "a" } | values | sort | safe }}
+{{ {} | keys }}
+{{ { "a": 2, "b": 1 } | keys | sort | safe }}
+{{ { 1: "b", 2: "a" } | keys | sort }}
 {{ data | get(key="names") | safe }}
 {{ data | get(key="ages", default=[1]) }}
 {{ "hello" | truncate(length=255) }}
