@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use tera::{Kwargs, State, TeraResult};
 
 /// Encodes a string to base64
@@ -48,10 +48,7 @@ mod tests {
         kwargs_map.insert("url_safe".into(), true.into());
         let kwargs = Kwargs::new(Arc::new(kwargs_map));
         // String with characters that differ between standard and URL-safe
-        assert_eq!(
-            b64_encode("<<??>>", kwargs, &state).unwrap(),
-            "PDw_Pz4-"
-        );
+        assert_eq!(b64_encode("<<??>>", kwargs, &state).unwrap(), "PDw_Pz4-");
     }
 
     #[test]
@@ -71,10 +68,7 @@ mod tests {
         let mut kwargs_map = Map::new();
         kwargs_map.insert("url_safe".into(), true.into());
         let kwargs = Kwargs::new(Arc::new(kwargs_map));
-        assert_eq!(
-            b64_decode("PDw_Pz4-", kwargs, &state).unwrap(),
-            "<<??>>"
-        );
+        assert_eq!(b64_decode("PDw_Pz4-", kwargs, &state).unwrap(), "<<??>>");
     }
 
     #[test]
