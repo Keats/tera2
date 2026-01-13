@@ -24,7 +24,7 @@ pub use filters::Filter;
 pub use parsing::parser::Parser;
 pub use tests::Test;
 pub use utils::escape_html;
-pub use value::Value;
+pub use value::{Value, Map};
 pub use value::number::Number;
 pub use vm::state::State;
 
