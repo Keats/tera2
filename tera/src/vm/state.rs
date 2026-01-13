@@ -80,7 +80,7 @@ impl<'t> State<'t> {
     /// 3. self.context (user context)
     /// 4. self.global_context (Tera's global context)
     /// 5. include_parent or return Value::Undefined
-    pub(crate) fn get(&self, name: &str) -> Value {
+    pub fn get(&self, name: &str) -> Value {
         for forloop in self.for_loops.iter().rev() {
             if let Some(v) = forloop.get(name) {
                 return v;

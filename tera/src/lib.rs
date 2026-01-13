@@ -21,11 +21,12 @@ pub use context::Context;
 pub use delimiters::Delimiters;
 pub use errors::{Error, ErrorKind, TeraResult};
 pub use filters::Filter;
+pub use functions::Function;
 pub use parsing::parser::Parser;
 pub use tests::Test;
 pub use utils::escape_html;
-pub use value::{Value, Map};
 pub use value::number::Number;
+pub use value::{Map, Value};
 pub use vm::state::State;
 
 #[cfg(feature = "fast_hash")]
