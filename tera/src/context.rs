@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::value::Value;
+use crate::value::{Key, Value};
 
 /// The struct that holds the context of a template rendering.
 ///
@@ -18,6 +18,34 @@ impl Context {
     /// Initializes an empty context
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Takes something that implements Serialize and creates a context with it.
+    /// Meant to be used if you have a hashmap or a struct and don't want to insert values
+    /// one by one in the context.
+    pub fn from_serialize<T: Serialize + ?Sized>(value: &T) -> crate::TeraResult<Self> {
+        let val = Value::from_serializable(value);
+        let type_name = val.name();
+
+        match val.into_map() {
+            Some(map) => {
+                let mut data = BTreeMap::new();
+                for (key, value) in map {
+                    let key_str: Cow<'static, str> = match key {
+                        Key::String(s) => Cow::Owned((*s).to_string()),
+                        Key::Str(s) => Cow::Owned(s.to_string()),
+                        Key::Bool(b) => Cow::Owned(b.to_string()),
+                        Key::U64(u) => Cow::Owned(u.to_string()),
+                        Key::I64(i) => Cow::Owned(i.to_string()),
+                    };
+                    data.insert(key_str, value);
+                }
+                Ok(Context { data })
+            }
+            None => Err(crate::Error::message(format!(
+                "from_serialize requires a struct or map, got {type_name}"
+            ))),
+        }
     }
 
     /// Converts the `val` parameter to `Value` and insert it into the context.
@@ -131,5 +159,33 @@ mod tests {
 
         assert!(ctx.contains_key("age"));
         assert_eq!(ctx.get("age"), Some(&Value::from(42)));
+    }
+
+    #[test]
+    fn context_from_serialize() {
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct Person {
+            name: String,
+            age: i32,
+        }
+
+        let person = Person {
+            name: "Alice".to_string(),
+            age: 30,
+        };
+        let ctx = Context::from_serialize(&person).unwrap();
+
+        assert!(ctx.contains_key("name"));
+        assert!(ctx.contains_key("age"));
+        assert_eq!(ctx.get("name").unwrap().as_str(), Some("Alice"));
+        assert_eq!(ctx.get("age").unwrap().as_i128(), Some(30));
+    }
+
+    #[test]
+    fn context_from_serialize_non_map_fails() {
+        let result = Context::from_serialize(&42);
+        assert!(result.is_err());
     }
 }
