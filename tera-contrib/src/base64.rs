@@ -1,0 +1,97 @@
+use base64::{engine::general_purpose, Engine};
+use tera::{Kwargs, State, TeraResult};
+
+/// Encodes a string to base64
+pub fn b64_encode(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+    let url_safe = kwargs.get::<bool>("url_safe")?.unwrap_or(false);
+    if url_safe {
+        Ok(general_purpose::URL_SAFE.encode(val))
+    } else {
+        Ok(general_purpose::STANDARD.encode(val))
+    }
+}
+
+/// Decodes a base64 string
+pub fn b64_decode(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+    let url_safe = kwargs.get::<bool>("url_safe")?.unwrap_or(false);
+    let decoded = if url_safe {
+        general_purpose::URL_SAFE.decode(val)
+    } else {
+        general_purpose::STANDARD.decode(val)
+    };
+    let bytes = decoded.map_err(|e| tera::Error::message(format!("Invalid base64: {e}")))?;
+    String::from_utf8(bytes).map_err(|e| tera::Error::message(format!("Invalid UTF-8: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use tera::value::Map;
+    use tera::{Context, Kwargs, State};
+
+    #[test]
+    fn test_b64_encode() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        assert_eq!(
+            b64_encode("hello world", Kwargs::default(), &state).unwrap(),
+            "aGVsbG8gd29ybGQ="
+        );
+    }
+
+    #[test]
+    fn test_b64_encode_url_safe() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let mut kwargs_map = Map::new();
+        kwargs_map.insert("url_safe".into(), true.into());
+        let kwargs = Kwargs::new(Arc::new(kwargs_map));
+        // String with characters that differ between standard and URL-safe
+        assert_eq!(
+            b64_encode("<<??>>", kwargs, &state).unwrap(),
+            "PDw_Pz4-"
+        );
+    }
+
+    #[test]
+    fn test_b64_decode() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        assert_eq!(
+            b64_decode("aGVsbG8gd29ybGQ=", Kwargs::default(), &state).unwrap(),
+            "hello world"
+        );
+    }
+
+    #[test]
+    fn test_b64_decode_url_safe() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let mut kwargs_map = Map::new();
+        kwargs_map.insert("url_safe".into(), true.into());
+        let kwargs = Kwargs::new(Arc::new(kwargs_map));
+        assert_eq!(
+            b64_decode("PDw_Pz4-", kwargs, &state).unwrap(),
+            "<<??>>"
+        );
+    }
+
+    #[test]
+    fn test_b64_roundtrip() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let original = "Hello, 世界! 🌍";
+        let encoded = b64_encode(original, Kwargs::default(), &state).unwrap();
+        let decoded = b64_decode(&encoded, Kwargs::default(), &state).unwrap();
+        assert_eq!(decoded, original);
+    }
+
+    #[test]
+    fn test_b64_decode_invalid() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let result = b64_decode("not valid base64!!!", Kwargs::default(), &state);
+        assert!(result.is_err());
+    }
+}

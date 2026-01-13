@@ -2,7 +2,7 @@ use tera::{Kwargs, State};
 
 /// Formats a number of bytes into a human-readable file size string.
 /// Uses binary units (KiB, MiB, GiB, etc.) by default.
-pub fn filesizeformat(val: u64, kwargs: Kwargs, _: &State) -> String {
+pub fn filesize_format(val: u64, kwargs: Kwargs, _: &State) -> String {
     let binary = kwargs.get::<bool>("binary").ok().flatten().unwrap_or(true);
 
     if binary {
@@ -23,8 +23,8 @@ mod tests {
     fn test_filesizeformat_binary() {
         let ctx = Context::new();
         let state = State::new(&ctx);
-        assert_eq!(filesizeformat(1024, Kwargs::default(), &state), "1 KiB");
-        assert_eq!(filesizeformat(1048576, Kwargs::default(), &state), "1 MiB");
+        assert_eq!(filesize_format(1024, Kwargs::default(), &state), "1 KiB");
+        assert_eq!(filesize_format(1048576, Kwargs::default(), &state), "1 MiB");
     }
 
     #[test]
@@ -34,6 +34,6 @@ mod tests {
         let mut map = Map::new();
         map.insert("binary".into(), false.into());
         let kwargs = Kwargs::new(Arc::new(map));
-        assert_eq!(filesizeformat(1000, kwargs, &state), "1 kB");
+        assert_eq!(filesize_format(1000, kwargs, &state), "1 kB");
     }
 }
