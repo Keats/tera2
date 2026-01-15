@@ -301,8 +301,10 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(map), None)
                 }
                 Instruction::BuildMapWithSpreads(entry_types) => {
-                    let mut entries: Vec<_> = Vec::with_capacity(entry_types.len());
+                    let mut result_map = crate::value::Map::new();
 
+                    // We process the values from right to left because right will always win
+                    // against the same key/val on the left so we don't need to insert multiple times
                     for is_spread in entry_types.iter().rev() {
                         if *is_spread {
                             let (val, span) = state.stack.pop();
@@ -315,28 +317,13 @@ impl<'tera> VirtualMachine<'tera> {
                                     span
                                 );
                             }
-                            entries.push((None, val));
+                            for (k, v) in val.into_map().unwrap() {
+                                result_map.entry(k).or_insert(v);
+                            }
                         } else {
                             let (val, _) = state.stack.pop();
                             let (key, _) = state.stack.pop();
-                            entries.push((Some(key.as_key()?), val));
-                        }
-                    }
-
-                    // We process the values from right to left because right will always win
-                    // against the same key/val on the left so we don't need to insert multiple times
-                    let mut result_map = crate::value::Map::new();
-
-                    for entry in entries {
-                        match entry {
-                            (Some(key), val) => {
-                                result_map.entry(key).or_insert(val);
-                            }
-                            (None, spread) => {
-                                for (k, v) in spread.into_map().unwrap() {
-                                    result_map.entry(k).or_insert(v);
-                                }
-                            }
+                            result_map.entry(key.as_key()?).or_insert(val);
                         }
                     }
 
@@ -351,14 +338,9 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(elems), None);
                 }
                 Instruction::BuildListWithSpreads(entry_types) => {
-                    let mut elems = Vec::with_capacity(entry_types.len());
-                    for _ in 0..entry_types.len() {
-                        elems.push(state.stack.pop());
-                    }
-                    elems.reverse();
-
                     let mut result = Vec::new();
-                    for ((val, span), is_spread) in elems.into_iter().zip(entry_types.iter()) {
+                    for is_spread in entry_types.iter().rev() {
+                        let (val, span) = state.stack.pop();
                         if *is_spread {
                             if !val.is_array() {
                                 rendering_error!(
@@ -369,11 +351,14 @@ impl<'tera> VirtualMachine<'tera> {
                                     span
                                 );
                             }
-                            result.extend(val.into_vec().unwrap());
+                            for item in val.into_vec().unwrap().into_iter().rev() {
+                                result.push(item);
+                            }
                         } else {
                             result.push(val);
                         }
                     }
+                    result.reverse();
 
                     state.stack.push(Value::from(result), None);
                 }
