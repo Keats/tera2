@@ -161,7 +161,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::LoadAttr(attr) => {
                     let (a, a_span) = state.stack.pop();
                     if a.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), a_span);
+                        rendering_error!(format!("Field `{}` is not defined", attr), a_span);
                     }
                     state
                         .stack
@@ -183,7 +183,16 @@ impl<'tera> VirtualMachine<'tera> {
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
                     if val.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), val_span);
+                        rendering_error!(
+                            "Cannot index into an undefined value".to_owned(),
+                            val_span
+                        );
+                    }
+                    if subscript.is_undefined() {
+                        rendering_error!(
+                            "Index expression is undefined".to_owned(),
+                            subscript_span
+                        );
                     }
 
                     let c_span = combine_spans(&val_span, &subscript_span);
@@ -204,6 +213,12 @@ impl<'tera> VirtualMachine<'tera> {
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
+                        if subscript.is_undefined() {
+                            rendering_error!(
+                                format!("Index expression is undefined"),
+                                subscript_span
+                            );
+                        }
                         let c_span = combine_spans(&val_span, &subscript_span);
                         match val.get_item(subscript) {
                             Ok(v) => {
@@ -221,7 +236,7 @@ impl<'tera> VirtualMachine<'tera> {
                     let (start, _) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
                     if val.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), val_span);
+                        rendering_error!("Cannot slice an undefined value".to_owned(), val_span);
                     }
 
                     // This returns an error if the value is not an array/string so we don't need to
@@ -666,7 +681,7 @@ impl<'tera> VirtualMachine<'tera> {
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
                             rendering_error!(
-                                format!("Container is not defined"),
+                                format!("Variable `{}` is not defined", path[0]),
                                 span: chunk.get_span_at(current_ip, k)
                             );
                         }

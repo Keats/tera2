@@ -3,7 +3,7 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/invalid_array_idx.txt
 ---
-error: Array indices can only be integers, not `f64`.
+error: Array index must be an integer, got `f64`.
  --> invalid_array_idx.txt:1:11
   |
 1 | {{ vectors[1.1] }}

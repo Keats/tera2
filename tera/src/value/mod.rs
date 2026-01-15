@@ -728,7 +728,7 @@ impl Value {
                     inner: ValueInner::Undefined,
                 })),
                 Err(_) => Err(Error::message(format!(
-                    "`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed",
+                    "Map keys must be strings, integers, or bools, got `{}`.",
                     item.name()
                 ))),
             },
@@ -744,8 +744,8 @@ impl Value {
                     }))
                 }
                 None => Err(Error::message(format!(
-                    "Array indices can only be integers, not `{}`.",
-                    item.name()
+                    "Array index must be an integer, got `{}`.",
+                    item.name(),
                 ))),
             },
             _ => Ok(Value {
