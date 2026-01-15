@@ -3,8 +3,8 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/unknown_subscript.txt
 ---
-error: Container is not defined
- --> unknown_subscript.txt:1:3
+error: Index expression is undefined
+ --> unknown_subscript.txt:1:11
   |
-1 | {{ username[unknown] }}
-  |    ^^^^^^^^
+1 | {{ numbers[unknown] }}
+  |            ^^^^^^^
