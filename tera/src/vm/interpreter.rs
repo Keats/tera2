@@ -261,12 +261,12 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     } else {
                         // Avoiding String as much as possible
-                        let mut out: Vec<u8> = Vec::new();
-                        top.format(&mut out)?;
+                        state.escape_buffer.clear();
+                        top.format(&mut state.escape_buffer)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
-                            (self.tera.escape_fn)(&out, captured)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, captured)?;
                         } else {
-                            (self.tera.escape_fn)(&out, output)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, output)?;
                         }
                     }
                 }
@@ -689,12 +689,12 @@ impl<'tera> VirtualMachine<'tera> {
                             val.format(output)?;
                         }
                     } else {
-                        let mut out: Vec<u8> = Vec::new();
-                        val.format(&mut out)?;
+                        state.escape_buffer.clear();
+                        val.format(&mut state.escape_buffer)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
-                            (self.tera.escape_fn)(&out, captured)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, captured)?;
                         } else {
-                            (self.tera.escape_fn)(&out, output)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, output)?;
                         }
                     }
                 }

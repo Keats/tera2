@@ -28,6 +28,8 @@ pub struct State<'tera> {
     pub(crate) global_context: Option<&'tera Context>,
     /// To handle the capture instructions
     pub(crate) capture_buffers: Vec<Vec<u8>>,
+    /// Scratch buffer for escaping output to avoid per-write allocations
+    pub(crate) escape_buffer: Vec<u8>,
     /// Used in includes only
     pub(crate) include_parent: Option<&'tera State<'tera>>,
 
@@ -54,6 +56,7 @@ impl<'t> State<'t> {
             global_context: None,
             chunk: None,
             capture_buffers: Vec::with_capacity(4),
+            escape_buffer: Vec::with_capacity(128),
             include_parent: None,
             blocks: BTreeMap::new(),
             current_block_name: None,
