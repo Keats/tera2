@@ -492,7 +492,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn is_number(&self) -> bool {
+    pub fn is_number(&self) -> bool {
         matches!(
             &self.inner,
             ValueInner::U64(..)
