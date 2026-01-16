@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -949,6 +950,21 @@ impl Default for Tera {
         tera.register_builtin_tests();
         tera.register_builtin_functions();
         tera
+    }
+}
+
+impl fmt::Debug for Tera {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Tera")
+            .field("glob", &self.glob)
+            .field("templates", &self.templates.len())
+            .field("autoescape_suffixes", &self.autoescape_suffixes)
+            .field("filters", &self.filters.len())
+            .field("tests", &self.tests.len())
+            .field("functions", &self.functions.len())
+            .field("components", &self.components.len())
+            .field("delimiters", &self.delimiters)
+            .finish_non_exhaustive()
     }
 }
 
