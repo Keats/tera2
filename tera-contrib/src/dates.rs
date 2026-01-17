@@ -5,81 +5,89 @@ use tera::{Kwargs, Number, State, TeraResult, Value};
 
 static PARSER: DateTimeParser = DateTimeParser::new();
 
-pub fn now(kwargs: Kwargs, _: &State) -> TeraResult<Value> {
-    let utc = kwargs.get::<bool>("utc")?.unwrap_or(false);
-    let as_timestamp = kwargs.get::<bool>("timestamp")?.unwrap_or(false);
-
-    let mut now = Zoned::now();
-    if utc {
-        now = now.with_time_zone(TimeZone::UTC);
-    }
-
-    if as_timestamp {
-        Ok(Value::from(now.timestamp().as_second()))
+/// Parse a Value (string or integer) into a Zoned datetime.
+fn parse_to_zoned(val: &Value, tz: Option<TimeZone>) -> TeraResult<Zoned> {
+    let default_tz = tz.unwrap_or(TimeZone::UTC);
+    if let Some(s) = val.as_str() {
+        PARSER
+            .parse_zoned(s)
+            .or_else(|_| {
+                PARSER
+                    .parse_timestamp(s)
+                    .map(|t| t.to_zoned(default_tz.clone()))
+            })
+            .or_else(|_| {
+                PARSER
+                    .parse_datetime(s)
+                    .and_then(|d| d.to_zoned(default_tz.clone()))
+            })
+            .or_else(|_| PARSER.parse_date(s).and_then(|d| d.to_zoned(default_tz)))
+            .map_err(|e| {
+                tera::Error::message(format!(
+                    "The string {s} cannot be parsed as a valid date: {e}"
+                ))
+            })
+    } else if let Some(Number::Integer(ts)) = val.as_number() {
+        Timestamp::new(ts as i64, 0)
+            .map(|t| t.to_zoned(default_tz))
+            .map_err(|e| tera::Error::message(format!("Invalid timestamp: {e}")))
     } else {
-        Ok(Value::from(now.timestamp().to_string()))
+        Err(tera::Error::message(format!(
+            "Invalid value: expected a string or integer, got {}",
+            val.name()
+        )))
     }
 }
 
+pub fn now(kwargs: Kwargs, _: &State) -> TeraResult<Value> {
+    let tz_str = kwargs.get::<&str>("timezone")?.unwrap_or("UTC");
+    let timezone = TimeZone::get(tz_str)
+        .map_err(|_| tera::Error::message(format!("Unknown timezone: {tz_str}")))?;
+    let now = Zoned::now().with_time_zone(timezone);
+    Ok(Value::from(now.to_string()))
+}
+
+/// Formats the given value using the given format if it can be parsed as a date/datetime
 pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let format = kwargs.get::<&str>("format")?.unwrap_or("%Y-%m-%d");
     let timezone = match kwargs.get::<&str>("timezone")? {
-        Some(t) => match TimeZone::get(t) {
-            Ok(tz) => Some(tz),
-            Err(_) => return Err(tera::Error::message(format!("Unknown timezone: {t}"))),
-        },
+        Some(t) => Some(
+            TimeZone::get(t).map_err(|_| tera::Error::message(format!("Unknown timezone: {t}")))?,
+        ),
         None => None,
     };
 
-    let zoned = match val.as_str() {
-        Some(s) => {
-            let res = PARSER
-                .parse_timestamp(s)
-                .map(|t| t.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
-                .or_else(|_| PARSER.parse_zoned(s))
-                .or_else(|_| {
-                    PARSER
-                        .parse_datetime(s)
-                        .and_then(|d| d.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
-                })
-                .or_else(|_| {
-                    PARSER
-                        .parse_date(s)
-                        .and_then(|d| d.to_zoned(timezone.clone().unwrap_or(TimeZone::UTC)))
-                });
-
-            let mut zoned = match res {
-                Ok(z) => z,
-                Err(e) => {
-                    return Err(tera::Error::message(format!(
-                        "The string {s} cannot be parsed as a RFC3339 or RFC2822: {e}"
-                    )));
-                }
-            };
-            if let Some(tz) = timezone {
-                zoned = zoned.with_time_zone(tz);
-            }
-            zoned
-        }
-        None => {
-            // Try to get as i64 for timestamp
-            if let Some(Number::Integer(ts)) = val.as_number() {
-                let time = match Timestamp::new(ts as i64, 0) {
-                    Ok(t) => t,
-                    Err(e) => return Err(tera::Error::message(format!("Invalid timestamp: {e}"))),
-                };
-                time.to_zoned(timezone.unwrap_or(TimeZone::UTC))
-            } else {
-                return Err(tera::Error::message(format!(
-                    "Invalid value: the date filter can only be used on strings or i64, this is a {}",
-                    val.name()
-                )));
-            }
-        }
-    };
+    let mut zoned = parse_to_zoned(val, timezone.clone())?;
+    if let Some(tz) = timezone {
+        zoned = zoned.with_time_zone(tz);
+    }
 
     jiff::fmt::strtime::format(format, &zoned)
-        .map_err(|e| tera::Error::message(format!("Invalid date format `{}`: {e}", format,)))
+        .map_err(|e| tera::Error::message(format!("Invalid date format `{format}`: {e}")))
+}
+
+pub fn is_before(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
+    let other = kwargs.must_get::<&Value>("other")?;
+    let inclusive = kwargs.get::<bool>("inclusive")?.unwrap_or(false);
+    let val_zoned = parse_to_zoned(val, None)?;
+    let other_zoned = parse_to_zoned(other, None)?;
+    if inclusive {
+        Ok(val_zoned <= other_zoned)
+    } else {
+        Ok(val_zoned < other_zoned)
+    }
+}
+
+pub fn is_after(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
+    let other = kwargs.must_get::<&Value>("other")?;
+    let inclusive = kwargs.get::<bool>("inclusive")?.unwrap_or(false);
+    let val_zoned = parse_to_zoned(val, None)?;
+    let other_zoned = parse_to_zoned(other, None)?;
+    if inclusive {
+        Ok(val_zoned >= other_zoned)
+    } else {
+        Ok(val_zoned > other_zoned)
+    }
 }
 
 #[cfg(test)]
@@ -190,6 +198,102 @@ mod tests {
     fn test_register() {
         let mut tera = tera::Tera::default();
         tera.register_filter("date", date);
+        tera.register_test("before", is_before);
+        tera.register_test("after", is_after);
         tera.register_function("now", now);
+    }
+
+    #[test]
+    fn test_is_before() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+
+        // (val, other, inclusive, expected)
+        let cases: Vec<(Value, Value, bool, bool)> = vec![
+            (Value::from(500), Value::from(1000), false, true),
+            (Value::from(1000), Value::from(500), false, false),
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-06-01"),
+                false,
+                true,
+            ),
+            (
+                Value::from("2024-06-01"),
+                Value::from("2024-01-01"),
+                false,
+                false,
+            ),
+            (Value::from(1000), Value::from("2020-01-01"), false, true), // mixed formats
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-01-01"),
+                false,
+                false,
+            ), // equal
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-01-01"),
+                true,
+                true,
+            ), // equal + inclusive
+        ];
+
+        for (val, other, inclusive, expected) in cases {
+            let mut map = Map::new();
+            map.insert("other".into(), other);
+            if inclusive {
+                map.insert("inclusive".into(), Value::from(true));
+            }
+            let kwargs = Kwargs::new(Arc::new(map));
+            assert_eq!(is_before(&val, kwargs, &state).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn test_is_after() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+
+        // (val, other, inclusive, expected)
+        let cases: Vec<(Value, Value, bool, bool)> = vec![
+            (Value::from(1000), Value::from(500), false, true),
+            (Value::from(500), Value::from(1000), false, false),
+            (
+                Value::from("2024-06-01"),
+                Value::from("2024-01-01"),
+                false,
+                true,
+            ),
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-06-01"),
+                false,
+                false,
+            ),
+            (Value::from("2020-01-01"), Value::from(1000), false, true), // mixed formats
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-01-01"),
+                false,
+                false,
+            ), // equal
+            (
+                Value::from("2024-01-01"),
+                Value::from("2024-01-01"),
+                true,
+                true,
+            ), // equal + inclusive
+        ];
+
+        for (val, other, inclusive, expected) in cases {
+            let mut map = Map::new();
+            map.insert("other".into(), other);
+            if inclusive {
+                map.insert("inclusive".into(), Value::from(true));
+            }
+            let kwargs = Kwargs::new(Arc::new(map));
+            assert_eq!(is_after(&val, kwargs, &state).unwrap(), expected);
+        }
     }
 }
