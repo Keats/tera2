@@ -2,6 +2,7 @@ use crate::delimiters::Delimiters;
 use crate::errors::{Error, ErrorKind, TeraResult};
 use crate::parsing::ast::ComponentDefinition;
 use crate::parsing::{Chunk, Compiler};
+use crate::tera::Tera;
 use crate::utils::Span;
 use crate::{HashMap, Parser};
 
@@ -142,7 +143,7 @@ impl Template {
 /// Recursive fn that finds all the parents and put them in an ordered Vec from closest to first parent
 /// parent template
 pub(crate) fn find_parents(
-    templates: &HashMap<String, Template>,
+    tera: &Tera,
     start: &Template,
     template: &Template,
     mut parents: Vec<String>,
@@ -152,10 +153,11 @@ pub(crate) fn find_parents(
     }
 
     match template.parents.last() {
-        Some(ref p) => match templates.get(*p) {
-            Some(parent) => {
+        Some(ref p) => match tera.resolve_template_name(p) {
+            Some(resolved) => {
+                let parent = &tera.templates[resolved];
                 parents.push(parent.name.clone());
-                find_parents(templates, start, parent, parents)
+                find_parents(tera, start, parent, parents)
             }
             None => Err(Error::missing_parent(&template.name, p)),
         },
@@ -172,28 +174,24 @@ mod tests {
 
     #[test]
     fn can_find_parents() {
-        let delimiters = Delimiters::default();
-        let mut tpls = HashMap::new();
-        tpls.insert(
-            "a".to_string(),
-            Template::new("a", "", None, delimiters).unwrap(),
-        );
-        tpls.insert(
-            "b".to_string(),
-            Template::new("b", "{% extends 'a' %}", None, delimiters).unwrap(),
-        );
-        tpls.insert(
-            "c".to_string(),
-            Template::new("c", "{% extends 'b' %}", None, delimiters).unwrap(),
-        );
+        let mut tera = Tera::default();
+        tera.add_raw_templates(vec![
+            ("a", ""),
+            ("b", "{% extends 'a' %}"),
+            ("c", "{% extends 'b' %}"),
+        ])
+        .unwrap();
 
-        let parents_a = find_parents(&tpls, &tpls["a"], &tpls["a"], vec![]).unwrap();
+        let parents_a =
+            find_parents(&tera, &tera.templates["a"], &tera.templates["a"], vec![]).unwrap();
         assert!(parents_a.is_empty());
 
-        let parents_b = find_parents(&tpls, &tpls["b"], &tpls["b"], vec![]).unwrap();
+        let parents_b =
+            find_parents(&tera, &tera.templates["b"], &tera.templates["b"], vec![]).unwrap();
         assert_eq!(parents_b, vec!["a".to_string()]);
 
-        let parents_c = find_parents(&tpls, &tpls["c"], &tpls["c"], vec![]).unwrap();
+        let parents_c =
+            find_parents(&tera, &tera.templates["c"], &tera.templates["c"], vec![]).unwrap();
         assert_eq!(parents_c, vec!["a".to_string(), "b".to_string()]);
     }
 
