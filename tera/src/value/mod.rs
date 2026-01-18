@@ -492,7 +492,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn is_number(&self) -> bool {
+    pub fn is_number(&self) -> bool {
         matches!(
             &self.inner,
             ValueInner::U64(..)
@@ -728,7 +728,7 @@ impl Value {
                     inner: ValueInner::Undefined,
                 })),
                 Err(_) => Err(Error::message(format!(
-                    "`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed",
+                    "Map keys must be strings, integers, or bools, got `{}`.",
                     item.name()
                 ))),
             },
@@ -744,8 +744,8 @@ impl Value {
                     }))
                 }
                 None => Err(Error::message(format!(
-                    "Array indices can only be integers, not `{}`.",
-                    item.name()
+                    "Array index must be an integer, got `{}`.",
+                    item.name(),
                 ))),
             },
             _ => Ok(Value {
@@ -914,6 +914,14 @@ impl From<&str> for Value {
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
+        Value {
+            inner: ValueInner::String(SmartString::new(&value, StringKind::Normal)),
+        }
+    }
+}
+
+impl From<std::borrow::Cow<'_, str>> for Value {
+    fn from(value: std::borrow::Cow<'_, str>) -> Self {
         Value {
             inner: ValueInner::String(SmartString::new(&value, StringKind::Normal)),
         }

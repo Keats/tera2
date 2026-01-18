@@ -1,3 +1,5 @@
+#[cfg(feature = "base64")]
+pub mod base64;
 #[cfg(feature = "date")]
 pub mod dates;
 #[cfg(feature = "filesize_format")]

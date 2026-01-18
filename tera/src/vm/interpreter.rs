@@ -158,52 +158,44 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(v.clone(), Some(current_ip..=current_ip));
                 }
                 Instruction::LoadName(n) => state.load_name(n, current_ip),
-                Instruction::LoadAttr(attr) => {
+                Instruction::LoadAttr(attr) | Instruction::LoadAttrOpt(attr) => {
+                    let is_optional = matches!(instr, Instruction::LoadAttrOpt(_));
                     let (a, a_span) = state.stack.pop();
-                    if a.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), a_span);
-                    }
-                    state
-                        .stack
-                        .push(a.get_attr(attr), Some(current_ip..=current_ip));
-                }
-                Instruction::LoadAttrOpt(attr) => {
-                    let (a, _a_span) = state.stack.pop();
-                    if a.is_undefined() || a.is_null() {
+                    if is_optional && (a.is_undefined() || a.is_null()) {
                         state
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
+                        if a.is_undefined() {
+                            rendering_error!(format!("Field `{}` is not defined", attr), a_span);
+                        }
                         state
                             .stack
                             .push(a.get_attr(attr), Some(current_ip..=current_ip));
                     }
                 }
-                Instruction::BinarySubscript => {
+                Instruction::BinarySubscript | Instruction::BinarySubscriptOpt => {
+                    let is_optional = matches!(instr, Instruction::BinarySubscriptOpt);
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
-                    if val.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), val_span);
-                    }
-
-                    let c_span = combine_spans(&val_span, &subscript_span);
-                    match val.get_item(subscript) {
-                        Ok(v) => {
-                            state.stack.push(v, c_span);
-                        }
-                        Err(e) => {
-                            rendering_error!(e.to_string(), subscript_span);
-                        }
-                    }
-                }
-                Instruction::BinarySubscriptOpt => {
-                    let (subscript, subscript_span) = state.stack.pop();
-                    let (val, val_span) = state.stack.pop();
-                    if val.is_undefined() || val.is_null() {
+                    if is_optional && (val.is_undefined() || val.is_null()) {
                         state
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
+                        if val.is_undefined() {
+                            rendering_error!(
+                                "Cannot index into an undefined value".to_owned(),
+                                val_span
+                            );
+                        }
+                        if subscript.is_undefined() {
+                            rendering_error!(
+                                "Index expression is undefined".to_owned(),
+                                subscript_span
+                            );
+                        }
+
                         let c_span = combine_spans(&val_span, &subscript_span);
                         match val.get_item(subscript) {
                             Ok(v) => {
@@ -215,36 +207,24 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     }
                 }
-                Instruction::Slice => {
+                Instruction::Slice | Instruction::SliceOpt => {
+                    let is_optional = matches!(instr, Instruction::SliceOpt);
                     let (step, _) = state.stack.pop();
                     let (end, _) = state.stack.pop();
                     let (start, _) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
-                    if val.is_undefined() {
-                        rendering_error!(format!("Container is not defined"), val_span);
-                    }
-
-                    // This returns an error if the value is not an array/string so we don't need to
-                    // expand the span.
-                    match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
-                        Ok(v) => {
-                            state.stack.push(v, val_span);
-                        }
-                        Err(e) => {
-                            rendering_error!(e.to_string(), val_span);
-                        }
-                    }
-                }
-                Instruction::SliceOpt => {
-                    let (step, _) = state.stack.pop();
-                    let (end, _) = state.stack.pop();
-                    let (start, _) = state.stack.pop();
-                    let (val, val_span) = state.stack.pop();
-                    if val.is_undefined() {
+                    if is_optional && val.is_undefined() {
                         state
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
                     } else {
+                        if val.is_undefined() {
+                            rendering_error!(
+                                "Cannot slice an undefined value".to_owned(),
+                                val_span
+                            );
+                        }
+
                         // This returns an error if the value is not an array/string so we don't need to
                         // expand the span.
                         match val.slice(start.as_i128(), end.as_i128(), step.as_i128()) {
@@ -281,12 +261,12 @@ impl<'tera> VirtualMachine<'tera> {
                         }
                     } else {
                         // Avoiding String as much as possible
-                        let mut out: Vec<u8> = Vec::new();
-                        top.format(&mut out)?;
+                        state.escape_buffer.clear();
+                        top.format(&mut state.escape_buffer)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
-                            (self.tera.escape_fn)(&out, captured)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, captured)?;
                         } else {
-                            (self.tera.escape_fn)(&out, output)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, output)?;
                         }
                     }
                 }
@@ -321,8 +301,10 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(map), None)
                 }
                 Instruction::BuildMapWithSpreads(entry_types) => {
-                    let mut entries: Vec<_> = Vec::with_capacity(entry_types.len());
+                    let mut result_map = crate::value::Map::new();
 
+                    // We process the values from right to left because right will always win
+                    // against the same key/val on the left so we don't need to insert multiple times
                     for is_spread in entry_types.iter().rev() {
                         if *is_spread {
                             let (val, span) = state.stack.pop();
@@ -335,28 +317,13 @@ impl<'tera> VirtualMachine<'tera> {
                                     span
                                 );
                             }
-                            entries.push((None, val));
+                            for (k, v) in val.into_map().unwrap() {
+                                result_map.entry(k).or_insert(v);
+                            }
                         } else {
                             let (val, _) = state.stack.pop();
                             let (key, _) = state.stack.pop();
-                            entries.push((Some(key.as_key()?), val));
-                        }
-                    }
-
-                    // We process the values from right to left because right will always win
-                    // against the same key/val on the left so we don't need to insert multiple times
-                    let mut result_map = crate::value::Map::new();
-
-                    for entry in entries {
-                        match entry {
-                            (Some(key), val) => {
-                                result_map.entry(key).or_insert(val);
-                            }
-                            (None, spread) => {
-                                for (k, v) in spread.into_map().unwrap() {
-                                    result_map.entry(k).or_insert(v);
-                                }
-                            }
+                            result_map.entry(key.as_key()?).or_insert(val);
                         }
                     }
 
@@ -371,14 +338,9 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(elems), None);
                 }
                 Instruction::BuildListWithSpreads(entry_types) => {
-                    let mut elems = Vec::with_capacity(entry_types.len());
-                    for _ in 0..entry_types.len() {
-                        elems.push(state.stack.pop());
-                    }
-                    elems.reverse();
-
                     let mut result = Vec::new();
-                    for ((val, span), is_spread) in elems.into_iter().zip(entry_types.iter()) {
+                    for is_spread in entry_types.iter().rev() {
+                        let (val, span) = state.stack.pop();
                         if *is_spread {
                             if !val.is_array() {
                                 rendering_error!(
@@ -389,11 +351,14 @@ impl<'tera> VirtualMachine<'tera> {
                                     span
                                 );
                             }
-                            result.extend(val.into_vec().unwrap());
+                            for item in val.into_vec().unwrap().into_iter().rev() {
+                                result.push(item);
+                            }
                         } else {
                             result.push(val);
                         }
                     }
+                    result.reverse();
 
                     state.stack.push(Value::from(result), None);
                 }
@@ -661,12 +626,12 @@ impl<'tera> VirtualMachine<'tera> {
                 // Combined instructions
                 Instruction::LoadPath(path) => {
                     let chunk = state.chunk.expect("to have a chunk");
-                    let mut val = state.get(&path[0]);
+                    let mut val = state.get_value(&path[0]);
                     let num_attrs = path.len() - 1;
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
                             rendering_error!(
-                                format!("Container is not defined"),
+                                format!("Variable `{}` is not defined", path[0]),
                                 span: chunk.get_span_at(current_ip, k)
                             );
                         }
@@ -682,7 +647,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::WritePath(path) => {
-                    let mut val = state.get(&path[0]);
+                    let mut val = state.get_value(&path[0]);
                     if val.is_undefined() {
                         let chunk = state.chunk.expect("to have a chunk");
                         rendering_error!(
@@ -709,12 +674,12 @@ impl<'tera> VirtualMachine<'tera> {
                             val.format(output)?;
                         }
                     } else {
-                        let mut out: Vec<u8> = Vec::new();
-                        val.format(&mut out)?;
+                        state.escape_buffer.clear();
+                        val.format(&mut state.escape_buffer)?;
                         if let Some(captured) = state.capture_buffers.last_mut() {
-                            (self.tera.escape_fn)(&out, captured)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, captured)?;
                         } else {
-                            (self.tera.escape_fn)(&out, output)?;
+                            (self.tera.escape_fn)(&state.escape_buffer, output)?;
                         }
                     }
                 }

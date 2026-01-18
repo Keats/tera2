@@ -7,7 +7,7 @@ use crate::{HashMap, Parser};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Template {
-    pub(crate) name: String,
+    pub name: String,
     pub(crate) source: String,
     pub(crate) path: Option<String>,
     pub(crate) chunk: Chunk,

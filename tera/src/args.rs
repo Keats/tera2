@@ -204,6 +204,16 @@ impl Kwargs {
     }
 }
 
+impl<const N: usize> From<[(&'static str, Value); N]> for Kwargs {
+    fn from(pairs: [(&'static str, Value); N]) -> Self {
+        let mut map = Map::new();
+        for (k, v) in pairs {
+            map.insert(k.into(), v);
+        }
+        Kwargs::new(Arc::new(map))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

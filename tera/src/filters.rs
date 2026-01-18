@@ -684,10 +684,8 @@ mod tests {
             );
         }
 
-        let mut map = Map::new();
-        map.insert("base".into(), 2.into());
         assert_eq!(
-            int("0b1010".into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            int("0b1010".into(), Kwargs::from([("base", 2.into())]), &state).unwrap(),
             10.into()
         );
 
@@ -745,24 +743,18 @@ mod tests {
         let state = State::new(&ctx);
         assert_eq!(round(2.1, Kwargs::default(), &state).unwrap(), 2.into());
 
-        let mut map = Map::new();
-        map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round(2.1, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.1, Kwargs::from([("method", "ceil".into())]), &state).unwrap(),
             3.into()
         );
 
-        let mut map = Map::new();
-        map.insert("method".into(), "floor".into());
         assert_eq!(
-            round(2.9, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.9, Kwargs::from([("method", "floor".into())]), &state).unwrap(),
             2.into()
         );
 
-        let mut map = Map::new();
-        map.insert("precision".into(), 2.into());
         assert_eq!(
-            round(2.245, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.245, Kwargs::from([("precision", 2.into())]), &state).unwrap(),
             (2.25).into()
         );
     }
