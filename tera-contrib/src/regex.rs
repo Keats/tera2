@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
@@ -10,12 +9,12 @@ static STRIPTAGS_RE: LazyLock<Regex> =
 
 static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unwrap());
 
-pub fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    STRIPTAGS_RE.replace_all(val, "")
+pub fn striptags(val: &str, _: Kwargs, _: &State) -> String {
+    STRIPTAGS_RE.replace_all(val, "").into_owned()
 }
 
-pub fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    SPACELESS_RE.replace_all(val, "><")
+pub fn spaceless(val: &str, _: Kwargs, _: &State) -> String {
+    SPACELESS_RE.replace_all(val, "><").into_owned()
 }
 
 fn get_or_create_regex(cache: &RwLock<HashMap<String, Regex>>, pattern: &str) -> TeraResult<Regex> {
@@ -193,5 +192,14 @@ mod tests {
         let kwargs = Kwargs::new(Arc::new(map));
         let result = regex_replace.call("test", kwargs, &state);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("striptags", striptags);
+        tera.register_filter("spaceless", spaceless);
+        tera.register_filter("regex_replace", RegexReplace::default());
+        tera.register_test("matching", Matching::default());
     }
 }

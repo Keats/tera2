@@ -920,6 +920,14 @@ impl From<String> for Value {
     }
 }
 
+impl From<std::borrow::Cow<'_, str>> for Value {
+    fn from(value: std::borrow::Cow<'_, str>) -> Self {
+        Value {
+            inner: ValueInner::String(SmartString::new(&value, StringKind::Normal)),
+        }
+    }
+}
+
 impl From<u8> for Value {
     fn from(value: u8) -> Self {
         Value {

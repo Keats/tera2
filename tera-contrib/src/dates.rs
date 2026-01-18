@@ -185,4 +185,11 @@ mod tests {
             assert!(res.is_err());
         }
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("date", date);
+        tera.register_function("now", now);
+    }
 }

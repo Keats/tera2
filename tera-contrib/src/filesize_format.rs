@@ -36,4 +36,10 @@ mod tests {
         let kwargs = Kwargs::new(Arc::new(map));
         assert_eq!(filesize_format(1000, kwargs, &state), "1 kB");
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("filesize_format", filesize_format);
+    }
 }
