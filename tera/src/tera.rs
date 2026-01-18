@@ -49,6 +49,8 @@ pub struct Tera {
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
     /// Custom delimiters for template syntax
     delimiters: Delimiters,
+    /// Fallback prefixes to try when a template is not found by exact name.
+    fallback_prefixes: Vec<String>,
 }
 
 impl Tera {
@@ -331,7 +333,7 @@ impl Tera {
 
         // 1st loop: find parents of each template and check for duplicate components
         for (name, tpl) in &self.templates {
-            let parents = find_parents(&self.templates, tpl, tpl, vec![])?;
+            let parents = find_parents(self, tpl, tpl, vec![])?;
             for component_name in tpl.components.keys() {
                 // Components in templates added directly by the user override any existing
                 // components extended
@@ -427,7 +429,7 @@ impl Tera {
                 }
             }
             for (include_name, spans) in &tpl.include_calls {
-                if !self.templates.contains_key(include_name) {
+                if self.resolve_template_name(include_name).is_none() {
                     for span in spans {
                         let err = ReportError::new(
                             format!("Unknown template `{include_name}`"),
@@ -692,10 +694,48 @@ impl Tera {
         self.finalize_templates()
     }
 
+    /// Set fallback prefixes to try when a template is not found by exact name.
+    ///
+    /// When a template is requested (via render, extends, or include) and the exact name
+    /// is not found, these prefixes are tried in order. The first prefix that produces
+    /// a match is used.
+    ///
+    /// Prefixes should include any path separator (e.g., `"themes/cool/"` not `"themes/cool"`).
+    /// # Example
+    ///
+    /// ```
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
+    /// // Templates in "themes/cool/" can be referenced without the prefix
+    /// tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]).unwrap();
+    /// ```
+    pub fn set_fallback_prefixes(&mut self, prefixes: Vec<String>) -> TeraResult<()> {
+        self.fallback_prefixes = prefixes;
+        if !self.templates.is_empty() {
+            self.finalize_templates()?;
+        }
+        Ok(())
+    }
+
+    /// Resolves a template name, trying exact match first, then fallback prefixes.
+    /// Returns the actual template name if found, or None.
+    pub(crate) fn resolve_template_name(&self, name: &str) -> Option<&str> {
+        if let Some((resolved, _)) = self.templates.get_key_value(name) {
+            return Some(resolved.as_str());
+        }
+        for prefix in &self.fallback_prefixes {
+            let prefixed = format!("{}{}", prefix, name);
+            if let Some((resolved, _)) = self.templates.get_key_value(&prefixed) {
+                return Some(resolved.as_str());
+            }
+        }
+        None
+    }
+
     #[inline]
     pub(crate) fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
-        match self.templates.get(template_name) {
-            Some(tpl) => Ok(tpl),
+        match self.resolve_template_name(template_name) {
+            Some(resolved) => Ok(&self.templates[resolved]),
             None => Err(Error::template_not_found(template_name)),
         }
     }
@@ -945,6 +985,7 @@ impl Default for Tera {
             functions: HashMap::new(),
             components: HashMap::new(),
             delimiters: Delimiters::default(),
+            fallback_prefixes: Vec::new(),
         };
         tera.register_builtin_filters();
         tera.register_builtin_tests();
@@ -1181,5 +1222,42 @@ mod tests {
             .render("test", &context! { name => "World", show => &true })
             .unwrap();
         insta::assert_snapshot!(result, @"Hello, World!");
+    }
+
+    #[test]
+    fn fallback_prefixes_resolve_templates() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
+            .unwrap();
+        tera.add_raw_templates(vec![
+            (
+                "themes/cool/base.html",
+                "{% block content %}default{% endblock %}",
+            ),
+            ("themes/cool/partial.html", "partial"),
+            (
+                "child.html",
+                "{% extends \"base.html\" %}{% block content %}child-{% include \"partial.html\" %}{% endblock %}",
+            ),
+        ])
+        .unwrap();
+
+        let result = tera.render("child.html", &Context::new()).unwrap();
+        assert_eq!(result, "child-partial");
+    }
+
+    #[test]
+    fn fallback_prefix_exact_match_takes_priority() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
+            .unwrap();
+        tera.add_raw_templates(vec![
+            ("base.html", "exact"),
+            ("themes/cool/base.html", "fallback"),
+        ])
+        .unwrap();
+
+        let result = tera.render("base.html", &Context::new()).unwrap();
+        assert_eq!(result, "exact");
     }
 }
