@@ -626,7 +626,7 @@ impl<'tera> VirtualMachine<'tera> {
                 // Combined instructions
                 Instruction::LoadPath(path) => {
                     let chunk = state.chunk.expect("to have a chunk");
-                    let mut val = state.get(&path[0]);
+                    let mut val = state.get_value(&path[0]);
                     let num_attrs = path.len() - 1;
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
@@ -647,7 +647,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::WritePath(path) => {
-                    let mut val = state.get(&path[0]);
+                    let mut val = state.get_value(&path[0]);
                     if val.is_undefined() {
                         let chunk = state.chunk.expect("to have a chunk");
                         rendering_error!(
