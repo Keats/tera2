@@ -88,4 +88,11 @@ mod tests {
         let result = b64_decode("not valid base64!!!", Kwargs::default(), &state);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("b64_encode", b64_encode);
+        tera.register_filter("b64_decode", b64_decode);
+    }
 }

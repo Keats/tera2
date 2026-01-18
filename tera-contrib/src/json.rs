@@ -46,4 +46,10 @@ mod tests {
             "{\n  \"a\": 1\n}"
         );
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("json_encode", json_encode);
+    }
 }

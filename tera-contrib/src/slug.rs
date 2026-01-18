@@ -20,4 +20,10 @@ mod tests {
         );
         assert_eq!(slug("Foo & Bar!", Kwargs::default(), &state), "foo-bar");
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("slug", slug);
+    }
 }
