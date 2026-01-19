@@ -451,6 +451,13 @@ impl<'tera> VirtualMachine<'tera> {
                         .get(block_name)
                         .map(|bl| bl.iter().collect())
                         .unwrap_or_default();
+                    if block_lineage.is_empty() {
+                        return Err(Error::message(format!(
+                            "Block '{}' has no block lineage in template '{}'. \
+                            This usually means the template was not properly finalized.",
+                            block_name, self.template.name
+                        )));
+                    }
                     let block_chunk = block_lineage[0];
                     let old_chunk = state.chunk.replace(block_chunk);
                     state.blocks.insert(block_name, (block_lineage, 0));
