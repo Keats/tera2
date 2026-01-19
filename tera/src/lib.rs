@@ -29,6 +29,10 @@ pub use value::number::Number;
 pub use value::{Map, Value};
 pub use vm::state::State;
 
+#[cfg(feature = "glob_fs")]
+#[doc(hidden)]
+pub use globbing::load_from_glob;
+
 #[cfg(feature = "fast_hash")]
 pub(crate) use ahash::{AHashMap as HashMap, AHashSet as HashSet};
 #[cfg(not(feature = "fast_hash"))]

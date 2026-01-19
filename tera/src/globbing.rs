@@ -7,7 +7,7 @@ use crate::errors::{Error, TeraResult};
 
 /// Loads the glob and find all files matching that glob,
 /// returning a list of (path, filename)
-pub(crate) fn load_from_glob(glob: &str) -> TeraResult<Vec<(PathBuf, String)>> {
+pub fn load_from_glob(glob: &str) -> TeraResult<Vec<(PathBuf, String)>> {
     let Some(idx) = glob.find('*') else {
         return Err(Error::message(format!(
             "Not a valid glob: no `*` were found in `{glob}`"
