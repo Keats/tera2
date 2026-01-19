@@ -718,7 +718,7 @@ impl<'tera> VirtualMachine<'tera> {
         state: &State<'tera>,
         output: &mut impl Write,
     ) -> TeraResult<()> {
-        let tpl = self.tera.get_template(name)?;
+        let tpl = self.tera.must_get_template(name)?;
         let vm = Self {
             tera: self.tera,
             template: tpl,
@@ -750,7 +750,7 @@ impl<'tera> VirtualMachine<'tera> {
     ) -> TeraResult<()> {
         // TODO(perf): can we optimize this at the bytecode level to avoid hashmap lookups?
         let chunk = if let Some(base_tpl_name) = self.template.parents.first() {
-            let tpl = self.tera.get_template(base_tpl_name)?;
+            let tpl = self.tera.must_get_template(base_tpl_name)?;
             &tpl.chunk
         } else {
             &self.template.chunk

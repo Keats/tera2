@@ -490,7 +490,7 @@ impl Tera {
                 let mut all_blocks = vec![chunk.clone()];
                 if chunk.is_calling_function("super") {
                     for parent_tpl_name in tpl_parents[name].iter().rev() {
-                        let parent_tpl = self.get_template(parent_tpl_name)?;
+                        let parent_tpl = self.must_get_template(parent_tpl_name)?;
                         if let Some(parent_chunk) = parent_tpl.blocks.get(block_name) {
                             all_blocks.push(parent_chunk.clone());
                             if !parent_chunk.is_calling_function("super") {
@@ -721,11 +721,16 @@ impl Tera {
 
     /// Get a template by name, resolving fallback prefixes if needed.
     #[inline]
-    pub fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
-        match self.resolve_template_name(template_name) {
-            Some(resolved) => Ok(&self.templates[resolved]),
-            None => Err(Error::template_not_found(template_name)),
-        }
+    pub fn get_template(&self, template_name: &str) -> Option<&Template> {
+        self.resolve_template_name(template_name)
+            .map(|resolved| &self.templates[resolved])
+    }
+
+    /// Get a template by name, returning an error if not found. Used internally.
+    #[inline]
+    pub(crate) fn must_get_template(&self, template_name: &str) -> TeraResult<&Template> {
+        self.get_template(template_name)
+            .ok_or_else(|| Error::template_not_found(template_name))
     }
 
     /// Renders a Tera template given a [`Context`].
@@ -762,7 +767,7 @@ impl Tera {
     /// assert_eq!(output, "<h1>Hello</h1>");
     /// ```
     pub fn render(&self, template_name: &str, context: &Context) -> TeraResult<String> {
-        let template = self.get_template(template_name)?;
+        let template = self.must_get_template(template_name)?;
         let mut vm = VirtualMachine::new(self, template);
         vm.render(context, &self.global_context)
     }
@@ -797,7 +802,7 @@ impl Tera {
         context: &Context,
         write: impl Write,
     ) -> TeraResult<()> {
-        let template = self.get_template(template_name)?;
+        let template = self.must_get_template(template_name)?;
         let mut vm = VirtualMachine::new(self, template);
         vm.render_to(context, &self.global_context, write)
     }
@@ -1030,7 +1035,7 @@ mod tests {
             .unwrap();
         tera.full_reload().unwrap();
 
-        assert!(tera.get_template("base.html").is_ok());
+        assert!(tera.get_template("base.html").is_some());
     }
 
     #[test]
