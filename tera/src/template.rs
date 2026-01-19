@@ -27,9 +27,6 @@ pub struct Template {
     /// The full list of parent templates names
     pub(crate) parents: Vec<String>,
     pub(crate) block_lineage: HashMap<String, Vec<Chunk>>,
-    /// Whether this template came from a call to `Tera::extend`, so we do
-    /// not remove it when we are doing a template reload
-    pub(crate) from_extend: bool,
     /// Whether to auto-escape this template. It's set to `true` as default and will be updated
     /// when calling `Tera::autoescape_on` and when finalizing the templates
     pub(crate) autoescape_enabled: bool,
@@ -130,7 +127,6 @@ impl Template {
             function_calls,
             include_calls,
             block_lineage: HashMap::new(),
-            from_extend: false,
             autoescape_enabled: true,
         })
     }

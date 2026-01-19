@@ -61,10 +61,7 @@ impl Tera {
     #[cfg(feature = "glob_fs")]
     pub fn load_from_glob(&mut self, glob: &str) -> TeraResult<()> {
         self.glob = Some(glob.to_string());
-
-        // We want to preserve templates that have been added through
-        // `Tera::extend` so we only keep those
-        self.templates.retain(|_, t| t.from_extend);
+        self.templates.clear();
 
         let mut errors = Vec::new();
         for (path, name) in load_from_glob(glob)? {
@@ -256,6 +253,30 @@ impl Tera {
         self.functions.insert(name, StoredFunction::new(func));
     }
 
+    /// Register filters, tests, and functions from another [`Tera`] instance.
+    ///
+    /// If a filter/test/function with the same name already exists in this instance,
+    /// it will not be overwritten.
+    pub fn register_from(&mut self, other: &Tera) {
+        for (name, filter) in &other.filters {
+            if !self.filters.contains_key(name) {
+                self.filters.insert(name, filter.clone());
+            }
+        }
+
+        for (name, test) in &other.tests {
+            if !self.tests.contains_key(name) {
+                self.tests.insert(name, test.clone());
+            }
+        }
+
+        for (name, function) in &other.functions {
+            if !self.functions.contains_key(name) {
+                self.functions.insert(name, function.clone());
+            }
+        }
+    }
+
     fn register_builtin_filters(&mut self) {
         self.register_filter("safe", crate::filters::safe);
         self.register_filter("default", crate::filters::default);
@@ -327,35 +348,34 @@ impl Tera {
             HashMap::with_capacity(self.templates.len());
         let mut tpl_size_hint: HashMap<String, usize> =
             HashMap::with_capacity(self.templates.len());
-        // Track which template defined each component: component_name -> (tpl_name, from_extend)
-        // We only store references here; actual data is collected at the end
-        let mut component_sources: HashMap<&str, (&str, bool)> = HashMap::new();
+        // Track which template defined each component: component_name -> (tpl_name, priority)
+        let mut component_sources: HashMap<&str, (&str, usize)> = HashMap::new();
 
         // 1st loop: find parents of each template and check for duplicate components
         for (name, tpl) in &self.templates {
             let parents = find_parents(self, tpl, tpl, vec![])?;
             for component_name in tpl.components.keys() {
-                // Components in templates added directly by the user override any existing
-                // components extended
+                let current_priority = self.get_template_priority(&tpl.name);
+
                 match component_sources.get(component_name.as_str()) {
-                    // User overrides extended component
-                    Some(&(_, true)) if !tpl.from_extend => {
-                        component_sources.insert(component_name, (&tpl.name, false));
-                    }
-                    Some(&(_, false)) if tpl.from_extend => {
-                        // Keep existing user component, ignore extended one
-                    }
-                    Some(&(existing_tpl, _)) => {
-                        // Both from same origin - true duplicate
-                        let mut names = [existing_tpl, tpl.name.as_str()];
-                        names.sort_unstable();
-                        return Err(Error::message(format!(
-                            "Component `{component_name}` is defined in both `{}` and `{}`",
-                            names[0], names[1]
-                        )));
+                    Some(&(existing_name, existing_priority)) => {
+                        if current_priority < existing_priority {
+                            // Current has higher priority (lower number), override
+                            component_sources.insert(component_name, (&tpl.name, current_priority));
+                        } else if current_priority > existing_priority {
+                            // Existing has higher priority, keep it
+                        } else {
+                            // Same priority = duplicate error
+                            let mut names = [existing_name, tpl.name.as_str()];
+                            names.sort_unstable();
+                            return Err(Error::message(format!(
+                                "Component `{component_name}` is defined in both `{}` and `{}`",
+                                names[0], names[1]
+                            )));
+                        }
                     }
                     None => {
-                        component_sources.insert(component_name, (&tpl.name, tpl.from_extend));
+                        component_sources.insert(component_name, (&tpl.name, current_priority));
                     }
                 }
             }
@@ -652,48 +672,6 @@ impl Tera {
         self.finalize_templates()
     }
 
-    /// Extend this [`Tera`] instance with the templates, filters, testers and functions defined in
-    /// another instance.
-    ///
-    /// Use that method when you want to add a given Tera instance templates/filters/testers/functions
-    /// to your own. If a template/filter/tester/function with the same name already exists in your instance,
-    /// it will not be overwritten.
-    ///
-    ///```no_compile
-    /// // add all the templates from FRAMEWORK_TERA
-    /// // except the ones that have an identical name to the ones in `my_tera`
-    /// my_tera.extend(&FRAMEWORK_TERA);
-    ///```
-    pub fn extend(&mut self, other: &Tera) -> TeraResult<()> {
-        for (name, template) in &other.templates {
-            if !self.templates.contains_key(name) {
-                let mut tpl = template.clone();
-                tpl.from_extend = true;
-                self.templates.insert(name.to_string(), tpl);
-            }
-        }
-
-        for (name, filter) in &other.filters {
-            if !self.filters.contains_key(name) {
-                self.filters.insert(name, filter.clone());
-            }
-        }
-
-        for (name, test) in &other.tests {
-            if !self.tests.contains_key(name) {
-                self.tests.insert(name, test.clone());
-            }
-        }
-
-        for (name, function) in &other.functions {
-            if !self.functions.contains_key(name) {
-                self.functions.insert(name, function.clone());
-            }
-        }
-
-        self.finalize_templates()
-    }
-
     /// Set fallback prefixes to try when a template is not found by exact name.
     ///
     /// When a template is requested (via render, extends, or include) and the exact name
@@ -701,20 +679,28 @@ impl Tera {
     /// a match is used.
     ///
     /// Prefixes should include any path separator (e.g., `"themes/cool/"` not `"themes/cool"`).
+    ///
     /// # Example
     ///
     /// ```
     /// # use tera::Tera;
     /// let mut tera = Tera::default();
     /// // Templates in "themes/cool/" can be referenced without the prefix
-    /// tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]).unwrap();
+    /// tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
     /// ```
-    pub fn set_fallback_prefixes(&mut self, prefixes: Vec<String>) -> TeraResult<()> {
+    pub fn set_fallback_prefixes(&mut self, prefixes: Vec<String>) {
         self.fallback_prefixes = prefixes;
-        if !self.templates.is_empty() {
-            self.finalize_templates()?;
+    }
+
+    /// Returns the priority level for a template based on fallback_prefixes.
+    /// 0 = highest priority (no prefix match), higher numbers = lower priority.
+    fn get_template_priority(&self, name: &str) -> usize {
+        for (i, prefix) in self.fallback_prefixes.iter().enumerate() {
+            if name.starts_with(prefix) {
+                return i + 1;
+            }
         }
-        Ok(())
+        0
     }
 
     /// Resolves a template name, trying exact match first, then fallback prefixes.
@@ -732,8 +718,9 @@ impl Tera {
         None
     }
 
+    /// Get a template by name, resolving fallback prefixes if needed.
     #[inline]
-    pub(crate) fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
+    pub fn get_template(&self, template_name: &str) -> TeraResult<&Template> {
         match self.resolve_template_name(template_name) {
             Some(resolved) => Ok(&self.templates[resolved]),
             None => Err(Error::template_not_found(template_name)),
@@ -1011,7 +998,7 @@ impl fmt::Debug for Tera {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Kwargs, State, context};
+    use crate::context;
 
     use super::*;
 
@@ -1034,82 +1021,6 @@ mod tests {
         assert_eq!(content2, "UserID: 7489, Username: John Doe");
     }
 
-    #[test]
-    fn extend_no_overlap() {
-        let mut my_tera = Tera::default();
-        my_tera
-            .add_raw_templates(vec![
-                ("one", "{% block hey %}1{% endblock hey %}"),
-                ("two", "{% block hey %}2{% endblock hey %}"),
-                ("three", "{% block hey %}3{% endblock hey %}"),
-            ])
-            .unwrap();
-
-        let mut framework_tera = Tera::default();
-        framework_tera
-            .add_raw_templates(vec![("four", "Framework X")])
-            .unwrap();
-        framework_tera.register_filter("hello", |_: &str, _: Kwargs, _: &State| "hello");
-        framework_tera.register_test("testing", |_: &str, _: Kwargs, _: &State| true);
-        my_tera.extend(&framework_tera).unwrap();
-        assert_eq!(my_tera.templates.len(), 4);
-        let result = my_tera.render("four", &Context::default()).unwrap();
-        assert_eq!(result, "Framework X");
-        assert!(my_tera.filters.contains_key("hello"));
-        assert!(my_tera.tests.contains_key("testing"));
-    }
-
-    #[test]
-    fn extend_with_overlap() {
-        let mut my_tera = Tera::default();
-        my_tera
-            .add_raw_templates(vec![
-                ("one", "MINE"),
-                ("two", "{% block hey %}2{% endblock hey %}"),
-                ("three", "{% block hey %}3{% endblock hey %}"),
-            ])
-            .unwrap();
-
-        let mut framework_tera = Tera::default();
-        framework_tera
-            .add_raw_templates(vec![("one", "FRAMEWORK"), ("four", "Framework X")])
-            .unwrap();
-        my_tera.extend(&framework_tera).unwrap();
-        assert_eq!(my_tera.templates.len(), 4);
-        let result = my_tera.render("one", &Context::default()).unwrap();
-        assert_eq!(result, "MINE");
-    }
-
-    #[test]
-    fn can_override_component_template_from_content() {
-        // Framework defines a component
-        let mut framework_tera = Tera::default();
-        framework_tera
-            .add_raw_template(
-                "components.html",
-                "{% component hello() %}Framework{% endcomponent hello %}",
-            )
-            .unwrap();
-
-        // User defines the same component with different content
-        let mut my_tera = Tera::default();
-        my_tera
-            .add_raw_templates(vec![
-                (
-                    "my_components.html",
-                    "{% component hello() %}User{% endcomponent hello %}",
-                ),
-                ("index.html", "{{<hello/>}}"),
-            ])
-            .unwrap();
-
-        // Extend with framework - user's component should win
-        my_tera.extend(&framework_tera).unwrap();
-
-        let result = my_tera.render("index.html", &Context::default()).unwrap();
-        assert_eq!(result, "User");
-    }
-
     #[cfg(feature = "glob_fs")]
     #[test]
     fn can_full_reload() {
@@ -1119,23 +1030,6 @@ mod tests {
         tera.full_reload().unwrap();
 
         assert!(tera.get_template("base.html").is_ok());
-    }
-
-    #[cfg(feature = "glob_fs")]
-    #[test]
-    fn full_reload_with_glob_after_extending() {
-        let mut tera = Tera::default();
-        tera.load_from_glob("examples/basic/templates/**/*")
-            .unwrap();
-        let mut framework_tera = Tera::default();
-        framework_tera
-            .add_raw_templates(vec![("one", "FRAMEWORK"), ("four", "Framework X")])
-            .unwrap();
-        tera.extend(&framework_tera).unwrap();
-        tera.full_reload().unwrap();
-
-        assert!(tera.get_template("base.html").is_ok());
-        assert!(tera.get_template("one").is_ok());
     }
 
     #[test]
@@ -1227,8 +1121,7 @@ mod tests {
     #[test]
     fn fallback_prefixes_resolve_templates() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
-            .unwrap();
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
         tera.add_raw_templates(vec![
             (
                 "themes/cool/base.html",
@@ -1249,8 +1142,7 @@ mod tests {
     #[test]
     fn fallback_prefix_exact_match_takes_priority() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
-            .unwrap();
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
         tera.add_raw_templates(vec![
             ("base.html", "exact"),
             ("themes/cool/base.html", "fallback"),
@@ -1259,5 +1151,74 @@ mod tests {
 
         let result = tera.render("base.html", &Context::new()).unwrap();
         assert_eq!(result, "exact");
+    }
+
+    #[test]
+    fn test_get_template_priority() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec![
+            "themes/child/".to_string(),
+            "themes/parent/".to_string(),
+        ]);
+
+        assert_eq!(tera.get_template_priority("index.html"), 0);
+        assert_eq!(tera.get_template_priority("themes/child/base.html"), 1);
+        assert_eq!(tera.get_template_priority("themes/parent/base.html"), 2);
+    }
+
+    #[test]
+    fn test_component_duplicate_error_same_priority() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec!["themes/".to_string()]);
+
+        tera.add_raw_template("a.html", "{% component Foo() %}A{% endcomponent Foo %}")
+            .unwrap();
+
+        let result =
+            tera.add_raw_template("b.html", "{% component Foo() %}B{% endcomponent Foo %}");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Component `Foo` is defined in both")
+        );
+    }
+
+    #[test]
+    fn test_component_override_chain() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec!["child/".to_string(), "parent/".to_string()]);
+
+        tera.add_raw_template(
+            "parent/c.html",
+            "{% component X() %}parent{% endcomponent X %}",
+        )
+        .unwrap();
+        tera.add_raw_template(
+            "child/c.html",
+            "{% component X() %}child{% endcomponent X %}",
+        )
+        .unwrap();
+        tera.add_raw_template("user.html", "{% component X() %}user{% endcomponent X %}")
+            .unwrap();
+        tera.add_raw_template("test.html", "{{<X/>}}").unwrap();
+
+        let output = tera.render("test.html", &Context::new()).unwrap();
+        assert_eq!(output.trim(), "user");
+    }
+
+    #[test]
+    fn test_fallback_template_resolution() {
+        let mut tera = Tera::default();
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
+
+        tera.add_raw_template("themes/cool/base.html", "theme base")
+            .unwrap();
+        tera.add_raw_template("index.html", r#"{% extends "base.html" %}"#)
+            .unwrap();
+
+        let output = tera.render("base.html", &Context::new()).unwrap();
+        assert_eq!(output.trim(), "theme base");
     }
 }
