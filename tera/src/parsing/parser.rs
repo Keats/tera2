@@ -727,15 +727,9 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
-                // A subscript. Should only be here after a literal array or map
                 Token::LeftBracket => {
-                    if !lhs.is_array_or_map_literal() {
-                        return Err(Error::syntax_error(
-                            "Subscript is only allowed after a map or array literal".to_string(),
-                            &self.current_span,
-                        ));
-                    }
-                    return self.parse_subscript(lhs);
+                    lhs = self.parse_subscript(lhs)?;
+                    continue;
                 }
                 // A ternary
                 Token::Ident("if") => {

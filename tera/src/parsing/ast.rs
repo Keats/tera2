@@ -119,14 +119,6 @@ impl Expression {
         matches!(self, Expression::Const(..))
     }
 
-    pub fn is_array_or_map_literal(&self) -> bool {
-        match self {
-            Expression::Const(c) => c.as_map().is_some() || c.as_vec().is_some(),
-            Expression::Map(_) | Expression::Array(_) => true,
-            _ => false,
-        }
-    }
-
     pub(crate) fn as_value(&self) -> Option<Value> {
         match self {
             Expression::Const(c) => Some(c.node().clone()),
