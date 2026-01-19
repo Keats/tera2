@@ -96,6 +96,21 @@ pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
     unsafe { String::from_utf8_unchecked(buf) }
 }
 
+pub(crate) fn escape_xml(val: &str, _: Kwargs, _: &State) -> String {
+    let mut output = String::with_capacity(val.len() * 2);
+    for c in val.chars() {
+        match c {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&apos;"),
+            _ => output.push(c),
+        }
+    }
+    output
+}
+
 pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
     val.replace("\r\n", "<br>").replace(['\n', '\r'], "<br>")
 }
@@ -718,6 +733,23 @@ mod tests {
         // Doesn't make sense
         assert!(float("hello".into(), Kwargs::default(), &state).is_err());
         assert!(float(vec![1, 2].into(), Kwargs::default(), &state).is_err());
+    }
+
+    #[test]
+    fn test_escape_xml() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let tests = vec![
+            (r"hey-&-ho", "hey-&amp;-ho"),
+            (r"hey-'-ho", "hey-&apos;-ho"),
+            (r"hey-&'-ho", "hey-&amp;&apos;-ho"),
+            (r#"hey-&'"-ho"#, "hey-&amp;&apos;&quot;-ho"),
+            (r#"hey-&'"<-ho"#, "hey-&amp;&apos;&quot;&lt;-ho"),
+            (r#"hey-&'"<>-ho"#, "hey-&amp;&apos;&quot;&lt;&gt;-ho"),
+        ];
+        for (input, expected) in tests {
+            assert_eq!(escape_xml(input, Kwargs::default(), &state), expected);
+        }
     }
 
     #[test]
