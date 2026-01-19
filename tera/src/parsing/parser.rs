@@ -1430,7 +1430,14 @@ impl<'a> Parser<'a> {
                     if end_check_fn(tok) {
                         return Ok(nodes);
                     }
-                    let node = self.parse_tag(nodes.is_empty())?;
+                    // For extends, we allow whitespace-only content and comments before it.
+                    // Comments are already filtered out (converted to empty content), so we
+                    // only need to check for whitespace-only content nodes.
+                    let is_first_non_ws = nodes.iter().all(|n| match n {
+                        Node::Content(c) => c.chars().all(|ch| ch.is_whitespace()),
+                        _ => false,
+                    });
+                    let node = self.parse_tag(is_first_non_ws)?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
                     if let Some(n) = node {
                         nodes.push(n);
