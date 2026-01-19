@@ -284,6 +284,7 @@ impl Tera {
         self.register_filter("lower", crate::filters::lower);
         self.register_filter("wordcount", crate::filters::wordcount);
         self.register_filter("escape_html", crate::filters::escape);
+        self.register_filter("escape_xml", crate::filters::escape_xml);
         self.register_filter("newlines_to_br", crate::filters::newlines_to_br);
         self.register_filter("pluralize", crate::filters::pluralize);
         self.register_filter("trim", crate::filters::trim);
