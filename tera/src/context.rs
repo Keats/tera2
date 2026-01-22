@@ -37,6 +37,8 @@ impl Context {
                         Key::Bool(b) => Cow::Owned(b.to_string()),
                         Key::U64(u) => Cow::Owned(u.to_string()),
                         Key::I64(i) => Cow::Owned(i.to_string()),
+                        Key::U128(u) => Cow::Owned(u.to_string()),
+                        Key::I128(i) => Cow::Owned(i.to_string()),
                     };
                     data.insert(key_str, value);
                 }

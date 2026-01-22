@@ -2,37 +2,35 @@ use serde::{de, ser};
 use std::fmt;
 
 #[derive(Debug)]
-pub struct SerializationFailed;
+pub struct SerializationFailed(pub String);
 impl fmt::Display for SerializationFailed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "serialization failed")
+        write!(f, "serialization failed: {}", self.0)
     }
 }
 impl std::error::Error for SerializationFailed {}
 impl ser::Error for SerializationFailed {
-    #[track_caller]
     fn custom<T>(msg: T) -> Self
     where
         T: fmt::Display,
     {
-        panic!("{}", msg)
+        SerializationFailed(msg.to_string())
     }
 }
 
 #[derive(Debug)]
-pub struct DeserializationFailed;
+pub struct DeserializationFailed(pub String);
 impl fmt::Display for DeserializationFailed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "deserialization failed")
+        write!(f, "deserialization failed: {}", self.0)
     }
 }
 impl std::error::Error for DeserializationFailed {}
 impl de::Error for DeserializationFailed {
-    #[track_caller]
     fn custom<T>(msg: T) -> Self
     where
         T: fmt::Display,
     {
-        panic!("{}", msg)
+        DeserializationFailed(msg.to_string())
     }
 }

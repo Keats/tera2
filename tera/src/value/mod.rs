@@ -441,7 +441,12 @@ impl Value {
     }
 
     pub fn from_serializable<T: Serialize + ?Sized>(value: &T) -> Value {
-        Serialize::serialize(value, ser::ValueSerializer).unwrap()
+        Self::try_from_serializable(value).unwrap()
+    }
+
+    pub fn try_from_serializable<T: Serialize + ?Sized>(value: &T) -> TeraResult<Value> {
+        Serialize::serialize(value, ser::ValueSerializer)
+            .map_err(|err| Error::message(err.to_string()))
     }
 
     pub fn normal_string(val: &str) -> Value {
@@ -680,6 +685,8 @@ impl Value {
             ValueInner::Bool(v) => Key::Bool(*v),
             ValueInner::U64(v) => Key::U64(*v),
             ValueInner::I64(v) => Key::I64(*v),
+            ValueInner::U128(v) => Key::U128(**v),
+            ValueInner::I128(v) => Key::I128(**v),
             ValueInner::String(v) => Key::String(Arc::from(v.as_str())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
@@ -1027,6 +1034,12 @@ impl From<Key<'static>> for Value {
             },
             Key::I64(i) => Value {
                 inner: ValueInner::I64(i),
+            },
+            Key::U128(u) => Value {
+                inner: ValueInner::U128(Box::new(u)),
+            },
+            Key::I128(i) => Value {
+                inner: ValueInner::I128(Box::new(i)),
             },
             Key::String(s) => Value {
                 inner: ValueInner::String(SmartString::new(&s, StringKind::Normal)),
