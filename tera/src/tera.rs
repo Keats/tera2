@@ -813,11 +813,12 @@ impl Tera {
     /// which is useful for sharing common data
     ///
     /// ```
+    /// # use tera::{Tera, Context, context};
     /// let mut tera = Tera::new();
     /// tera.global_context().insert("name", "John Doe");
     ///
     /// let content = tera
-    ///     .render_str("Hello, {{ name }}!", &Context::new())
+    ///     .render_str("Hello, {{ name }}!", &Context::new(), false)
     ///     .unwrap();
     /// assert_eq!(content, "Hello, John Doe!".to_string());
     ///
@@ -825,38 +826,83 @@ impl Tera {
     ///     .render_str(
     ///         "UserID: {{ id }}, Username: {{ name }}",
     ///         &context! { id => &7489 },
+    ///         false,
     ///     )
     ///     .unwrap();
     /// assert_eq!(content2, "UserID: 7489, Username: John Doe");
-    ///
+    /// ```
     pub fn global_context(&mut self) -> &mut Context {
         &mut self.global_context
     }
 
-    /// Renders a one off template (for example a template coming from a user
-    /// input) given a `Context` and an instance of Tera. This allows you to
-    /// render templates using custom filters or functions.
+    /// Renders a one-off template (for example a template coming from a user input)
+    /// given a `Context` and using this Tera instance's filters, tests, functions and components.
+    ///
+    /// The only limitation is that it cannot use `{% extends %}` and therefore blocks.
     ///
     /// Any errors will mention the `__tera_one_off` template: this is the name
     /// given to the template by Tera.
     ///
-    /// ```no_compile
-    /// let mut context = Context::new();
-    /// context.insert("greeting", &"Hello");
-    /// let string = tera.render_str("{{ greeting }} World!", &context)?;
-    /// assert_eq!(string, "Hello World!");
     /// ```
-    pub fn render_str(&mut self, input: &str, context: &Context) -> TeraResult<String> {
-        self.add_raw_template(ONE_OFF_TEMPLATE_NAME, input)?;
-        let result = self.render(ONE_OFF_TEMPLATE_NAME, context);
-        self.templates.remove(ONE_OFF_TEMPLATE_NAME);
-        result
+    /// # use tera::{Tera, Context, context};
+    /// let tera = Tera::new();
+    /// let result = tera.render_str(
+    ///     "Hello {{ name }}!",
+    ///     &context! { name => "world" },
+    ///     false,
+    /// ).unwrap();
+    /// assert_eq!(result, "Hello world!");
+    /// ```
+    pub fn render_str(
+        &self,
+        input: &str,
+        context: &Context,
+        autoescape: bool,
+    ) -> TeraResult<String> {
+        let mut output = Vec::new();
+        self.render_str_to(input, context, autoescape, &mut output)?;
+        Ok(String::from_utf8(output)?)
+    }
+
+    /// Renders a one-off template to a writer.
+    ///
+    /// Same as [`render_str`](Self::render_str) but writes to a [`Write`] implementor.
+    pub fn render_str_to(
+        &self,
+        input: &str,
+        context: &Context,
+        autoescape: bool,
+        write: impl Write,
+    ) -> TeraResult<()> {
+        let mut template = Template::new(ONE_OFF_TEMPLATE_NAME, input, None, self.delimiters)?;
+
+        // Extends requires parent templates to be in the instance
+        if !template.parents.is_empty() {
+            return Err(Error::message(
+                "Template inheritance ({% extends %}) is not supported in render_str.",
+            ));
+        }
+        if !template.blocks.is_empty() {
+            return Err(Error::message("Blocks not supported in render_str."));
+        }
+
+        template.autoescape_enabled = autoescape;
+
+        // Build block lineage for standalone template (each block's lineage is just itself)
+        for (block_name, chunk) in &template.blocks {
+            template
+                .block_lineage
+                .insert(block_name.clone(), vec![chunk.clone()]);
+        }
+
+        let mut vm = VirtualMachine::new(self, &template);
+        vm.render_to(context, &self.global_context, write)
     }
 
     /// Renders a one off template (for example a template coming from a user input) given a `Context`
     ///
     /// This creates a separate instance of Tera with no possibilities of adding custom filters
-    /// or testers, parses the template and render it immediately.
+    /// or testers, parses the template and renders it immediately.
     /// Any errors will mention the `__tera_one_off` template: this is the name given to the template by
     /// Tera
     ///
@@ -866,13 +912,8 @@ impl Tera {
     /// Tera::one_off("{{ greeting }} world", &context, true);
     /// ```
     pub fn one_off(input: &str, context: &Context, autoescape: bool) -> TeraResult<String> {
-        let mut tera = Tera::default();
-
-        if autoescape {
-            tera.autoescape_on(vec![ONE_OFF_TEMPLATE_NAME]);
-        }
-
-        tera.render_str(input, context)
+        let tera = Tera::default();
+        tera.render_str(input, context, autoescape)
     }
 
     /// Renders a component by name with the given context and optional body content.
@@ -883,7 +924,7 @@ impl Tera {
     ///
     /// # Examples
     ///
-    /// ```no_compile
+    /// ```ignore
     /// let tera = Tera::new("templates/**/*")?;
     ///
     /// // Render a component with arguments
@@ -918,7 +959,7 @@ impl Tera {
     ///
     /// # Examples
     ///
-    /// ```no_compile
+    /// ```ignore
     /// let tera = Tera::new("templates/**/*")?;
     /// let mut buffer = Vec::new();
     /// tera.render_component_to(
@@ -1004,7 +1045,7 @@ impl fmt::Debug for Tera {
 
 #[cfg(test)]
 mod tests {
-    use crate::context;
+    use crate::{Kwargs, context};
 
     use super::*;
 
@@ -1014,7 +1055,7 @@ mod tests {
         tera.global_context().insert("name", "John Doe");
 
         let content = tera
-            .render_str("Hello, {{ name }}!", &Context::new())
+            .render_str("Hello, {{ name }}!", &Context::new(), false)
             .unwrap();
         assert_eq!(content, "Hello, John Doe!".to_string());
 
@@ -1022,6 +1063,7 @@ mod tests {
             .render_str(
                 "UserID: {{ id }}, Username: {{ name }}",
                 &context! { id => &7489 },
+                false,
             )
             .unwrap();
         assert_eq!(content2, "UserID: 7489, Username: John Doe");
@@ -1226,5 +1268,65 @@ mod tests {
 
         let output = tera.render("base.html", &Context::new()).unwrap();
         assert_eq!(output.trim(), "theme base");
+    }
+
+    #[test]
+    fn render_str() {
+        let mut tera = Tera::new();
+        tera.add_raw_template("partial.html", "I am partial")
+            .unwrap();
+        tera.add_raw_template(
+            "components.html",
+            r#"{% component Greet(name) %}Hello {{ name }}!{% endcomponent Greet %}"#,
+        )
+        .unwrap();
+
+        tera.register_filter("shout", |s: &str, _: Kwargs, _: &State| {
+            s.to_ascii_uppercase().to_string()
+        });
+        let result = tera
+            .render_str(
+                r#"Hello {{ name }}!. {% include "partial.html" %} - {{<Greet name="World"/>}}"#,
+                &context! { name => "world" },
+                false,
+            )
+            .unwrap();
+
+        insta::assert_snapshot!(result, @"Hello world!. I am partial - Hello World!");
+    }
+
+    #[test]
+    fn render_str_errors_on_extends() {
+        let tera = Tera::new();
+        let result = tera.render_str(
+            r#"{% extends "base.html" %}{% block content %}hi{% endblock %}"#,
+            &Context::new(),
+            false,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn render_str_errors_on_blocks() {
+        let tera = Tera::new();
+        let result = tera.render_str(
+            "Before {% block content %}default{% endblock content %} After",
+            &Context::new(),
+            false,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn render_str_autoescape() {
+        let tera = Tera::new();
+        let result = tera
+            .render_str("{{ html }}", &context! { html => "<script>" }, true)
+            .unwrap();
+        insta::assert_snapshot!(result, @"&lt;script&gt;");
+        let result = tera
+            .render_str("{{ html }}", &context! { html => "<script>" }, false)
+            .unwrap();
+        insta::assert_snapshot!(result, @"<script>");
     }
 }

@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn float_map_key_fails() {
-        let result = 3.14f64.serialize(MapKeySerializer);
+        let result = 3.15f64.serialize(MapKeySerializer);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("map key must be"));
     }
