@@ -181,12 +181,19 @@ impl Tera {
     ///
     /// ```
     /// # use tera::{Tera, Context};
+    /// # use std::io::Write;
     /// // Create new Tera instance
     /// let mut tera = Tera::default();
     ///
-    /// // Override escape function
-    /// tera.set_escape_fn(|input| {
-    ///     input.escape_default().collect()
+    /// // Override escape function to escape the capital letter A, why not
+    /// tera.set_escape_fn(|input: &[u8], output: &mut dyn Write| {
+    ///     for &byte in input {
+    ///         match byte {
+    ///             b'A' => output.write_all(b"Ɐ")?,
+    ///             _ => output.write_all(&[byte])?,
+    ///         }
+    ///     }
+    ///     Ok(())
     /// });
     ///
     /// // Create template and enable autoescape
@@ -195,7 +202,7 @@ impl Tera {
     ///
     /// // Create context with some data
     /// let mut context = Context::new();
-    /// context.insert("content", &"Hello\n\'world\"!");
+    /// context.insert("content", &"Hello\n'world\"!");
     ///
     /// // Render template
     /// let result = tera.render("hello.js", &context).unwrap();
@@ -214,8 +221,10 @@ impl Tera {
     ///
     /// If a filter with that name already exists, it will be overwritten
     ///
-    /// ```no_compile
-    /// tera.register_filter("upper", string::upper);
+    /// ```
+    /// # use tera::{Tera, Kwargs, State};
+    /// let mut tera = Tera::default();
+    /// tera.register_filter("double", |x: i64, _: Kwargs, _: &State| x * 2);
     /// ```
     pub fn register_filter<Func, Arg, Res>(&mut self, name: &'static str, filter: Func)
     where
@@ -230,8 +239,10 @@ impl Tera {
     ///
     /// If a test with that name already exists, it will be overwritten
     ///
-    /// ```no_compile
-    /// tera.register_test("odd", |x: usize| x % 2 == 0);
+    /// ```
+    /// # use tera::{Tera, Kwargs, State};
+    /// let mut tera = Tera::default();
+    /// tera.register_test("odd", |x: i64, _: Kwargs, _: &State| x % 2 != 0);
     /// ```
     pub fn register_test<Func, Arg, Res>(&mut self, name: &'static str, test: Func)
     where
@@ -574,11 +585,13 @@ impl Tera {
     /// This will error if there are errors in the inheritance, such as adding a child
     /// template without the parent one.
     ///
-    /// ```no_compile
+    /// ```
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
     /// tera.add_raw_templates(vec![
     ///     ("new.html", "blabla"),
     ///     ("new2.html", "hello"),
-    /// ]);
+    /// ]).unwrap();
     /// ```
     pub fn add_raw_templates<I, N, C>(&mut self, templates: I) -> TeraResult<()>
     where
@@ -628,13 +641,13 @@ impl Tera {
     /// template without the parent one.
     /// If you want to add several file, use [Tera::add_template_files](struct.Tera.html#method.add_template_files)
     ///
-    /// ```
+    /// ```no_run
     /// # use tera::Tera;
     /// let mut tera = Tera::default();
     /// // Rename template with custom name
-    /// tera.add_template_file("examples/basic/templates/macros.html", Some("macros.html")).unwrap();
+    /// tera.add_template_file("path/to/template.html", Some("template.html")).unwrap();
     /// // Use path as name
-    /// tera.add_template_file("examples/basic/templates/base.html", None).unwrap();
+    /// tera.add_template_file("path/to/other.html", None).unwrap();
     /// ```
     pub fn add_template_file<P: AsRef<Path>>(
         &mut self,
@@ -906,10 +919,12 @@ impl Tera {
     /// Any errors will mention the `__tera_one_off` template: this is the name given to the template by
     /// Tera
     ///
-    /// ```no_compile
+    /// ```
+    /// # use tera::{Context, Tera};
     /// let mut context = Context::new();
     /// context.insert("greeting", &"hello");
-    /// Tera::one_off("{{ greeting }} world", &context, true);
+    /// let result = Tera::one_off("{{ greeting }} world", &context, true).unwrap();
+    /// assert_eq!(result, "hello world");
     /// ```
     pub fn one_off(input: &str, context: &Context, autoescape: bool) -> TeraResult<String> {
         let tera = Tera::default();
@@ -924,22 +939,30 @@ impl Tera {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let tera = Tera::new("templates/**/*")?;
+    /// ```
+    /// # use tera::{Tera, Context, context};
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template(
+    ///     "components.html",
+    ///     r#"{% component Button(label) %}<button>{{ label }}</button>{% endcomponent Button %}
+    /// {% component Card(title) %}<div><h1>{{ title }}</h1>{{ body }}</div>{% endcomponent Card %}"#,
+    /// ).unwrap();
     ///
     /// // Render a component with arguments
     /// let html = tera.render_component(
     ///     "Button",
     ///     &context! { label => "Click me" },
     ///     None,
-    /// )?;
+    /// ).unwrap();
+    /// assert_eq!(html, "<button>Click me</button>");
     ///
     /// // Render a component with body content
     /// let html = tera.render_component(
     ///     "Card",
     ///     &context! { title => "My Card" },
     ///     Some("<p>Card content here</p>"),
-    /// )?;
+    /// ).unwrap();
+    /// assert_eq!(html, "<div><h1>My Card</h1><p>Card content here</p></div>");
     /// ```
     pub fn render_component(
         &self,
@@ -959,15 +982,22 @@ impl Tera {
     ///
     /// # Examples
     ///
-    /// ```ignore
-    /// let tera = Tera::new("templates/**/*")?;
+    /// ```
+    /// # use tera::{Tera, Context, context};
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template(
+    ///     "components.html",
+    ///     r#"{% component Button(label) %}<button>{{ label }}</button>{% endcomponent Button %}"#,
+    /// ).unwrap();
+    ///
     /// let mut buffer = Vec::new();
     /// tera.render_component_to(
     ///     "Button",
     ///     &context! { label => "Click me" },
     ///     None,
     ///     &mut buffer,
-    /// )?;
+    /// ).unwrap();
+    /// assert_eq!(buffer, b"<button>Click me</button>");
     /// ```
     pub fn render_component_to(
         &self,
