@@ -1,0 +1,1 @@
+{% component maybe(a=None) %}Hello{% endcomponent %}

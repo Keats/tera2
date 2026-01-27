@@ -1,0 +1,4 @@
+$$ components
+{% component maybe(a=None) %}{% if a is null %}None{% else %}Not none{% endif %}{% endcomponent %}
+$$ tpl
+{{ <maybe /> }}
