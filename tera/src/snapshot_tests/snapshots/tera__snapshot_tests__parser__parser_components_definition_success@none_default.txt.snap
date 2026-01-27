@@ -1,0 +1,21 @@
+---
+source: tera/src/snapshot_tests/parser.rs
+expression: "components[0]"
+input_file: tera/src/snapshot_tests/parser_inputs/success/components/def/none_default.txt
+---
+ComponentDefinition {
+    name: "maybe",
+    kwargs: {
+        "a": ComponentArgument {
+            default: Some(
+                Null,
+            ),
+            typ: None,
+        },
+    },
+    rest_param_name: None,
+    metadata: {},
+    body: [
+        "Hello",
+    ],
+}

@@ -1109,6 +1109,7 @@ impl<'a> Parser<'a> {
                     Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::None, _))) => (Value::null(), true),
                     Some(Ok((Token::LeftBracket, _))) => {
                         expect_token!(self, Token::LeftBracket, "[")?;
                         let array = self.parse_array()?;
