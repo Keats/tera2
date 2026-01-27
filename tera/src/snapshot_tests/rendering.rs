@@ -303,3 +303,25 @@ Age: << age >>
     let normalized_out = normalize_line_endings(&out);
     insta::assert_snapshot!(&normalized_out);
 }
+
+#[test]
+fn render_str_errors() {
+    let tera = Tera::default();
+    let mut ctx = Context::new();
+    ctx.insert("x", &1);
+
+    let out = tera.render_str(r#"{{ youtube() }}"#, &ctx, false);
+    assert!(out.is_err());
+
+    let out = tera.render_str(r#"{{ "hello" | unknown_filter }}"#, &ctx, false);
+    assert!(out.is_err());
+
+    let out = tera.render_str(r#"{% if x is unknown_test %}yes{% endif %}"#, &ctx, false);
+    assert!(out.is_err());
+
+    let out = tera.render_str(r#"{{<Unknown />}}"#, &ctx, false);
+    assert!(out.is_err());
+
+    let out = tera.render_str(r#"{% include "missing.html" %}"#, &ctx, false);
+    assert!(out.is_err());
+}
