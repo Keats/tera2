@@ -353,6 +353,88 @@ impl Tera {
         self.register_function("throw", crate::functions::throw);
     }
 
+    /// Validates that all filters/tests/functions/components/includes referenced by a template exist.
+    /// Returns a vec of (source_position, error_report) for any missing references.
+    fn validate_template_references(
+        &self,
+        tpl: &Template,
+        components: &HashMap<String, (ComponentDefinition, Chunk)>,
+    ) -> Vec<(usize, String)> {
+        let mut errors = Vec::new();
+
+        for (filter, spans) in &tpl.filter_calls {
+            if !self.filters.contains_key(filter.as_str()) {
+                for span in spans {
+                    let err = ReportError::new(
+                        format!("Unknown filter `{filter}`"),
+                        &tpl.name,
+                        &tpl.source,
+                        span,
+                    );
+                    errors.push((span.range.start, err.generate_report()));
+                }
+            }
+        }
+
+        for (test, spans) in &tpl.test_calls {
+            if !self.tests.contains_key(test.as_str()) {
+                for span in spans {
+                    let err = ReportError::new(
+                        format!("Unknown test `{test}`"),
+                        &tpl.name,
+                        &tpl.source,
+                        span,
+                    );
+                    errors.push((span.range.start, err.generate_report()));
+                }
+            }
+        }
+
+        for (func, spans) in &tpl.function_calls {
+            if func != "super" && !self.functions.contains_key(func.as_str()) {
+                for span in spans {
+                    let err = ReportError::new(
+                        format!("Unknown function `{func}`"),
+                        &tpl.name,
+                        &tpl.source,
+                        span,
+                    );
+                    errors.push((span.range.start, err.generate_report()));
+                }
+            }
+        }
+
+        for (component, spans) in &tpl.component_calls {
+            if !components.contains_key(component.as_str()) {
+                for span in spans {
+                    let err = ReportError::new(
+                        format!("Unknown component `{component}`"),
+                        &tpl.name,
+                        &tpl.source,
+                        span,
+                    );
+                    errors.push((span.range.start, err.generate_report()));
+                }
+            }
+        }
+
+        for (include_name, spans) in &tpl.include_calls {
+            if self.resolve_template_name(include_name).is_none() {
+                for span in spans {
+                    let err = ReportError::new(
+                        format!("Unknown template `{include_name}`"),
+                        &tpl.name,
+                        &tpl.source,
+                        span,
+                    );
+                    errors.push((span.range.start, err.generate_report()));
+                }
+            }
+        }
+
+        errors
+    }
+
     /// Optimizes the templates when possible and doing some light
     /// checks like whether blocks/macros/templates all exist when they are used
     fn finalize_templates(&mut self) -> TeraResult<()> {
@@ -400,6 +482,16 @@ impl Tera {
             tpl_size_hint.insert(name.clone(), size_hint);
         }
 
+        // Build components map from component_sources (needed for validation)
+        let components: HashMap<String, (ComponentDefinition, Chunk)> = component_sources
+            .iter()
+            .map(|(component_name, (tpl_name, _))| {
+                let tpl = &self.templates[*tpl_name];
+                let data = tpl.components[*component_name].clone();
+                (component_name.to_string(), data)
+            })
+            .collect();
+
         // 2nd loop: we check whether all called components/filters/tests/functions are defined
         // as well as finding each block lineage
         let mut tpl_blocks: HashMap<String, HashMap<String, Vec<Chunk>>> =
@@ -408,70 +500,9 @@ impl Tera {
         let mut errors: Vec<(&str, usize, String)> = Vec::new();
 
         for (name, tpl) in &self.templates {
-            for (component, spans) in &tpl.component_calls {
-                if !component_sources.contains_key(component.as_str()) {
-                    for span in spans {
-                        let err = ReportError::new(
-                            format!("Unknown component `{component}`"),
-                            &tpl.name,
-                            &tpl.source,
-                            span,
-                        );
-                        errors.push((&tpl.name, span.range.start, err.generate_report()));
-                    }
-                }
-            }
-            for (filter, spans) in &tpl.filter_calls {
-                if !self.filters.contains_key(filter.as_str()) {
-                    for span in spans {
-                        let err = ReportError::new(
-                            format!("Unknown filter `{filter}`"),
-                            &tpl.name,
-                            &tpl.source,
-                            span,
-                        );
-                        errors.push((&tpl.name, span.range.start, err.generate_report()));
-                    }
-                }
-            }
-            for (test, spans) in &tpl.test_calls {
-                if !self.tests.contains_key(test.as_str()) {
-                    for span in spans {
-                        let err = ReportError::new(
-                            format!("Unknown test `{test}`"),
-                            &tpl.name,
-                            &tpl.source,
-                            span,
-                        );
-                        errors.push((&tpl.name, span.range.start, err.generate_report()));
-                    }
-                }
-            }
-            for (func, spans) in &tpl.function_calls {
-                if func != "super" && !self.functions.contains_key(func.as_str()) {
-                    for span in spans {
-                        let err = ReportError::new(
-                            format!("Unknown function `{func}`"),
-                            &tpl.name,
-                            &tpl.source,
-                            span,
-                        );
-                        errors.push((&tpl.name, span.range.start, err.generate_report()));
-                    }
-                }
-            }
-            for (include_name, spans) in &tpl.include_calls {
-                if self.resolve_template_name(include_name).is_none() {
-                    for span in spans {
-                        let err = ReportError::new(
-                            format!("Unknown template `{include_name}`"),
-                            &tpl.name,
-                            &tpl.source,
-                            span,
-                        );
-                        errors.push((&tpl.name, span.range.start, err.generate_report()));
-                    }
-                }
+            // Validate filter/test/function/component/include references
+            for (pos, report) in self.validate_template_references(tpl, &components) {
+                errors.push((&tpl.name, pos, report));
             }
 
             // Check that blocks in child templates exist in at least one parent
@@ -532,14 +563,6 @@ impl Tera {
             errors.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
             let reports: Vec<String> = errors.into_iter().map(|(_, _, report)| report).collect();
             return Err(Error::message(reports.join("\n\n")));
-        }
-
-        // Collect components from the winning templates (based on component_sources)
-        let mut components = HashMap::with_capacity(component_sources.len());
-        for (component_name, (tpl_name, _)) in component_sources {
-            let tpl = &self.templates[tpl_name];
-            let data = tpl.components[component_name].clone();
-            components.insert(component_name.to_string(), data);
         }
 
         // 3rd loop: we actually set everything we've done on the templates objects
@@ -889,7 +912,6 @@ impl Tera {
     ) -> TeraResult<()> {
         let mut template = Template::new(ONE_OFF_TEMPLATE_NAME, input, None, self.delimiters)?;
 
-        // Extends requires parent templates to be in the instance
         if !template.parents.is_empty() {
             return Err(Error::message(
                 "Template inheritance ({% extends %}) is not supported in render_str.",
@@ -901,11 +923,11 @@ impl Tera {
 
         template.autoescape_enabled = autoescape;
 
-        // Build block lineage for standalone template (each block's lineage is just itself)
-        for (block_name, chunk) in &template.blocks {
-            template
-                .block_lineage
-                .insert(block_name.clone(), vec![chunk.clone()]);
+        // Validate template references
+        let errors = self.validate_template_references(&template, &self.components);
+        if !errors.is_empty() {
+            let reports: Vec<String> = errors.into_iter().map(|(_, report)| report).collect();
+            return Err(Error::message(reports.join("\n\n")));
         }
 
         let mut vm = VirtualMachine::new(self, &template);
