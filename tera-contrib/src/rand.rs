@@ -25,4 +25,10 @@ mod tests {
         let result = get_random(kwargs, &state).unwrap();
         assert!((0..10).contains(&result));
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_function("get_random", get_random);
+    }
 }

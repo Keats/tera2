@@ -1,21 +1,36 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
 use regex::Regex;
-use tera::{Kwargs, State, TeraResult, Test};
+use tera::{Filter, Kwargs, State, TeraResult, Test};
 
 static STRIPTAGS_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(<!--.*?-->|<[^>]*>)").unwrap());
 
 static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unwrap());
 
-pub fn striptags<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    STRIPTAGS_RE.replace_all(val, "")
+pub fn striptags(val: &str, _: Kwargs, _: &State) -> String {
+    STRIPTAGS_RE.replace_all(val, "").into_owned()
 }
 
-pub fn spaceless<'a>(val: &'a str, _: Kwargs, _: &'a State) -> Cow<'a, str> {
-    SPACELESS_RE.replace_all(val, "><")
+pub fn spaceless(val: &str, _: Kwargs, _: &State) -> String {
+    SPACELESS_RE.replace_all(val, "><").into_owned()
+}
+
+fn get_or_create_regex(cache: &RwLock<HashMap<String, Regex>>, pattern: &str) -> TeraResult<Regex> {
+    if let Some(r) = cache.read().unwrap().get(pattern) {
+        return Ok(r.clone());
+    }
+
+    let mut cache = cache.write().unwrap();
+
+    let regex = match Regex::new(pattern) {
+        Ok(regex) => regex,
+        Err(e) => return Err(tera::Error::message(format!("Invalid regex: {e}"))),
+    };
+
+    cache.insert(String::from(pattern), regex.clone());
+    Ok(regex)
 }
 
 #[derive(Debug, Default)]
@@ -23,29 +38,25 @@ pub struct Matching {
     cache: RwLock<HashMap<String, Regex>>,
 }
 
-impl Matching {
-    fn get_or_create_regex(&self, pattern: &str) -> TeraResult<Regex> {
-        if let Some(r) = self.cache.read().unwrap().get(pattern) {
-            return Ok(r.clone());
-        }
-
-        let mut cache = self.cache.write().unwrap();
-
-        let regex = match Regex::new(pattern) {
-            Ok(regex) => regex,
-            Err(e) => return Err(tera::Error::message(format!("Invalid regex: {e}"))),
-        };
-
-        cache.insert(String::from(pattern), regex.clone());
-        Ok(regex)
-    }
-}
-
 impl Test<&str, TeraResult<bool>> for Matching {
     fn call(&self, val: &str, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
         let pat = kwargs.must_get::<&str>("pat")?;
-        let regex = self.get_or_create_regex(pat)?;
+        let regex = get_or_create_regex(&self.cache, pat)?;
         Ok(regex.is_match(val))
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct RegexReplace {
+    cache: RwLock<HashMap<String, Regex>>,
+}
+
+impl Filter<&str, TeraResult<String>> for RegexReplace {
+    fn call(&self, val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
+        let pattern = kwargs.must_get::<&str>("pattern")?;
+        let rep = kwargs.must_get::<&str>("rep")?;
+        let regex = get_or_create_regex(&self.cache, pattern)?;
+        Ok(regex.replace_all(val, rep).into_owned())
     }
 }
 
@@ -131,5 +142,64 @@ mod tests {
             let res = matching.call(input, kwargs, &State::new(&ctx)).unwrap();
             assert_eq!(expected, res);
         }
+    }
+
+    #[test]
+    fn test_regex_replace() {
+        let regex_replace = RegexReplace::default();
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+
+        // Basic replacement with capture groups
+        let mut map = Map::new();
+        map.insert(
+            "pattern".into(),
+            r"(?P<last>[^,\s]+),\s+(?P<first>\S+)".into(),
+        );
+        map.insert("rep".into(), "$first $last".into());
+        let kwargs = Kwargs::new(Arc::new(map));
+        let result = regex_replace
+            .call("Springsteen, Bruce", kwargs, &state)
+            .unwrap();
+        assert_eq!(result, "Bruce Springsteen");
+
+        // Simple replacement
+        let mut map = Map::new();
+        map.insert("pattern".into(), r"\d+".into());
+        map.insert("rep".into(), "X".into());
+        let kwargs = Kwargs::new(Arc::new(map));
+        let result = regex_replace.call("abc123def456", kwargs, &state).unwrap();
+        assert_eq!(result, "abcXdefX");
+
+        // No match returns original
+        let mut map = Map::new();
+        map.insert("pattern".into(), r"zzz".into());
+        map.insert("rep".into(), "X".into());
+        let kwargs = Kwargs::new(Arc::new(map));
+        let result = regex_replace.call("hello world", kwargs, &state).unwrap();
+        assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn test_regex_replace_invalid_pattern() {
+        let regex_replace = RegexReplace::default();
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+
+        let mut map = Map::new();
+        map.insert("pattern".into(), r"[invalid".into());
+        map.insert("rep".into(), "X".into());
+        let kwargs = Kwargs::new(Arc::new(map));
+        let result = regex_replace.call("test", kwargs, &state);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("striptags", striptags);
+        tera.register_filter("spaceless", spaceless);
+        tera.register_filter("regex_replace", RegexReplace::default());
+        tera.register_test("matching", Matching::default());
     }
 }

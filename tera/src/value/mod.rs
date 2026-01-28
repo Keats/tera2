@@ -64,7 +64,7 @@ pub enum StringKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueKind {
     Undefined,
-    Null,
+    None,
     Bool,
     U64,
     I64,
@@ -164,7 +164,7 @@ impl fmt::Debug for SmartString {
 #[derive(Debug, Clone)]
 pub(crate) enum ValueInner {
     Undefined,
-    Null,
+    None,
     Bool(bool),
     U64(u64),
     I64(i64),
@@ -210,7 +210,7 @@ impl PartialEq for Value {
         match (&self.inner, &other.inner) {
             // First the easy ones
             (ValueInner::Undefined, ValueInner::Undefined) => true,
-            (ValueInner::Null, ValueInner::Null) => true,
+            (ValueInner::None, ValueInner::None) => true,
             (ValueInner::Bool(v), ValueInner::Bool(v2)) => v == v2,
             (ValueInner::Array(v), ValueInner::Array(v2)) => v == v2,
             (ValueInner::Bytes(v), ValueInner::Bytes(v2)) => v == v2,
@@ -244,7 +244,7 @@ impl PartialOrd for Value {
         match (&self.inner, &other.inner) {
             // First the easy ones
             (ValueInner::Undefined, ValueInner::Undefined) => Some(Ordering::Equal),
-            (ValueInner::Null, ValueInner::Null) => Some(Ordering::Equal),
+            (ValueInner::None, ValueInner::None) => Some(Ordering::Equal),
             (ValueInner::Bool(v), ValueInner::Bool(v2)) => v.partial_cmp(v2),
             (ValueInner::Array(v), ValueInner::Array(v2)) => v.partial_cmp(v2),
             (ValueInner::Bytes(v), ValueInner::Bytes(v2)) => v.partial_cmp(v2),
@@ -275,8 +275,7 @@ impl Ord for Value {
         }
 
         // Fallback: order by type for consistent ordering of incompatible types.
-        // Null/Undefined sort last.
-        // It's nonsensical but this way with the sort filter the null/undefined show up at the end
+        // It's nonsensical but this way with the sort filter the None/undefined show up at the end
         fn type_order(v: &ValueInner) -> u8 {
             match v {
                 ValueInner::Bool(_) => 0,
@@ -289,7 +288,7 @@ impl Ord for Value {
                 ValueInner::Array(_) => 3,
                 ValueInner::Map(_) => 4,
                 ValueInner::Bytes(_) => 5,
-                ValueInner::Null => 6,
+                ValueInner::None => 6,
                 ValueInner::Undefined => 7,
             }
         }
@@ -300,7 +299,7 @@ impl Ord for Value {
 impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match &self.inner {
-            ValueInner::Undefined | ValueInner::Null => 0.hash(state),
+            ValueInner::Undefined | ValueInner::None => 0.hash(state),
             ValueInner::Bool(v) => v.hash(state),
             ValueInner::U64(_)
             | ValueInner::I64(_)
@@ -319,9 +318,9 @@ impl Hash for Value {
 }
 
 impl Value {
-    pub fn null() -> Self {
+    pub fn none() -> Self {
         Value {
-            inner: ValueInner::Null,
+            inner: ValueInner::None,
         }
     }
 
@@ -334,7 +333,7 @@ impl Value {
     pub fn kind(&self) -> ValueKind {
         match &self.inner {
             ValueInner::Undefined => ValueKind::Undefined,
-            ValueInner::Null => ValueKind::Null,
+            ValueInner::None => ValueKind::None,
             ValueInner::Bool(_) => ValueKind::Bool,
             ValueInner::U64(_) => ValueKind::U64,
             ValueInner::I64(_) => ValueKind::I64,
@@ -352,8 +351,8 @@ impl Value {
     pub fn is_undefined(&self) -> bool {
         matches!(self.kind(), ValueKind::Undefined)
     }
-    pub fn is_null(&self) -> bool {
-        matches!(self.kind(), ValueKind::Null)
+    pub fn is_none(&self) -> bool {
+        matches!(self.kind(), ValueKind::None)
     }
     pub fn is_bool(&self) -> bool {
         matches!(self.kind(), ValueKind::Bool)
@@ -376,7 +375,7 @@ impl Value {
 
     pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
         match &self.inner {
-            ValueInner::Null | ValueInner::Undefined => Ok(()),
+            ValueInner::None | ValueInner::Undefined => Ok(()),
             ValueInner::Bool(v) => f.write_all(if *v { b"true" } else { b"false" }),
             ValueInner::Bytes(v) => f.write_all(v),
             ValueInner::String(v) => f.write_all(v.as_str().as_bytes()),
@@ -441,7 +440,12 @@ impl Value {
     }
 
     pub fn from_serializable<T: Serialize + ?Sized>(value: &T) -> Value {
-        Serialize::serialize(value, ser::ValueSerializer).unwrap()
+        Self::try_from_serializable(value).unwrap()
+    }
+
+    pub fn try_from_serializable<T: Serialize + ?Sized>(value: &T) -> TeraResult<Value> {
+        Serialize::serialize(value, ser::ValueSerializer)
+            .map_err(|err| Error::message(err.to_string()))
     }
 
     pub fn normal_string(val: &str) -> Value {
@@ -492,7 +496,7 @@ impl Value {
         }
     }
 
-    pub(crate) fn is_number(&self) -> bool {
+    pub fn is_number(&self) -> bool {
         matches!(
             &self.inner,
             ValueInner::U64(..)
@@ -575,7 +579,7 @@ impl Value {
 
     /// Returns the Value at the given path, or Undefined if there's nothing there.
     pub fn get_from_path(&self, path: &str) -> Value {
-        if matches!(&self.inner, ValueInner::Undefined | ValueInner::Null) {
+        if matches!(&self.inner, ValueInner::Undefined | ValueInner::None) {
             return self.clone();
         }
 
@@ -624,7 +628,7 @@ impl Value {
     pub fn is_truthy(&self) -> bool {
         match &self.inner {
             ValueInner::Undefined => false,
-            ValueInner::Null => false,
+            ValueInner::None => false,
             ValueInner::Bool(v) => *v,
             ValueInner::U64(v) => *v != 0,
             ValueInner::I64(v) => *v != 0,
@@ -680,6 +684,8 @@ impl Value {
             ValueInner::Bool(v) => Key::Bool(*v),
             ValueInner::U64(v) => Key::U64(*v),
             ValueInner::I64(v) => Key::I64(*v),
+            ValueInner::U128(v) => Key::U128(**v),
+            ValueInner::I128(v) => Key::I128(**v),
             ValueInner::String(v) => Key::String(Arc::from(v.as_str())),
             _ => return Err(Error::message("Not a valid key type".to_string())),
         };
@@ -728,7 +734,7 @@ impl Value {
                     inner: ValueInner::Undefined,
                 })),
                 Err(_) => Err(Error::message(format!(
-                    "`{}` cannot be a key of a map/struct: only be integers, bool or strings are allowed",
+                    "Map keys must be strings, integers, or bools, got `{}`.",
                     item.name()
                 ))),
             },
@@ -744,8 +750,8 @@ impl Value {
                     }))
                 }
                 None => Err(Error::message(format!(
-                    "Array indices can only be integers, not `{}`.",
-                    item.name()
+                    "Array index must be an integer, got `{}`.",
+                    item.name(),
                 ))),
             },
             _ => Ok(Value {
@@ -837,12 +843,26 @@ impl Value {
         }
     }
 
+    /// Returns a sorted list of available field names if this is a map.
+    /// Used for error messages only.
+    pub(crate) fn available_fields(&self) -> Vec<String> {
+        self.as_map()
+            .map(|m| {
+                m.keys()
+                    .map(|k| k.to_string())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Returns a string name for the current enum member.
     /// Used in error messages
     pub fn name(&self) -> &'static str {
         match &self.inner {
             ValueInner::Undefined => "undefined",
-            ValueInner::Null => "null",
+            ValueInner::None => "none",
             ValueInner::Bool(_) => "bool",
             ValueInner::U64(_) => "u64",
             ValueInner::I64(_) => "i64",
@@ -863,7 +883,7 @@ impl Serialize for Value {
         S: Serializer,
     {
         match &self.inner {
-            ValueInner::Null | ValueInner::Undefined => serializer.serialize_unit(),
+            ValueInner::None | ValueInner::Undefined => serializer.serialize_unit(),
             ValueInner::Bool(b) => serializer.serialize_bool(*b),
             ValueInner::U64(u) => serializer.serialize_u64(*u),
             ValueInner::I64(i) => serializer.serialize_i64(*i),
@@ -914,6 +934,14 @@ impl From<&str> for Value {
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
+        Value {
+            inner: ValueInner::String(SmartString::new(&value, StringKind::Normal)),
+        }
+    }
+}
+
+impl From<std::borrow::Cow<'_, str>> for Value {
+    fn from(value: std::borrow::Cow<'_, str>) -> Self {
         Value {
             inner: ValueInner::String(SmartString::new(&value, StringKind::Normal)),
         }
@@ -1019,6 +1047,12 @@ impl From<Key<'static>> for Value {
             },
             Key::I64(i) => Value {
                 inner: ValueInner::I64(i),
+            },
+            Key::U128(u) => Value {
+                inner: ValueInner::U128(Box::new(u)),
+            },
+            Key::I128(i) => Value {
+                inner: ValueInner::I128(Box::new(i)),
             },
             Key::String(s) => Value {
                 inner: ValueInner::String(SmartString::new(&s, StringKind::Normal)),

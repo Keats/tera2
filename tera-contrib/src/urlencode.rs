@@ -87,4 +87,11 @@ mod tests {
         );
         assert_eq!(urlencode_strict("a/b", Kwargs::default(), &state), "a%2Fb");
     }
+
+    #[test]
+    fn test_register() {
+        let mut tera = tera::Tera::default();
+        tera.register_filter("urlencode", urlencode);
+        tera.register_filter("urlencode_strict", urlencode_strict);
+    }
 }

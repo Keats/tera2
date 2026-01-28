@@ -638,7 +638,9 @@ impl<'a> Parser<'a> {
             Token::Str(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
-            Token::None => Expression::Const(Spanned::new(Value::null(), span.clone())),
+            Token::Ident("none") | Token::Ident("None") => {
+                Expression::Const(Spanned::new(Value::none(), span.clone()))
+            }
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -727,15 +729,9 @@ impl<'a> Parser<'a> {
                 Token::Ident("and") => BinaryOperator::And,
                 Token::Ident("or") => BinaryOperator::Or,
                 Token::Ident("is") => BinaryOperator::Is,
-                // A subscript. Should only be here after a literal array or map
                 Token::LeftBracket => {
-                    if !lhs.is_array_or_map_literal() {
-                        return Err(Error::syntax_error(
-                            "Subscript is only allowed after a map or array literal".to_string(),
-                            &self.current_span,
-                        ));
-                    }
-                    return self.parse_subscript(lhs);
+                    lhs = self.parse_subscript(lhs)?;
+                    continue;
                 }
                 // A ternary
                 Token::Ident("if") => {
@@ -1115,6 +1111,9 @@ impl<'a> Parser<'a> {
                     Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
+                    Some(Ok((Token::Ident("none") | Token::Ident("None"), _))) => {
+                        (Value::none(), true)
+                    }
                     Some(Ok((Token::LeftBracket, _))) => {
                         expect_token!(self, Token::LeftBracket, "[")?;
                         let array = self.parse_array()?;
@@ -1222,7 +1221,7 @@ impl<'a> Parser<'a> {
                     if let Some(Ok((Token::Pipe, _))) = self.next {
                         expect_token!(self, Token::Pipe, "|")?;
                         filters.push(self.parse_filter(Expression::Const(Spanned::new(
-                            Value::null(),
+                            Value::none(),
                             self.current_span.clone(),
                         )))?);
                     } else {
@@ -1430,7 +1429,14 @@ impl<'a> Parser<'a> {
                     if end_check_fn(tok) {
                         return Ok(nodes);
                     }
-                    let node = self.parse_tag(nodes.is_empty())?;
+                    // For extends, we allow whitespace-only content and comments before it.
+                    // Comments are already filtered out (converted to empty content), so we
+                    // only need to check for whitespace-only content nodes.
+                    let is_first_non_ws = nodes.iter().all(|n| match n {
+                        Node::Content(c) => c.chars().all(|ch| ch.is_whitespace()),
+                        _ => false,
+                    });
+                    let node = self.parse_tag(is_first_non_ws)?;
                     expect_token!(self, Token::TagEnd(..), "%}")?;
                     if let Some(n) = node {
                         nodes.push(n);

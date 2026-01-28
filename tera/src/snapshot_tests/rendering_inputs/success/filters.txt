@@ -5,6 +5,8 @@
 {{ "$ hello $" | replace(from="$", to="€") }}
 {{ existing | default(value="should not print") }}
 {{ undefined_val | default(value=1) }}
+{{ "" | default(value="empty", boolean=true) }}
+{{ "not empty" | default(value="empty", boolean=true) }}
 {{ undefined_val | default(value="default val") | capitalize }}
 {{ product.undefined_field | default(value="default val") | capitalize }}
 {{ "HELLO" | capitalize }}

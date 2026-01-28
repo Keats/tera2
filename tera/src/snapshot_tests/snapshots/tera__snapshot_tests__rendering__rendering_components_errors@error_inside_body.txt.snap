@@ -3,7 +3,7 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&err"
 input_file: tera/src/snapshot_tests/rendering_inputs/errors/components/error_inside_body.txt
 ---
-error: Field `undefined_var` is not defined
+error: Variable `undefined_var` is not defined. Available variables: name
  --> components:1:44
   |
 1 | {% component greet(name: string) %}Hello {{ undefined_var }}!{% endcomponent greet %}

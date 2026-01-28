@@ -10,6 +10,8 @@ B&b
 € hello €
 should not print
 1
+empty
+not empty
 Default val
 Default val
 Hello

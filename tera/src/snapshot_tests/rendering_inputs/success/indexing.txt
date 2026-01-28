@@ -10,3 +10,6 @@
 {{ product.name[::-1] }}
 {{ product.name[1:] }}
 {{ product.name[:-1] }}
+{{ (numbers | reverse)[0] }}
+{{ range(end=5)[2] }}
+{{ (numbers | reverse)[:-1] | first }}

@@ -1,4 +1,4 @@
-use crate::args::Kwargs;
+use crate::args::{ArgFromValue, Kwargs};
 use crate::errors::TeraResult;
 use crate::filters::StoredFilter;
 use crate::parsing::Chunk;
@@ -28,6 +28,8 @@ pub struct State<'tera> {
     pub(crate) global_context: Option<&'tera Context>,
     /// To handle the capture instructions
     pub(crate) capture_buffers: Vec<Vec<u8>>,
+    /// Scratch buffer for escaping output to avoid per-write allocations
+    pub(crate) escape_buffer: Vec<u8>,
     /// Used in includes only
     pub(crate) include_parent: Option<&'tera State<'tera>>,
 
@@ -54,6 +56,7 @@ impl<'t> State<'t> {
             global_context: None,
             chunk: None,
             capture_buffers: Vec::with_capacity(4),
+            escape_buffer: Vec::with_capacity(128),
             include_parent: None,
             blocks: BTreeMap::new(),
             current_block_name: None,
@@ -80,7 +83,7 @@ impl<'t> State<'t> {
     /// 3. self.context (user context)
     /// 4. self.global_context (Tera's global context)
     /// 5. include_parent or return Value::Undefined
-    pub(crate) fn get(&self, name: &str) -> Value {
+    pub(crate) fn get_value(&self, name: &str) -> Value {
         for forloop in self.for_loops.iter().rev() {
             if let Some(v) = forloop.get(name) {
                 return v;
@@ -102,18 +105,25 @@ impl<'t> State<'t> {
         }
 
         if let Some(parent) = self.include_parent {
-            parent.get(name)
+            parent.get_value(name)
         } else {
             Value::undefined()
         }
     }
 
-    pub fn get_from_path(&self, path: &str) -> Value {
-        if let Some((start, rest)) = path.split_once('.') {
-            let base_value = self.get(start);
-            base_value.get_from_path(rest)
+    /// Get a variable from the context by name and convert it to the specified type.
+    ///
+    /// Returns `Ok(None)` if the variable is not defined (undefined).
+    /// Returns an error if the variable exists but cannot be converted to the target type.
+    pub fn get<T>(&self, name: &str) -> TeraResult<Option<T>>
+    where
+        for<'a> T: ArgFromValue<'a, Output = T>,
+    {
+        let value = self.get_value(name);
+        if value.is_undefined() {
+            Ok(None)
         } else {
-            self.get(path)
+            T::from_value(&value).map(Some)
         }
     }
 
@@ -143,7 +153,8 @@ impl<'t> State<'t> {
         if name == MAGICAL_DUMP_VAR {
             self.stack.push(self.dump_context(), None);
         } else {
-            self.stack.push(self.get(name), Some(span_idx..=span_idx));
+            self.stack
+                .push(self.get_value(name), Some(span_idx..=span_idx));
         }
     }
 
@@ -155,5 +166,33 @@ impl<'t> State<'t> {
                 "Filter `{name}` is not registered"
             ))),
         }
+    }
+
+    /// Returns a sorted list of all available variable names in the current scope.
+    /// Used for error messages only.
+    pub(crate) fn available_variables(&self) -> Vec<String> {
+        let mut vars = std::collections::BTreeSet::new();
+
+        if let Some(global) = self.global_context {
+            for k in global.data.keys() {
+                vars.insert(k.to_string());
+            }
+        }
+
+        for k in self.context.data.keys() {
+            vars.insert(k.to_string());
+        }
+
+        for k in self.set_variables.keys() {
+            vars.insert(k.clone());
+        }
+
+        for forloop in &self.for_loops {
+            for k in forloop.context.keys() {
+                vars.insert(k.clone());
+            }
+        }
+
+        vars.into_iter().collect()
     }
 }

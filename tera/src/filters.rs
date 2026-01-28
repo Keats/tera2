@@ -70,10 +70,19 @@ pub(crate) fn safe(val: Cow<'_, str>, _: Kwargs, _: &State) -> Value {
 
 pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
+    let boolean = kwargs.get::<bool>("boolean")?.unwrap_or_default();
 
-    match val.kind() {
-        ValueKind::Undefined => Ok(default_val),
-        _ => Ok(val),
+    if boolean {
+        if val.is_truthy() {
+            Ok(val)
+        } else {
+            Ok(default_val)
+        }
+    } else {
+        match val.kind() {
+            ValueKind::Undefined => Ok(default_val),
+            _ => Ok(val),
+        }
     }
 }
 
@@ -94,6 +103,21 @@ pub(crate) fn escape(val: &str, _: Kwargs, _: &State) -> String {
     escape_html(val.as_bytes(), &mut buf).unwrap();
     // SAFETY: escape_html only produces valid UTF-8
     unsafe { String::from_utf8_unchecked(buf) }
+}
+
+pub(crate) fn escape_xml(val: &str, _: Kwargs, _: &State) -> String {
+    let mut output = String::with_capacity(val.len() * 2);
+    for c in val.chars() {
+        match c {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&apos;"),
+            _ => output.push(c),
+        }
+    }
+    output
 }
 
 pub(crate) fn newlines_to_br(val: &str, _: Kwargs, _: &State) -> String {
@@ -406,23 +430,23 @@ pub(crate) fn round(val: f64, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     }
 }
 
-/// Returns the first element of an array. Null if the array is empty
+/// Returns the first element of an array. None if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.first().cloned().unwrap_or(Value::null()))
+    Ok(val.first().cloned().unwrap_or(Value::none()))
 }
 
-/// Returns the last element of an array. Null if the array is empty
+/// Returns the last element of an array. None if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.last().cloned().unwrap_or(Value::null()))
+    Ok(val.last().cloned().unwrap_or(Value::none()))
 }
 
-/// Returns the nth element of an array. Null if there isn't an element at that index.
+/// Returns the nth element of an array. None if there isn't an element at that index.
 /// and errors if the value is not an array
 pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
-    Ok(val.into_iter().nth(n).unwrap_or(Value::null()))
+    Ok(val.into_iter().nth(n).unwrap_or(Value::none()))
 }
 
 /// Joins the elements
@@ -561,7 +585,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
         return Ok(val);
     }
     let attribute = kwargs.must_get::<&str>("attribute")?;
-    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::null());
+    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::none());
     let mut res = Vec::with_capacity(val.len());
 
     for v in val {
@@ -596,7 +620,7 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
                     "Value {v} does not an attribute after following path; {attribute}"
                 )));
             }
-            x if x.is_null() => (),
+            x if x.is_none() => (),
             x => {
                 let key = x.as_key()?;
                 if let Some(arr) = grouped.get_mut(&key) {
@@ -684,10 +708,8 @@ mod tests {
             );
         }
 
-        let mut map = Map::new();
-        map.insert("base".into(), 2.into());
         assert_eq!(
-            int("0b1010".into(), Kwargs::new(Arc::new(map)), &state).unwrap(),
+            int("0b1010".into(), Kwargs::from([("base", 2.into())]), &state).unwrap(),
             10.into()
         );
 
@@ -723,6 +745,23 @@ mod tests {
     }
 
     #[test]
+    fn test_escape_xml() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let tests = vec![
+            (r"hey-&-ho", "hey-&amp;-ho"),
+            (r"hey-'-ho", "hey-&apos;-ho"),
+            (r"hey-&'-ho", "hey-&amp;&apos;-ho"),
+            (r#"hey-&'"-ho"#, "hey-&amp;&apos;&quot;-ho"),
+            (r#"hey-&'"<-ho"#, "hey-&amp;&apos;&quot;&lt;-ho"),
+            (r#"hey-&'"<>-ho"#, "hey-&amp;&apos;&quot;&lt;&gt;-ho"),
+        ];
+        for (input, expected) in tests {
+            assert_eq!(escape_xml(input, Kwargs::default(), &state), expected);
+        }
+    }
+
+    #[test]
     fn test_abs() {
         let ctx = Context::new();
         let state = State::new(&ctx);
@@ -745,24 +784,18 @@ mod tests {
         let state = State::new(&ctx);
         assert_eq!(round(2.1, Kwargs::default(), &state).unwrap(), 2.into());
 
-        let mut map = Map::new();
-        map.insert("method".into(), "ceil".into());
         assert_eq!(
-            round(2.1, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.1, Kwargs::from([("method", "ceil".into())]), &state).unwrap(),
             3.into()
         );
 
-        let mut map = Map::new();
-        map.insert("method".into(), "floor".into());
         assert_eq!(
-            round(2.9, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.9, Kwargs::from([("method", "floor".into())]), &state).unwrap(),
             2.into()
         );
 
-        let mut map = Map::new();
-        map.insert("precision".into(), 2.into());
         assert_eq!(
-            round(2.245, Kwargs::new(Arc::new(map)), &state).unwrap(),
+            round(2.245, Kwargs::from([("precision", 2.into())]), &state).unwrap(),
             (2.25).into()
         );
     }
