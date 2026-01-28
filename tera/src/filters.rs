@@ -68,13 +68,21 @@ pub(crate) fn safe(val: Cow<'_, str>, _: Kwargs, _: &State) -> Value {
     Value::safe_string(&val)
 }
 
-// TODO: add boolean param like jinja2 https://jinja.palletsprojects.com/en/stable/templates/#jinja-filters.default
 pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
+    let boolean = kwargs.get::<bool>("boolean")?.unwrap_or_default();
 
-    match val.kind() {
-        ValueKind::Undefined => Ok(default_val),
-        _ => Ok(val),
+    if boolean {
+        if val.is_truthy() {
+            Ok(val)
+        } else {
+            Ok(default_val)
+        }
+    } else {
+        match val.kind() {
+            ValueKind::Undefined => Ok(default_val),
+            _ => Ok(val),
+        }
     }
 }
 
