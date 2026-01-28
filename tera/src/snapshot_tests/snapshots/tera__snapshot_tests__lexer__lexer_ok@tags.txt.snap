@@ -61,6 +61,6 @@ input_file: tera/src/snapshot_tests/lexer_inputs/success/tags.txt
     IDENT(set),
     IDENT(txt),
     ASSIGN,
-    NONE,
+    IDENT(none),
     TAG_END(false),
 ]

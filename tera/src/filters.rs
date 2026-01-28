@@ -68,6 +68,7 @@ pub(crate) fn safe(val: Cow<'_, str>, _: Kwargs, _: &State) -> Value {
     Value::safe_string(&val)
 }
 
+// TODO: add boolean param like jinja2 https://jinja.palletsprojects.com/en/stable/templates/#jinja-filters.default
 pub(crate) fn default(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let default_val = kwargs.must_get::<Value>("value")?;
 
@@ -421,23 +422,23 @@ pub(crate) fn round(val: f64, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     }
 }
 
-/// Returns the first element of an array. Null if the array is empty
+/// Returns the first element of an array. None if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn first(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.first().cloned().unwrap_or(Value::null()))
+    Ok(val.first().cloned().unwrap_or(Value::none()))
 }
 
-/// Returns the last element of an array. Null if the array is empty
+/// Returns the last element of an array. None if the array is empty
 /// and errors if the value is not an array
 pub(crate) fn last(val: Vec<Value>, _: Kwargs, _: &State) -> TeraResult<Value> {
-    Ok(val.last().cloned().unwrap_or(Value::null()))
+    Ok(val.last().cloned().unwrap_or(Value::none()))
 }
 
-/// Returns the nth element of an array. Null if there isn't an element at that index.
+/// Returns the nth element of an array. None if there isn't an element at that index.
 /// and errors if the value is not an array
 pub(crate) fn nth(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let n = kwargs.must_get::<usize>("n")?;
-    Ok(val.into_iter().nth(n).unwrap_or(Value::null()))
+    Ok(val.into_iter().nth(n).unwrap_or(Value::none()))
 }
 
 /// Joins the elements
@@ -576,7 +577,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
         return Ok(val);
     }
     let attribute = kwargs.must_get::<&str>("attribute")?;
-    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::null());
+    let value = kwargs.get::<Value>("value")?.unwrap_or(Value::none());
     let mut res = Vec::with_capacity(val.len());
 
     for v in val {
@@ -611,7 +612,7 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
                     "Value {v} does not an attribute after following path; {attribute}"
                 )));
             }
-            x if x.is_null() => (),
+            x if x.is_none() => (),
             x => {
                 let key = x.as_key()?;
                 if let Some(arr) = grouped.get_mut(&key) {

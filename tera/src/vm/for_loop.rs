@@ -283,7 +283,7 @@ impl ForLoop {
 
                 // Check if this is the key variable
                 if self.key_name.as_deref() == Some(name) {
-                    return Some(self.current_values.0.clone().unwrap_or(Value::null()));
+                    return Some(self.current_values.0.clone().unwrap_or(Value::none()));
                 }
 
                 self.context.get(name).cloned()

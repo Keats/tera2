@@ -161,7 +161,7 @@ impl<'tera> VirtualMachine<'tera> {
                 Instruction::LoadAttr(attr) | Instruction::LoadAttrOpt(attr) => {
                     let is_optional = matches!(instr, Instruction::LoadAttrOpt(_));
                     let (a, a_span) = state.stack.pop();
-                    if is_optional && (a.is_undefined() || a.is_null()) {
+                    if is_optional && (a.is_undefined() || a.is_none()) {
                         state
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
@@ -178,7 +178,7 @@ impl<'tera> VirtualMachine<'tera> {
                     let is_optional = matches!(instr, Instruction::BinarySubscriptOpt);
                     let (subscript, subscript_span) = state.stack.pop();
                     let (val, val_span) = state.stack.pop();
-                    if is_optional && (val.is_undefined() || val.is_null()) {
+                    if is_optional && (val.is_undefined() || val.is_none()) {
                         state
                             .stack
                             .push(Value::undefined(), Some(current_ip..=current_ip));
@@ -384,7 +384,7 @@ impl<'tera> VirtualMachine<'tera> {
                         let res = self.interpret(state, output);
                         state.chunk = old_chunk;
                         res?;
-                        state.stack.push(Value::null(), None);
+                        state.stack.push(Value::none(), None);
                     } else {
                         let f = &self.tera.functions[name.as_str()];
                         let val = match f

@@ -8,7 +8,7 @@ ComponentDefinition {
     kwargs: {
         "a": ComponentArgument {
             default: Some(
-                Null,
+                None,
             ),
             typ: None,
         },
