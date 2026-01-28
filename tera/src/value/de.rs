@@ -31,7 +31,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
             ValueInner::F64(v) => visitor.visit_f64(v),
             ValueInner::String(v) => visitor.visit_str(v.as_str()),
             ValueInner::Bytes(v) => visitor.visit_bytes(&v),
-            ValueInner::Undefined | ValueInner::Null => visitor.visit_unit(),
+            ValueInner::Undefined | ValueInner::None => visitor.visit_unit(),
             ValueInner::Array(v) => visitor.visit_seq(de::value::SeqDeserializer::new(
                 v.iter().map(|v| ValueDeserializer::from_value(v.clone())),
             )),
@@ -51,7 +51,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer {
         V: Visitor<'de>,
     {
         match self.value.inner {
-            ValueInner::Undefined | ValueInner::Null => visitor.visit_unit(),
+            ValueInner::Undefined | ValueInner::None => visitor.visit_unit(),
             _ => visitor.visit_some(self),
         }
     }

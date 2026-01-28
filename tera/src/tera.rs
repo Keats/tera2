@@ -336,7 +336,7 @@ impl Tera {
         self.register_test("array", crate::tests::is_array);
         self.register_test("integer", crate::tests::is_integer);
         self.register_test("float", crate::tests::is_float);
-        self.register_test("null", crate::tests::is_null);
+        self.register_test("none", crate::tests::is_none);
         self.register_test("iterable", crate::tests::is_iterable);
         self.register_test("defined", crate::tests::is_defined);
         self.register_test("undefined", crate::tests::is_undefined);

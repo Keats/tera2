@@ -177,7 +177,7 @@ impl fmt::Debug for Expression {
                 ValueInner::String(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 ValueInner::Array(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
                 ValueInner::Map(j) => fmt::Debug::fmt(&Spanned::new(j, i.span().clone()), f),
-                ValueInner::Null => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
+                ValueInner::None => fmt::Debug::fmt(&Spanned::new((), i.span().clone()), f),
                 _ => unreachable!("{self} is not implemented"),
             },
             Map(i) => fmt::Debug::fmt(i, f),
@@ -223,7 +223,7 @@ impl fmt::Display for Expression {
                     }
                     write!(f, "]")
                 }
-                ValueInner::Null => write!(f, "null"),
+                ValueInner::None => write!(f, "null"),
                 ValueInner::Undefined => write!(f, "undefined"),
                 ValueInner::Bytes(_) => write!(f, "<bytes>"),
                 ValueInner::Map(s) => {
@@ -709,7 +709,7 @@ impl Type {
             ValueKind::F64 => Some(Type::Float),
             ValueKind::Array => Some(Type::Array),
             ValueKind::Map => Some(Type::Map),
-            ValueKind::Undefined | ValueKind::Null | ValueKind::Bytes => None,
+            ValueKind::Undefined | ValueKind::None | ValueKind::Bytes => None,
         }
     }
 }

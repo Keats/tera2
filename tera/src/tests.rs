@@ -83,8 +83,8 @@ pub(crate) fn is_array(val: &Value, _: Kwargs, _: &State) -> bool {
     val.is_array()
 }
 
-pub(crate) fn is_null(val: &Value, _: Kwargs, _: &State) -> bool {
-    val.is_null()
+pub(crate) fn is_none(val: &Value, _: Kwargs, _: &State) -> bool {
+    val.is_none()
 }
 
 pub(crate) fn is_undefined(val: &Value, _: Kwargs, _: &State) -> bool {

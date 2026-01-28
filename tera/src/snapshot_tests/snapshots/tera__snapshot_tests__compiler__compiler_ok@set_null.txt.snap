@@ -4,5 +4,5 @@ expression: compiler.chunk
 input_file: tera/src/snapshot_tests/compiler_inputs/success/set_null.txt
 ---
 === set_null.txt ===
-0000 LoadConst(Null)
+0000 LoadConst(None)
 0001 Set("txt")

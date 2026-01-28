@@ -85,7 +85,7 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        Ok(ValueInner::Null.into())
+        Ok(ValueInner::None.into())
     }
 
     fn serialize_some<T: Serialize + ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error> {
@@ -93,7 +93,7 @@ impl Serializer for ValueSerializer {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Ok(ValueInner::Null.into())
+        Ok(ValueInner::None.into())
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {

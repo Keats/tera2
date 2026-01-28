@@ -638,7 +638,9 @@ impl<'a> Parser<'a> {
             Token::Str(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::String(s) => Expression::Const(Spanned::new(Value::from(s), span.clone())),
             Token::Bool(b) => Expression::Const(Spanned::new(Value::from(b), span.clone())),
-            Token::None => Expression::Const(Spanned::new(Value::null(), span.clone())),
+            Token::Ident("none") | Token::Ident("None") => {
+                Expression::Const(Spanned::new(Value::none(), span.clone()))
+            }
             Token::Minus | Token::Ident("not") => {
                 let op = match token {
                     Token::Minus => UnaryOperator::Minus,
@@ -1109,7 +1111,9 @@ impl<'a> Parser<'a> {
                     Some(Ok((Token::Str(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Integer(b), _))) => (Value::from(*b), true),
                     Some(Ok((Token::Float(b), _))) => (Value::from(*b), true),
-                    Some(Ok((Token::None, _))) => (Value::null(), true),
+                    Some(Ok((Token::Ident("none") | Token::Ident("None"), _))) => {
+                        (Value::none(), true)
+                    }
                     Some(Ok((Token::LeftBracket, _))) => {
                         expect_token!(self, Token::LeftBracket, "[")?;
                         let array = self.parse_array()?;
@@ -1217,7 +1221,7 @@ impl<'a> Parser<'a> {
                     if let Some(Ok((Token::Pipe, _))) = self.next {
                         expect_token!(self, Token::Pipe, "|")?;
                         filters.push(self.parse_filter(Expression::Const(Spanned::new(
-                            Value::null(),
+                            Value::none(),
                             self.current_span.clone(),
                         )))?);
                     } else {
