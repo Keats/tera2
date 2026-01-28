@@ -637,16 +637,34 @@ impl<'tera> VirtualMachine<'tera> {
                     let num_attrs = path.len() - 1;
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
+                            let available_vars = state.available_variables();
+                            let available_msg = if available_vars.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" Available variables: {}", available_vars.join(", "))
+                            };
                             rendering_error!(
-                                format!("Variable `{}` is not defined", path[0]),
+                                format!(
+                                    "Variable `{}` is not defined.{available_msg}",
+                                    path[0],
+                                ),
                                 span: chunk.get_span_at(current_ip, k)
                             );
                         }
+                        let parent = val.clone();
                         val = val.get_attr(attr);
                         // Only error on intermediate undefined, not the final result
                         if val.is_undefined() && k + 1 < num_attrs {
+                            let available_fields = parent.available_fields();
+                            let available_msg = if available_fields.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" Available fields: {}", available_fields.join(", "))
+                            };
                             rendering_error!(
-                                format!("Field `{}` is not defined", attr),
+                                format!(
+                                    "Field `{attr}` is not defined.{available_msg}",
+                                ),
                                 span: chunk.get_span_at(current_ip, k + 1)
                             );
                         }
@@ -657,18 +675,36 @@ impl<'tera> VirtualMachine<'tera> {
                     let mut val = state.get_value(&path[0]);
                     if val.is_undefined() {
                         let chunk = state.chunk.expect("to have a chunk");
+                        let available_vars = state.available_variables();
+                        let available_msg = if available_vars.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" Available variables: {}", available_vars.join(", "))
+                        };
                         rendering_error!(
-                            format!("Field `{}` is not defined", path[0]),
+                            format!(
+                                "Variable `{}` is not defined.{available_msg}",
+                                path[0],
+                            ),
                             span: chunk.get_span_at(current_ip, 0)
                         );
                     }
                     for (k, attr) in path[1..].iter().enumerate() {
+                        let parent = val.clone();
                         val = val.get_attr(attr);
                         // Check if attribute access failed (returned undefined)
                         if val.is_undefined() {
                             let chunk = state.chunk.expect("to have a chunk");
+                            let available_fields = parent.available_fields();
+                            let available_msg = if available_fields.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" Available fields: {}", available_fields.join(", "))
+                            };
                             rendering_error!(
-                                format!("Field `{}` is not defined", attr),
+                                format!(
+                                    "Field `{attr}` is not defined.{available_msg}",
+                                ),
                                 span: chunk.get_span_at(current_ip, k + 1)
                             );
                         }

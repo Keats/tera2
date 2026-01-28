@@ -843,6 +843,20 @@ impl Value {
         }
     }
 
+    /// Returns a sorted list of available field names if this is a map.
+    /// Used for error messages only.
+    pub(crate) fn available_fields(&self) -> Vec<String> {
+        self.as_map()
+            .map(|m| {
+                m.keys()
+                    .map(|k| k.to_string())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Returns a string name for the current enum member.
     /// Used in error messages
     pub fn name(&self) -> &'static str {

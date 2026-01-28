@@ -167,4 +167,32 @@ impl<'t> State<'t> {
             ))),
         }
     }
+
+    /// Returns a sorted list of all available variable names in the current scope.
+    /// Used for error messages only.
+    pub(crate) fn available_variables(&self) -> Vec<String> {
+        let mut vars = std::collections::BTreeSet::new();
+
+        if let Some(global) = self.global_context {
+            for k in global.data.keys() {
+                vars.insert(k.to_string());
+            }
+        }
+
+        for k in self.context.data.keys() {
+            vars.insert(k.to_string());
+        }
+
+        for k in self.set_variables.keys() {
+            vars.insert(k.clone());
+        }
+
+        for forloop in &self.for_loops {
+            for k in forloop.context.keys() {
+                vars.insert(k.clone());
+            }
+        }
+
+        vars.into_iter().collect()
+    }
 }
