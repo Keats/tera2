@@ -1,7 +1,13 @@
 use base64::{Engine, engine::general_purpose};
 use tera::{Kwargs, State, TeraResult};
 
-/// Encodes a string to base64
+/// Encodes a string to base64.
+/// Takes an optional `url_safe` bool parameter if you want to use the URL SAFE b64 characters.
+///
+/// ```text
+/// {{ value | b64_encode }}
+/// {{ value | b64_encode(url_safe=true) }}
+/// ```
 pub fn b64_encode(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let url_safe = kwargs.get::<bool>("url_safe")?.unwrap_or(false);
     if url_safe {
@@ -11,7 +17,13 @@ pub fn b64_encode(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     }
 }
 
-/// Decodes a base64 string
+/// Decodes a base64 string.
+/// Takes an optional `url_safe` bool parameter if you want to use the URL SAFE b64 characters.
+///
+/// ```text
+/// {{ value | b64_decode }}
+/// {{ value | b64_decode(url_safe=true) }}
+/// ```
 pub fn b64_decode(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let url_safe = kwargs.get::<bool>("url_safe")?.unwrap_or(false);
     let decoded = if url_safe {

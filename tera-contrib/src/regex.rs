@@ -9,10 +9,27 @@ static STRIPTAGS_RE: LazyLock<Regex> =
 
 static SPACELESS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r">\s+<").unwrap());
 
+/// Tries to remove HTML tags from input. Does not guarantee well-formed output if input is not valid HTML.
+///
+/// If value is "<b>Joel</b>", the output will be "Joel".
+/// Note that if the template you are using it in is automatically escaped, you will need to call the safe filter after striptags.
+///
+/// ```text
+/// {{ value | striptags }}
+/// ```
 pub fn striptags(val: &str, _: Kwargs, _: &State) -> String {
     STRIPTAGS_RE.replace_all(val, "").into_owned()
 }
 
+/// Remove space ( ) and line breaks (\n or \r\n) between HTML tags.
+///
+/// If the value is "<p>\n<a> </a>\r\n </p>", the output will be "<p><a></a></p>".
+/// Note that only whitespace between successive opening tags and successive closing tags is removed.
+/// Also note that if the template you are using it in is automatically escaped, you will need to call the safe filter after spaceless.
+///
+/// ```text
+/// {{ value | spaceless }}
+/// ```
 pub fn spaceless(val: &str, _: Kwargs, _: &State) -> String {
     SPACELESS_RE.replace_all(val, "><").into_owned()
 }
@@ -33,6 +50,12 @@ fn get_or_create_regex(cache: &RwLock<HashMap<String, Regex>>, pattern: &str) ->
     Ok(regex)
 }
 
+/// Returns true if the given variable is a string and matches the regex in the `pat` argument.
+/// The regex will only be compiled once.
+///
+/// ```text
+/// {% if value is matching(pat="^hello") %}...{% endif %}
+/// ```
 #[derive(Debug, Default)]
 pub struct Matching {
     cache: RwLock<HashMap<String, Regex>>,
@@ -46,6 +69,13 @@ impl Test<&str, TeraResult<bool>> for Matching {
     }
 }
 
+/// Takes 2 mandatory string named arguments: `pattern` (regex pattern) and `rep`.
+/// This will replace all occurrences of `pattern` with `rep`.
+/// The regex will only be compiled once.
+///
+/// ```text
+/// {{ value | regex_replace(pattern="\d+", rep="") }}
+/// ```
 #[derive(Debug, Default)]
 pub struct RegexReplace {
     cache: RwLock<HashMap<String, Regex>>,

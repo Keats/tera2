@@ -48,12 +48,22 @@ const PYTHON_ENCODE_SET: &AsciiSet = &USERINFO_ENCODE_SET
     .add(b';')
     .add(b'=');
 
-/// Percent-encodes reserved URI characters
+/// Percent-encodes reserved URI characters.
+/// Matches Python's `urllib.parse.quote` behavior with `/` not escaped.
+///
+/// ```text
+/// {{ value | urlencode }}
+/// ```
 pub fn urlencode(val: &str, _: Kwargs, _: &State) -> String {
     percent_encode(val.as_bytes(), PYTHON_ENCODE_SET).to_string()
 }
 
-/// Percent-encodes reserved URI characters
+/// Percent-encodes all non-alphanumeric characters.
+/// Stricter than `urlencode` - also encodes `/` and other typically safe characters.
+///
+/// ```text
+/// {{ value | urlencode_strict }}
+/// ```
 pub fn urlencode_strict(val: &str, _: Kwargs, _: &State) -> String {
     percent_encode(val.as_bytes(), NON_ALPHANUMERIC).to_string()
 }

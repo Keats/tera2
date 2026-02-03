@@ -1,6 +1,11 @@
 use slug::slugify;
 use tera::{Kwargs, State};
 
+/// Slugify the given value.
+///
+/// ```text
+/// {{ title | slug }}
+/// ```
 pub fn slug(val: &str, _: Kwargs, _: &State) -> String {
     slugify(val)
 }

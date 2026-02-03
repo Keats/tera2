@@ -1,7 +1,12 @@
 use tera::{Kwargs, State};
 
 /// Formats a number of bytes into a human-readable file size string.
-/// Uses binary units (KiB, MiB, GiB, etc.) by default.
+/// Uses binary units (KiB, MiB, GiB, etc.) by default but can use decimal.
+///
+/// ```text
+/// {{ num_bytes | filesize_format }}
+/// {{ num_bytes | filesize_format(binary=false) }}
+/// ```
 pub fn filesize_format(val: u64, kwargs: Kwargs, _: &State) -> String {
     let binary = kwargs.get::<bool>("binary").ok().flatten().unwrap_or(true);
 

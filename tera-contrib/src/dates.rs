@@ -39,6 +39,13 @@ fn parse_to_zoned(val: &Value, tz: Option<TimeZone>) -> TeraResult<Zoned> {
     }
 }
 
+/// Returns the current datetime.
+/// You can pass an optional `timezone` name. Defaults to UTC if not provided.
+///
+/// ```text
+/// {{ now() }}
+/// {{ now(timezone="America/New_York") }}
+/// ```
 pub fn now(kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     let tz_str = kwargs.get::<&str>("timezone")?.unwrap_or("UTC");
     let timezone = TimeZone::get(tz_str)
@@ -47,7 +54,16 @@ pub fn now(kwargs: Kwargs, _: &State) -> TeraResult<Value> {
     Ok(Value::from(now.to_string()))
 }
 
-/// Formats the given value using the given format if it can be parsed as a date/datetime
+/// Formats the given value using the given format if it can be parsed as a date/datetime.
+/// Takes:
+///   1. optional `format` argument, defaulting to `%Y-%m-%d`
+///   2. optional `timezone` argument, defaulting to not set
+///
+/// ```text
+/// {{ value | date }}
+/// {{ value | date(format="%B %d, %Y") }}
+/// {{ timestamp | date(format="%Y-%m-%d %H:%M", timezone="Europe/Paris") }}
+/// ```
 pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let format = kwargs.get::<&str>("format")?.unwrap_or("%Y-%m-%d");
     let timezone = match kwargs.get::<&str>("timezone")? {
@@ -66,6 +82,14 @@ pub fn date(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
         .map_err(|e| tera::Error::message(format!("Invalid date format `{format}`: {e}")))
 }
 
+/// Tests whether a date is before another date.
+/// Errors if one of the values cannot be parsed as a date.
+/// Takes an optional `inclusive` argument defaulting to false to make this test be `<=` instead of `<`.
+///
+/// ```text
+/// {% if date is before(other="2024-06-01") %}...{% endif %}
+/// {% if date is before(other=other_date, inclusive=true) %}...{% endif %}
+/// ```
 pub fn is_before(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
     let other = kwargs.must_get::<&Value>("other")?;
     let inclusive = kwargs.get::<bool>("inclusive")?.unwrap_or(false);
@@ -78,6 +102,14 @@ pub fn is_before(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
     }
 }
 
+/// Tests whether a date is after another date.
+/// Errors if one of the values cannot be parsed as a date.
+/// Takes an optional `inclusive` argument defaulting to false to make this test be `>=` instead of `>`.
+///
+/// ```text
+/// {% if date is after(other="2024-01-01") %}...{% endif %}
+/// {% if date is after(other=other_date, inclusive=true) %}...{% endif %}
+/// ```
 pub fn is_after(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<bool> {
     let other = kwargs.must_get::<&Value>("other")?;
     let inclusive = kwargs.get::<bool>("inclusive")?.unwrap_or(false);
