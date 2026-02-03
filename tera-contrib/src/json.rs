@@ -1,6 +1,12 @@
 use tera::{Kwargs, State, TeraResult, Value};
 
-/// Encodes a value as JSON
+/// Encodes a value as JSON.
+/// Takes an optional `pretty` boolean argument defaulting to false.
+///
+/// ```text
+/// {{ value | json_encode }}
+/// {{ value | json_encode(pretty=true) }}
+/// ```
 pub fn json_encode(val: &Value, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let pretty = kwargs.get::<bool>("pretty")?.unwrap_or(false);
     let res = if pretty {
