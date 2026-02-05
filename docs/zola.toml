@@ -1,0 +1,21 @@
+# The URL the site will be built for
+base_url = "https://keats.github.io/tera/"
+
+# Whether to automatically compile all Sass files in the sass directory
+compile_sass = true
+
+# Whether to build a search index to be used later on by a JavaScript library
+build_search_index = false
+
+title = "Tera"
+description = "Tera - A template engine for Rust inspired by Jinja2 and Django templates"
+
+[markdown]
+
+[markdown.highlighting]
+theme = "gruvbox-dark-hard"
+error_on_missing_language = true
+
+[extra]
+author = "Vincent Prouillet"
+github_url = "https://github.com/Keats/tera2"

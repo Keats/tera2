@@ -182,6 +182,8 @@ impl Kwargs {
         .map_err(|_| Error::message("Failed to deserialize"))
     }
 
+    /// Try to get the given key value and convert it to the given type
+    /// Returns None if not found
     pub fn get<'k, T>(&'k self, key: &'k str) -> TeraResult<Option<T>>
     where
         T: ArgFromValue<'k, Output = T>,
@@ -192,6 +194,8 @@ impl Kwargs {
         }
     }
 
+    /// Try to get the given key value.
+    /// Returns an error if not found.
     pub fn must_get<'k, T>(&'k self, key: &'k str) -> TeraResult<T>
     where
         T: ArgFromValue<'k, Output = T>,
