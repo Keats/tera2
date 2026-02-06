@@ -28,14 +28,17 @@ impl Stack {
         }
     }
 
+    #[inline]
     pub(crate) fn push(&mut self, val: Value, span: SpanRange) {
         self.values.push((val, span));
     }
 
+    #[inline]
     pub(crate) fn pop(&mut self) -> (Value, SpanRange) {
         self.values.pop().expect("to have a value")
     }
 
+    #[inline]
     pub(crate) fn peek(&mut self) -> &(Value, SpanRange) {
         self.values.last().expect("to peek a value")
     }
