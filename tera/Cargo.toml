@@ -47,6 +47,11 @@ insta = { version = "1", features = ["glob"] }
 serde_derive = "1.0.156"
 tempfile = "3"
 
+[package.metadata.docs.rs]
+features = [
+    "glob_fs",
+]
+
 [lib]
 doctest = false
 

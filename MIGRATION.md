@@ -34,7 +34,9 @@ they can be enabled one by one.
 - `object` test has been renamed to `map`
 - `truncate` requires the `length` argument and does not default to 255 anymore
 - ISO 8601 dates using format `1996-12-19T16:39:57-08:00` are not supported anymore for the input of date filter, you can use `1996-12-19T16:39:57[-08:00]` instead
-- `addslashes`, `escape_xml`, `get_env`, `concat` and `slice` filter have been removed (concat and slice are redundant with other features described later)
+- `addslashes`, `spaceless`, `get_env`, `concat` and `slice` filter have been removed (concat and slice are redundant with other features described later)
+- `first`, `last` and `nth` now return None when the array is empty instead of an empty string.
+- `unique` doesn't take arguments anymore
 
 ### Macros are gone
 
@@ -112,7 +114,7 @@ You can now use slicing on your arrays without the need to use the filter, simil
 {{ product.name[:-1] }}
 ```
 
-`-1` means the last item of the array and you the syntax is `[start:stop:step]`, like Python.
+`-1` means the last item of the array and the syntax is `[start:stop:step]`, like Python.
 
 ### Optional chaining
 
@@ -230,7 +232,7 @@ The cool part is:
 ```
 If you have a variable name that matches the argument (eg `title` in the example), you can use the shorthand approach to save some typing. If you look
 at the definition above for `ui.forms.widget` you will see it's using `{{body}}` which is not defined anywhere: Tera will pass the
-component of the body automatically as the `body` variable. You can of course nest it as much as you want.
+body of a component automatically as the `body` variable. You can of course nest it as much as you want.
 
 If you are building with something like HTMX you can also re-render a single component from the `Tera` instance.
 

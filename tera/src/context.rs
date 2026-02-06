@@ -105,7 +105,7 @@ impl Context {
 /// ```rust
 /// let ctx = context! {
 ///     name => "Brian",
-///     age => &24
+///     age => &24,
 /// };
 /// ```
 /// Expands to:

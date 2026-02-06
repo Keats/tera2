@@ -32,3 +32,16 @@ format = ["dep:formatx"]
 slug = ["dep:slug"]
 rand = ["dep:rand"]
 regex = ["dep:regex"]
+
+[package.metadata.docs.rs]
+features = [
+    "base64",
+    "date",
+    "urlencode",
+    "json",
+    "filesize_format",
+    "format",
+    "slug",
+    "rand",
+    "regex",
+]
