@@ -583,36 +583,34 @@ impl Value {
             return self.clone();
         }
 
-        let mut res = self.clone();
+        let mut current = self;
 
         for elem in path.split('.') {
             match elem.parse::<usize>() {
-                Ok(idx) => match &res.inner {
-                    ValueInner::Array(arr) => {
-                        if let Some(v) = arr.get(idx) {
-                            res = v.clone();
-                        } else {
+                Ok(idx) => match &current.inner {
+                    ValueInner::Array(arr) => match arr.get(idx) {
+                        Some(v) => current = v,
+                        None => {
                             return Value {
                                 inner: ValueInner::Undefined,
                             };
                         }
-                    }
+                    },
                     _ => {
                         return Value {
                             inner: ValueInner::Undefined,
                         };
                     }
                 },
-                Err(_) => match &res.inner {
-                    ValueInner::Map(map) => {
-                        if let Some(v) = map.get(&Key::Str(elem)) {
-                            res = v.clone();
-                        } else {
+                Err(_) => match &current.inner {
+                    ValueInner::Map(map) => match map.get(&Key::Str(elem)) {
+                        Some(v) => current = v,
+                        None => {
                             return Value {
                                 inner: ValueInner::Undefined,
                             };
                         }
-                    }
+                    },
                     _ => {
                         return Value {
                             inner: ValueInner::Undefined,
@@ -622,7 +620,7 @@ impl Value {
             }
         }
 
-        res
+        current.clone()
     }
 
     pub fn is_truthy(&self) -> bool {

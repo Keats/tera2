@@ -338,7 +338,7 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(Value::from(elems), None);
                 }
                 Instruction::BuildListWithSpreads(entry_types) => {
-                    let mut result = Vec::new();
+                    let mut result = Vec::with_capacity(entry_types.len());
                     for is_spread in entry_types.iter().rev() {
                         let (val, span) = state.stack.pop();
                         if *is_spread {
@@ -651,11 +651,10 @@ impl<'tera> VirtualMachine<'tera> {
                                 span: chunk.get_span_at(current_ip, k)
                             );
                         }
-                        let parent = val.clone();
-                        val = val.get_attr(attr);
+                        let new_val = val.get_attr(attr);
                         // Only error on intermediate undefined, not the final result
-                        if val.is_undefined() && k + 1 < num_attrs {
-                            let available_fields = parent.available_fields();
+                        if new_val.is_undefined() && k + 1 < num_attrs {
+                            let available_fields = val.available_fields();
                             let available_msg = if available_fields.is_empty() {
                                 String::new()
                             } else {
@@ -668,6 +667,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 span: chunk.get_span_at(current_ip, k + 1)
                             );
                         }
+                        val = new_val;
                     }
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
@@ -690,12 +690,11 @@ impl<'tera> VirtualMachine<'tera> {
                         );
                     }
                     for (k, attr) in path[1..].iter().enumerate() {
-                        let parent = val.clone();
-                        val = val.get_attr(attr);
+                        let new_val = val.get_attr(attr);
                         // Check if attribute access failed (returned undefined)
-                        if val.is_undefined() {
+                        if new_val.is_undefined() {
                             let chunk = state.chunk.expect("to have a chunk");
-                            let available_fields = parent.available_fields();
+                            let available_fields = val.available_fields();
                             let available_msg = if available_fields.is_empty() {
                                 String::new()
                             } else {
@@ -708,6 +707,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 span: chunk.get_span_at(current_ip, k + 1)
                             );
                         }
+                        val = new_val;
                     }
 
                     if !self.template.autoescape_enabled || val.is_safe() {
