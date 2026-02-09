@@ -33,7 +33,11 @@ macro_rules! impl_for_literal {
         impl<'k> ArgFromValue<'k> for $ty {
             type Output = Self;
             fn from_value(value: &Value) -> Result<Self, Error> {
-                TryFrom::try_from(value.clone())
+                let res = match &value.inner {
+                    $($pat $(if $if_expr)? => TryFrom::try_from($expr).ok(),)*
+                    _ => None
+                };
+                res.ok_or_else(|| Error::invalid_arg_type(stringify!($ty), value.name()))
             }
         }
     }
