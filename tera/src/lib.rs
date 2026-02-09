@@ -1,4 +1,5 @@
 mod args;
+mod components;
 mod context;
 mod delimiters;
 mod errors;
@@ -17,6 +18,7 @@ pub(crate) mod vm;
 
 pub use crate::tera::{EscapeFn, Tera};
 pub use args::Kwargs;
+pub use components::{ComponentArg, ComponentArgType, ComponentInfo};
 pub use context::Context;
 pub use delimiters::Delimiters;
 pub use errors::{Error, ErrorKind, TeraResult};

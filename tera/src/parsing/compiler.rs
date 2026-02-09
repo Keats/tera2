@@ -1,4 +1,7 @@
 //! AST -> bytecode
+
+use std::collections::HashSet;
+
 use crate::HashMap;
 use crate::parsing::ast::{
     ArrayEntry, BinaryOperator, Block, Expression, MapEntry, Node, UnaryOperator,
@@ -17,9 +20,8 @@ enum ProcessingBody {
     Loop(usize),
 }
 
-pub(crate) struct Compiler<'s> {
+pub(crate) struct Compiler {
     pub(crate) chunk: Chunk,
-    source: &'s str,
     processing_bodies: Vec<ProcessingBody>,
     /// The actual blocks definition
     pub(crate) blocks: HashMap<String, Chunk>,
@@ -33,11 +35,14 @@ pub(crate) struct Compiler<'s> {
     pub(crate) test_calls: HashMap<String, Vec<Span>>,
     pub(crate) function_calls: HashMap<String, Vec<Span>>,
     pub(crate) include_calls: HashMap<String, Vec<Span>>,
+    pub(crate) top_level_variables: HashSet<String>,
+    /// Represents variables set by a loop or by set
+    pub(crate) temp_variables: Vec<HashSet<String>>,
     pub(crate) raw_content_num_bytes: usize,
 }
 
-impl<'s> Compiler<'s> {
-    pub(crate) fn new(name: &str, source: &'s str) -> Self {
+impl Compiler {
+    pub(crate) fn new(name: &str) -> Self {
         Self {
             chunk: Chunk::new(name),
             processing_bodies: Vec::new(),
@@ -48,8 +53,9 @@ impl<'s> Compiler<'s> {
             include_calls: HashMap::new(),
             blocks: HashMap::new(),
             block_name_spans: HashMap::new(),
+            top_level_variables: HashSet::default(),
+            temp_variables: vec![HashSet::new()],
             block_depth: 0,
-            source,
             raw_content_num_bytes: 0,
         }
     }
@@ -153,6 +159,19 @@ impl<'s> Compiler<'s> {
             }
             Expression::Var(e) => {
                 let (val, span) = e.into_parts();
+
+                // Ignore our own magic variables
+                if !val.name.starts_with("__tera_") {
+                    // Also ignore loop scoped vars
+                    let from_loop_scope = self
+                        .temp_variables
+                        .iter()
+                        .any(|s| s.contains(val.name.as_str()));
+                    if !from_loop_scope {
+                        self.top_level_variables.insert(val.name.clone());
+                    }
+                }
+
                 self.chunk.add(Instruction::LoadName(val.name), Some(span));
             }
             Expression::GetAttr(e) => {
@@ -358,30 +377,21 @@ impl<'s> Compiler<'s> {
         let (block_name, block_span) = block.name.into_parts();
         let is_top_level = self.block_depth == 0;
 
-        let mut compiler = Compiler::new(&self.chunk.name, self.source);
-        compiler.block_depth = self.block_depth + 1;
-        compiler.component_calls = std::mem::take(&mut self.component_calls);
-        compiler.filter_calls = std::mem::take(&mut self.filter_calls);
-        compiler.test_calls = std::mem::take(&mut self.test_calls);
-        compiler.function_calls = std::mem::take(&mut self.function_calls);
-        compiler.include_calls = std::mem::take(&mut self.include_calls);
+        let chunk_name = self.chunk.name.clone();
+        let parent_chunk = std::mem::replace(&mut self.chunk, Chunk::new(&chunk_name));
+        let parent_bodies = std::mem::take(&mut self.processing_bodies);
+        self.block_depth += 1;
         for node in block.body {
-            compiler.compile_node(node);
+            self.compile_node(node);
         }
-        self.component_calls = compiler.component_calls;
-        self.filter_calls = compiler.filter_calls;
-        self.test_calls = compiler.test_calls;
-        self.function_calls = compiler.function_calls;
-        self.include_calls = compiler.include_calls;
-        self.raw_content_num_bytes += compiler.raw_content_num_bytes;
-        self.blocks.extend(compiler.blocks);
-        // Only propagate top-level block definitions from nested compilers
-        self.block_name_spans.extend(compiler.block_name_spans);
-        self.blocks.insert(block_name.clone(), compiler.chunk);
-        // Only track this block if it's top-level (not nested inside another block)
+        self.block_depth -= 1;
+        let block_chunk = std::mem::replace(&mut self.chunk, parent_chunk);
+        self.processing_bodies = parent_bodies;
+
         if is_top_level {
             self.block_name_spans.insert(block_name.clone(), block_span);
         }
+        self.blocks.insert(block_name.clone(), block_chunk);
         self.chunk.add(Instruction::RenderBlock(block_name), None);
     }
 
@@ -417,6 +427,12 @@ impl<'s> Compiler<'s> {
             }
             Node::Set(s) => {
                 self.compile_expr(s.value);
+                let scope = if s.global {
+                    self.temp_variables.first_mut()
+                } else {
+                    self.temp_variables.last_mut()
+                };
+                scope.unwrap().insert(s.name.clone());
                 let instr = if s.global {
                     Instruction::SetGlobal(s.name)
                 } else {
@@ -441,6 +457,12 @@ impl<'s> Compiler<'s> {
                         self.chunk.add(Instruction::ApplyFilter(filter.name), None);
                     }
                 }
+                let scope = if b.global {
+                    self.temp_variables.first_mut()
+                } else {
+                    self.temp_variables.last_mut()
+                };
+                scope.unwrap().insert(b.name.clone());
                 let instr = if b.global {
                     Instruction::SetGlobal(b.name)
                 } else {
@@ -464,10 +486,15 @@ impl<'s> Compiler<'s> {
                 self.chunk
                     .add(Instruction::StartIterate(forloop.key.is_some()), None);
                 // The value is sent before the key to be consistent with a value only loop
+                let mut loop_vars = HashSet::new();
+                loop_vars.insert(forloop.value.clone());
                 self.chunk.add(Instruction::StoreLocal(forloop.value), None);
                 if let Some(key_var) = forloop.key {
+                    loop_vars.insert(key_var.clone());
                     self.chunk.add(Instruction::StoreLocal(key_var), None);
                 }
+                self.temp_variables.push(loop_vars);
+
                 let start_idx = self.chunk.add(Instruction::Iterate(0), None) as usize;
                 self.processing_bodies.push(ProcessingBody::Loop(start_idx));
 
@@ -498,6 +525,9 @@ impl<'s> Compiler<'s> {
                     _ => unreachable!(),
                 }
 
+                // Pop the loop scope so loop variables don't leak out
+                self.temp_variables.pop();
+
                 if has_else {
                     let idx = self.chunk.add(Instruction::PopJumpIfFalse(0), None) as usize;
                     self.processing_bodies.push(ProcessingBody::Branch(idx));
@@ -520,6 +550,7 @@ impl<'s> Compiler<'s> {
 
                 let idx = self.chunk.add(Instruction::PopJumpIfFalse(0), None) as usize;
                 self.processing_bodies.push(ProcessingBody::Branch(idx));
+
                 for node in i.body {
                     self.compile_node(node);
                 }
@@ -533,6 +564,7 @@ impl<'s> Compiler<'s> {
                         self.compile_node(node);
                     }
                 }
+
                 self.end_branch(self.chunk.len());
             }
             Node::FilterSection(f) => {
