@@ -30,7 +30,10 @@ where
 type FunctionFunc = dyn Fn(Kwargs, &State) -> TeraResult<Value> + Sync + Send + 'static;
 
 #[derive(Clone)]
-pub(crate) struct StoredFunction(Arc<FunctionFunc>);
+pub(crate) struct StoredFunction {
+    func: Arc<FunctionFunc>,
+    is_safe: bool,
+}
 
 impl StoredFunction {
     pub fn new<Func, Res>(f: Func) -> Self
@@ -38,15 +41,23 @@ impl StoredFunction {
         Func: Function<Res>,
         Res: FunctionResult,
     {
+        let is_safe = f.is_safe();
         let closure = move |kwargs, state: &State| -> TeraResult<Value> {
             f.call(kwargs, state).into_result()
         };
 
-        StoredFunction(Arc::new(closure))
+        StoredFunction {
+            func: Arc::new(closure),
+            is_safe,
+        }
     }
 
     pub fn call(&self, kwargs: Kwargs, state: &State) -> TeraResult<Value> {
-        (self.0)(kwargs, state)
+        (self.func)(kwargs, state)
+    }
+
+    pub fn is_safe(&self) -> bool {
+        self.is_safe
     }
 }
 

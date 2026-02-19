@@ -161,7 +161,14 @@ impl<'t> State<'t> {
     /// Call a filter by name. Used by filters like `map` that need to apply other filters.
     pub fn call_filter(&self, name: &str, value: &Value, kwargs: Kwargs) -> TeraResult<Value> {
         match self.filters.and_then(|f| f.get(name)) {
-            Some(filter) => filter.call(value, kwargs, self),
+            Some(filter) => {
+                let val = filter.call(value, kwargs, self)?;
+                Ok(if filter.is_safe() {
+                    val.mark_safe()
+                } else {
+                    val
+                })
+            }
             None => Err(crate::errors::Error::message(format!(
                 "Filter `{name}` is not registered"
             ))),
