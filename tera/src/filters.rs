@@ -37,11 +37,16 @@ where
 type FilterFunc = dyn Fn(&Value, Kwargs, &State) -> TeraResult<Value> + Sync + Send + 'static;
 
 #[derive(Clone)]
-pub(crate) struct StoredFilter(Arc<FilterFunc>);
+pub(crate) struct StoredFilter {
+    func: Arc<FilterFunc>,
+    is_safe: bool,
+}
 
 impl std::fmt::Debug for StoredFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StoredFilter").finish_non_exhaustive()
+        f.debug_struct("StoredFilter")
+            .field("is_safe", &self.is_safe)
+            .finish_non_exhaustive()
     }
 }
 
@@ -52,15 +57,23 @@ impl StoredFilter {
         Arg: for<'a> ArgFromValue<'a>,
         Res: FunctionResult,
     {
+        let is_safe = Filter::<Arg, Res>::is_safe(&f);
         let closure = move |arg: &Value, kwargs, state: &State| -> TeraResult<Value> {
             f.call(Arg::from_value(arg)?, kwargs, state).into_result()
         };
 
-        StoredFilter(Arc::new(closure))
+        StoredFilter {
+            func: Arc::new(closure),
+            is_safe,
+        }
     }
 
     pub fn call(&self, arg: &Value, kwargs: Kwargs, state: &State) -> TeraResult<Value> {
-        (self.0)(arg, kwargs, state)
+        (self.func)(arg, kwargs, state)
+    }
+
+    pub fn is_safe(&self) -> bool {
+        self.is_safe
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use tera::{Context, Tera};
+use tera::{Context, Filter, Function, Kwargs, State, Tera};
 
 #[derive(Serialize)]
 struct Test {
@@ -164,4 +164,70 @@ fn can_render_to_write() {
     let mut out = Vec::new();
     tera.render_to("hello", &ctx, &mut out).unwrap();
     assert_eq!(String::from_utf8(out).unwrap(), "Hello Bob")
+}
+
+struct BoldFilter;
+
+impl Filter<&str, String> for BoldFilter {
+    fn call(&self, value: &str, _kwargs: Kwargs, _state: &State) -> String {
+        format!("<b>{value}</b>")
+    }
+
+    fn is_safe(&self) -> bool {
+        true
+    }
+}
+
+struct SafeHtmlFunction;
+
+impl Function<String> for SafeHtmlFunction {
+    fn call(&self, _kwargs: Kwargs, _state: &State) -> String {
+        "<em>hello</em>".to_string()
+    }
+
+    fn is_safe(&self) -> bool {
+        true
+    }
+}
+
+#[test]
+fn filter_is_safe_skips_autoescape() {
+    let mut tera = Tera::default();
+    tera.autoescape_on(vec![".html"]);
+    tera.register_filter("bold", BoldFilter);
+    tera.add_raw_template("tpl.html", "{{ name | bold }}")
+        .unwrap();
+
+    let mut ctx = Context::new();
+    ctx.insert("name", "world");
+    let out = tera.render("tpl.html", &ctx).unwrap();
+    assert_eq!(out, "<b>world</b>");
+}
+
+#[test]
+fn function_is_safe_skips_autoescape() {
+    let mut tera = Tera::default();
+    tera.autoescape_on(vec![".html"]);
+    tera.register_function("safe_html", SafeHtmlFunction);
+    tera.add_raw_template("tpl.html", "{{ safe_html() }}")
+        .unwrap();
+
+    let out = tera.render("tpl.html", &Context::new()).unwrap();
+    assert_eq!(out, "<em>hello</em>");
+}
+
+#[test]
+fn filter_not_safe_gets_autoescaped() {
+    let mut tera = Tera::default();
+    tera.autoescape_on(vec![".html"]);
+    tera.register_filter("wrap_b", |val: &str, _: Kwargs, _: &State| {
+        format!("<b>{val}</b>")
+    });
+    tera.add_raw_template("tpl.html", "{{ name | wrap_b }}")
+        .unwrap();
+
+    let mut ctx = Context::new();
+    ctx.insert("name", "world");
+    let out = tera.render("tpl.html", &ctx).unwrap();
+    assert!(out.contains("&lt;b&gt;"));
 }

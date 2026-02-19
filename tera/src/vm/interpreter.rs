@@ -395,7 +395,7 @@ impl<'tera> VirtualMachine<'tera> {
                                 rendering_error!(format!("{err}"), Some(current_ip..=current_ip))
                             }
                         };
-
+                        let val = if f.is_safe() { val.mark_safe() } else { val };
                         state.stack.push(val, Some(current_ip..=current_ip));
                     }
                 }
@@ -416,6 +416,7 @@ impl<'tera> VirtualMachine<'tera> {
                             _ => rendering_error!(format!("{err}"), Some(current_ip..=current_ip)),
                         },
                     };
+                    let val = if f.is_safe() { val.mark_safe() } else { val };
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::RunTest(name) => {
