@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -13,7 +14,7 @@ use crate::value::FunctionResult;
 use crate::value::Value;
 use crate::vm::interpreter::VirtualMachine;
 use crate::vm::state::State;
-use crate::{Context, HashMap, escape_html};
+use crate::{ComponentInfo, Context, HashMap, escape_html};
 
 use crate::delimiters::Delimiters;
 #[cfg(feature = "glob_fs")]
@@ -286,6 +287,67 @@ impl Tera {
                 self.functions.insert(name, function.clone());
             }
         }
+    }
+
+    /// Does a best-effort to find the top level variables that might be needed to be provided
+    /// to render the template.
+    ///
+    /// This doesn't do a full analysis and just reports all top level variables that were
+    /// found. It doesn't care about if statements etc.
+    pub fn get_template_variables(&self, template_name: &str) -> TeraResult<HashSet<&str>> {
+        let template = self.must_get_template(template_name)?;
+        let mut vars: HashSet<&str> = HashSet::new();
+        let mut visited_templates: HashSet<&str> = HashSet::new();
+        let mut templates_to_visit: Vec<&Template> = vec![template];
+
+        for parent_name in &template.parents {
+            let parent = self.must_get_template(parent_name)?;
+            templates_to_visit.push(parent);
+        }
+
+        while let Some(current_template) = templates_to_visit.pop() {
+            if !visited_templates.insert(current_template.name.as_str()) {
+                continue;
+            }
+
+            vars.extend(
+                current_template
+                    .top_level_variables
+                    .iter()
+                    .map(|s| s.as_str()),
+            );
+
+            for include_name in current_template.include_calls.keys() {
+                let included = self.must_get_template(include_name)?;
+                templates_to_visit.push(included);
+            }
+        }
+
+        Ok(vars)
+    }
+
+    /// Returns information about a registered component definition.
+    ///
+    /// Returns `None` if no component with the given name is found.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use tera::Tera;
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template(
+    ///     "components.html",
+    ///     r#"{% component Button(label: String, variant="primary") %}<button>{{ label }}</button>{% endcomponent Button %}"#,
+    /// ).unwrap();
+    ///
+    /// let info = tera.get_component_definition("Button").unwrap();
+    /// assert_eq!(info.name(), "Button");
+    /// assert_eq!(info.args().len(), 2);
+    /// ```
+    pub fn get_component_definition(&self, name: &str) -> Option<ComponentInfo> {
+        self.components
+            .get(name)
+            .map(|(def, _)| ComponentInfo::from(def))
     }
 
     fn register_builtin_filters(&mut self) {

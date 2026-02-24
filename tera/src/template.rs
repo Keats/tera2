@@ -5,6 +5,7 @@ use crate::parsing::{Chunk, Compiler};
 use crate::tera::Tera;
 use crate::utils::Span;
 use crate::{HashMap, Parser};
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Template {
@@ -30,6 +31,8 @@ pub struct Template {
     /// Whether to auto-escape this template. It's set to `true` as default and will be updated
     /// when calling `Tera::autoescape_on` and when finalizing the templates
     pub(crate) autoescape_enabled: bool,
+    /// The top level variables used by the template
+    pub(crate) top_level_variables: HashSet<String>,
 }
 
 impl Template {
@@ -59,7 +62,7 @@ impl Template {
             vec![]
         };
 
-        let mut body_compiler = Compiler::new(tpl_name, source);
+        let mut body_compiler = Compiler::new(tpl_name);
         body_compiler.compile(parser_output.nodes);
 
         // Optimize the main chunk
@@ -82,12 +85,13 @@ impl Template {
         let mut test_calls = body_compiler.test_calls;
         let mut function_calls = body_compiler.function_calls;
         let mut include_calls = body_compiler.include_calls;
+        let top_level_variables = body_compiler.top_level_variables;
 
         let components = parser_output
             .component_definitions
             .into_iter()
             .map(|c| {
-                let mut compiler = Compiler::new(tpl_name, source);
+                let mut compiler = Compiler::new(tpl_name);
                 // We don't need the nodes again after it's compiled
                 compiler.compile(c.body.clone());
                 // Collect filter/test/function/include calls from component body
@@ -126,6 +130,7 @@ impl Template {
             test_calls,
             function_calls,
             include_calls,
+            top_level_variables,
             block_lineage: HashMap::new(),
             autoescape_enabled: true,
         })
