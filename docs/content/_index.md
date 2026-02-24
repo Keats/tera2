@@ -1151,6 +1151,15 @@ Returns an array of the keys of a map.
 ##### values
 Returns an array of the values of a map.
 
+##### pairs
+Returns an array of `[key, value]` pairs from a map.
+
+```jinja
+{{ my_map | pairs }}
+```
+
+You can sort the pairs by key or by value using the `sort` filter after.
+
 ##### get
 Accesses a value from an object when the key is not a Tera identifier.
 Example: `{{ sections | get(key="posts/content") }}`

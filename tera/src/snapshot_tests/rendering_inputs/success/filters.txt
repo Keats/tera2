@@ -74,3 +74,6 @@ map(filter): {{ ["hello", "world"] | map(filter="upper") | safe }}
 map(filter+args): {{ ["hello world", "foo bar"] | map(filter="truncate", args={"length": 5}) | safe }}
 map(attr+filter): {{ reviews | map(attribute="title", filter="upper") | safe }}
 map(attr+filter+args): {{ reviews | map(attribute="title", filter="truncate", args={"length": 5}) | safe }}
+pairs(sorted): {{ {"b": 1, "a": 2} | pairs | sort | safe }}
+pairs(sort by value): {{ {"b": 1, "a": 2} | pairs | sort(attribute="1") | safe }}
+pairs(empty): {{ {} | pairs }}
