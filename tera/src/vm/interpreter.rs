@@ -9,7 +9,7 @@ use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::{SpanRange, combine_spans};
 
 use crate::args::Kwargs;
-use crate::vm::state::State;
+use crate::vm::state::{MAGICAL_DUMP_VAR, State};
 use crate::{Context, Tera};
 
 pub(crate) struct VirtualMachine<'tera> {
@@ -634,7 +634,11 @@ impl<'tera> VirtualMachine<'tera> {
                 // Combined instructions
                 Instruction::LoadPath(path) => {
                     let chunk = state.chunk.expect("to have a chunk");
-                    let mut val = state.get_value(&path[0]);
+                    let mut val = if path.len() == 1 && path[0] == MAGICAL_DUMP_VAR {
+                        state.dump_context()
+                    } else {
+                        state.get_value(&path[0])
+                    };
                     let num_attrs = path.len() - 1;
                     for (k, attr) in path[1..].iter().enumerate() {
                         if val.is_undefined() {
@@ -673,7 +677,11 @@ impl<'tera> VirtualMachine<'tera> {
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::WritePath(path) => {
-                    let mut val = state.get_value(&path[0]);
+                    let mut val = if path.len() == 1 && path[0] == MAGICAL_DUMP_VAR {
+                        state.dump_context()
+                    } else {
+                        state.get_value(&path[0])
+                    };
                     if val.is_undefined() {
                         let chunk = state.chunk.expect("to have a chunk");
                         let available_vars = state.available_variables();
