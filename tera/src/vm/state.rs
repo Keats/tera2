@@ -9,7 +9,7 @@ use crate::{Context, HashMap, Value};
 use std::collections::BTreeMap;
 
 /// Special string indicating request to dump context
-static MAGICAL_DUMP_VAR: &str = "__tera_context";
+pub(crate) static MAGICAL_DUMP_VAR: &str = "__tera_context";
 
 /// The state of the interpreter.
 /// We pass it around rather than put it on the VM to avoid multiple borrow issues
@@ -127,7 +127,7 @@ impl<'t> State<'t> {
         }
     }
 
-    fn dump_context(&self) -> Value {
+    pub(crate) fn dump_context(&self) -> Value {
         let mut context = crate::HashMap::new();
         // Add global context first (lowest priority)
         if let Some(global) = self.global_context {
