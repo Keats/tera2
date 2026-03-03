@@ -12,7 +12,7 @@ fn compiler_ok() {
             .parse()
             .unwrap()
             .nodes;
-        let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");
+        let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy());
         compiler.compile(nodes);
 
         insta::assert_debug_snapshot!(compiler.chunk);
@@ -28,7 +28,7 @@ fn compiler_blocks() {
             .parse()
             .unwrap()
             .nodes;
-        let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy(), "");
+        let mut compiler = Compiler::new(&path.file_name().unwrap().to_string_lossy());
         compiler.compile(nodes);
 
         let mut s = String::with_capacity(1000);
