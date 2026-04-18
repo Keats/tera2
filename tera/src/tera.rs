@@ -69,9 +69,8 @@ impl Tera {
             match self.add_file(&path, Some(&name)) {
                 Ok(_) => (),
                 Err(e) => errors.push(format!(
-                    "Failed to load {}: {e:?} ({:?})",
+                    "Failed to load {}: {e}",
                     path.display(),
-                    e.source.as_ref().expect("to have a source")
                 )),
             }
         }
@@ -1193,6 +1192,17 @@ mod tests {
         tera.full_reload().unwrap();
 
         assert!(tera.get_template("base.html").is_some());
+    }
+
+    #[cfg(feature = "glob_fs")]
+    #[test]
+    fn error_on_malformed_template_in_glob() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("bad.html"), "{% if foo %}oops").unwrap();
+        let glob = dir.path().join("**/*").to_string_lossy().to_string();
+        let mut tera = Tera::default();
+        let result = tera.load_from_glob(&glob);
+        assert!(result.is_err());
     }
 
     #[test]
