@@ -20,7 +20,7 @@ pub fn get_random(kwargs: Kwargs, _: &State) -> TeraResult<i64> {
             let mut rng = rand::rngs::StdRng::seed_from_u64(h.finish());
             Ok(rng.random_range(start..end))
         }
-        None => Ok(rand::rng().random_range(start..end))
+        None => Ok(rand::rng().random_range(start..end)),
     }
 }
 
