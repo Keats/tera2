@@ -3,6 +3,7 @@ source: tera/src/snapshot_tests/rendering.rs
 expression: "&out"
 input_file: tera/src/snapshot_tests/rendering_inputs/success/components/spread.txt
 ---
+
 Basic spread: Hello Alice, you are 25
 Spread with override (explicit wins): Hello Alice, you are 30
 Override then spread (spread wins): Hello Alice, you are 25
