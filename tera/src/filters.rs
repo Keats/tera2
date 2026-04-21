@@ -246,8 +246,9 @@ pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Strin
 
 /// Return a copy of the string with each line indented by 4 spaces.
 /// The first line and blank lines are not indented by default.
+/// Max width of 1000 to avoid DOS
 pub(crate) fn indent(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
-    let width = kwargs.get::<usize>("width")?.unwrap_or(4);
+    let width = kwargs.get::<usize>("width")?.unwrap_or(4).min(1000);
     let indent_first_line = kwargs.get::<bool>("first")?.unwrap_or(false);
     let indent_blank_line = kwargs.get::<bool>("blank")?.unwrap_or(false);
 
