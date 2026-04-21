@@ -70,6 +70,11 @@ pub(crate) fn range(kwargs: Kwargs, _: &State) -> TeraResult<Vec<isize>> {
             "Function `range` was called with a `start` argument greater than the `end` one",
         ));
     }
+    if step_by == 0 {
+        return Err(Error::message(
+            "Function `range` was called with a `step_by` argument of 0",
+        ));
+    }
 
     Ok((start..end).step_by(step_by).collect())
 }
