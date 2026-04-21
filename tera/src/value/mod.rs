@@ -758,6 +758,7 @@ impl Value {
         }
     }
 
+    /// This uses python semantics for slicing
     pub(crate) fn slice(
         &self,
         start: Option<i128>,
@@ -765,74 +766,60 @@ impl Value {
         step: Option<i128>,
     ) -> TeraResult<Value> {
         let step = step.unwrap_or(1);
-        let reverse = step == -1;
+        if step == 0 {
+            return Err(Error::message("Slicing step cannot be 0".to_string()));
+        }
 
-        let get_actual_idx = |size: i128, param: Option<i128>| -> i128 {
-            if let Some(p) = param {
-                if p < 0 { size + p } else { p }
-            } else {
-                size
+        fn slice_items<T: Clone>(
+            items: &[T],
+            start: Option<i128>,
+            end: Option<i128>,
+            step: i128,
+        ) -> Vec<T> {
+            let len = items.len() as i128;
+
+            // We will need to clamp depending on the step. If step is > 0, then it's just [0, len]
+            // but if it's negative it's [-1, len - 1]. It's -1 because we need to go past idx 0
+            let (lo, hi) = if step > 0 { (0, len) } else { (-1, len - 1) };
+            let resolve = |param: Option<i128>, default: i128| -> i128 {
+                match param {
+                    None => default,
+                    Some(p) => {
+                        let p = if p < 0 { p.saturating_add(len) } else { p };
+                        p.clamp(lo, hi)
+                    }
+                }
+            };
+            let s = resolve(start, if step > 0 { lo } else { hi });
+            let e = resolve(end, if step > 0 { hi } else { lo });
+            let mut out = Vec::new();
+            let mut i = s;
+            while if step > 0 { i < e } else { i > e } {
+                out.push(items[i as usize].clone());
+                i = i.saturating_add(step);
             }
-        };
+            out
+        }
 
         match &self.inner {
-            ValueInner::Array(arr) => {
-                let mut input = Vec::with_capacity(arr.len());
-                let mut out = Vec::with_capacity(arr.len());
-                let start = get_actual_idx(arr.len() as i128, start);
-                let end = get_actual_idx(arr.len() as i128, end);
-
-                for item in arr.iter() {
-                    input.push(item.clone());
-                }
-
-                if reverse {
-                    input.reverse();
-                }
-
-                for (idx, item) in input.into_iter().enumerate() {
-                    if (idx as i128) >= start && (idx as i128) < end {
-                        out.push(item);
-                    }
-                }
-
-                Ok(out.into())
-            }
+            ValueInner::Array(arr) => Ok(slice_items(arr, start, end, step).into()),
             ValueInner::String(s) => {
                 let kind = s.kind();
-                let mut out = Vec::with_capacity(s.len());
+                #[cfg(feature = "unicode")]
+                let input: Vec<&str> = s.as_str().graphemes(true).collect();
+                #[cfg(not(feature = "unicode"))]
+                let input: Vec<char> = s.as_str().chars().collect();
+
+                let parts = slice_items(&input, start, end, step);
 
                 #[cfg(feature = "unicode")]
-                let mut input: Vec<&str> = s.as_str().graphemes(true).collect();
+                let out_str = parts.join("");
                 #[cfg(not(feature = "unicode"))]
-                let mut input: Vec<char> = s.as_str().chars().collect();
+                let out_str: String = parts.into_iter().collect();
 
-                let start = get_actual_idx(input.len() as i128, start);
-                let end = get_actual_idx(input.len() as i128, end);
-
-                if reverse {
-                    input.reverse();
-                }
-
-                for (idx, item) in input.iter().enumerate() {
-                    if (idx as i128) >= start && (idx as i128) < end {
-                        out.push(*item);
-                    }
-                }
-
-                #[cfg(feature = "unicode")]
-                {
-                    Ok(Value {
-                        inner: ValueInner::String(SmartString::new(&out.join(""), kind)),
-                    })
-                }
-
-                #[cfg(not(feature = "unicode"))]
-                {
-                    Ok(Value {
-                        inner: ValueInner::String(SmartString::new(&String::from_iter(out), kind)),
-                    })
-                }
+                Ok(Value {
+                    inner: ValueInner::String(SmartString::new(&out_str, kind)),
+                })
             }
             _ => Err(Error::message(format!(
                 "Slicing can only be used on arrays or strings, not on `{}`.",

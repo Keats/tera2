@@ -200,7 +200,7 @@ impl Compiler {
                 if let Some(start) = slice.start {
                     self.compile_expr(start);
                 } else {
-                    self.chunk.add(Instruction::LoadConst(0.into()), None);
+                    self.chunk.add(Instruction::LoadConst(Value::none()), None);
                 }
 
                 if let Some(end) = slice.end {
