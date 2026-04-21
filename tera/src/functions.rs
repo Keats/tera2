@@ -61,6 +61,9 @@ impl StoredFunction {
     }
 }
 
+/// Upper bound on the number of elements `range()` will produce to avoid OOM.
+const MAX_RANGE_LEN: usize = 100_000;
+
 pub(crate) fn range(kwargs: Kwargs, _: &State) -> TeraResult<Vec<isize>> {
     let start = kwargs.get::<isize>("start")?.unwrap_or_default();
     let end = kwargs.must_get::<isize>("end")?;
@@ -74,6 +77,15 @@ pub(crate) fn range(kwargs: Kwargs, _: &State) -> TeraResult<Vec<isize>> {
         return Err(Error::message(
             "Function `range` was called with a `step_by` argument of 0",
         ));
+    }
+
+    let span = (end as i128) - (start as i128);
+    let step = step_by as i128;
+    let len = (span + step - 1) / step;
+    if len > MAX_RANGE_LEN as i128 {
+        return Err(Error::message(format!(
+            "Function `range` would produce {len} elements, which exceeds the limit of {MAX_RANGE_LEN}"
+        )));
     }
 
     Ok((start..end).step_by(step_by).collect())
