@@ -220,6 +220,7 @@ pub(crate) fn title(val: &str, _: Kwargs, _: &State) -> String {
     res
 }
 
+/// Works on char/graphemes, not bytes.
 pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<String> {
     let length = kwargs.must_get::<usize>("length")?;
     let end = kwargs.get::<&str>("end")?.unwrap_or("…");
@@ -236,10 +237,10 @@ pub(crate) fn truncate(val: &str, kwargs: Kwargs, _: &State) -> TeraResult<Strin
 
     #[cfg(not(feature = "unicode"))]
     {
-        if length >= val.len() {
-            return Ok(val.to_string());
+        match val.char_indices().nth(length) {
+            Some((byte_idx, _)) => Ok(val[..byte_idx].to_string() + end),
+            None => Ok(val.to_string()),
         }
-        Ok(val[..length].to_string() + end)
     }
 }
 
@@ -659,8 +660,6 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
 mod tests {
     use super::*;
     use crate::Context;
-    #[cfg(feature = "unicode")]
-    use crate::Tera;
     use crate::value::Map;
 
     #[test]
@@ -823,13 +822,25 @@ mod tests {
     #[cfg(feature = "unicode")]
     #[test]
     fn can_truncate_graphemes() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
         let inputs = vec![("日本語", 2, "日本…"), ("👨‍👩‍👧‍👦 family", 5, "👨‍👩‍👧‍👦 fam…")];
 
-        for (s, len, expected) in inputs {
-            let tpl = format!("{{{{ '{}' | truncate(length={}) }}}}", s, len);
-            let mut tera = Tera::default();
-            tera.add_raw_template("tpl", &tpl).unwrap();
-            let out = tera.render("tpl", &Context::default()).unwrap();
+        for (input, length, expected) in inputs {
+            let out = truncate(input, Kwargs::from([("length", length.into())]), &state).unwrap();
+            assert_eq!(out, expected);
+        }
+    }
+
+    #[cfg(not(feature = "unicode"))]
+    #[test]
+    fn truncate_splits_on_char_boundary() {
+        let ctx = Context::new();
+        let state = State::new(&ctx);
+        let inputs = [("😀test", 1, "😀…"), ("日本語hello", 3, "日本語…")];
+
+        for (input, length, expected) in inputs {
+            let out = truncate(input, Kwargs::from([("length", length.into())]), &state).unwrap();
             assert_eq!(out, expected);
         }
     }
