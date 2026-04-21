@@ -13,6 +13,12 @@ pub fn get_random(kwargs: Kwargs, _: &State) -> TeraResult<i64> {
     let start = kwargs.must_get::<i64>("start")?;
     let end = kwargs.must_get::<i64>("end")?;
 
+    if start >= end {
+        return Err(tera::Error::message(format!(
+            "get_random: `start` ({start}) must be less than `end` ({end})."
+        )));
+    }
+
     match kwargs.get::<String>("seed")? {
         Some(seed) => {
             let mut h = DefaultHasher::new();
