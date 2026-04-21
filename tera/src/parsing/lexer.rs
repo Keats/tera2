@@ -265,7 +265,7 @@ fn basic_tokenize(
         ($num_bytes:expr) => {{
             let (skipped, new_rest) = rest.split_at($num_bytes);
             for c in skipped.chars() {
-                current_byte += 1;
+                current_byte += c.len_utf8();
                 match c {
                     '\n' => {
                         current_line += 1;
