@@ -149,19 +149,29 @@ pub(crate) fn floor_div(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
 pub(crate) fn pow(lhs: &Value, rhs: &Value) -> TeraResult<Value> {
     match (lhs.as_number(), rhs.as_number()) {
         (Some(mut left), Some(mut right)) => {
-            if left.is_float() || right.is_float() {
+            // Convert to float is one of them is or if exponent is < 0
+            let negative_int_exp = matches!(right, Number::Integer(b) if b < 0);
+            if left.is_float() || right.is_float() || negative_int_exp {
                 left = left.into_float();
                 right = right.into_float();
             }
 
             let val = match (left, right) {
-                // TODO: check that the exponent can fit in a u32 and error otherwise?
-                (Number::Integer(a), Number::Integer(b)) => match a.checked_pow(b as u32) {
-                    Some(val) => Value::from(val),
-                    None => {
-                        return Err(Error::message(format!("Unable to perform {lhs} ** {rhs}")));
+                (Number::Integer(a), Number::Integer(b)) => {
+                    let exp = u32::try_from(b).map_err(|_| {
+                        Error::message(format!(
+                            "Exponent {b} is out of range for integer ** (must fit in u32)"
+                        ))
+                    })?;
+                    match a.checked_pow(exp) {
+                        Some(val) => Value::from(val),
+                        None => {
+                            return Err(Error::message(format!(
+                                "Unable to perform {lhs} ** {rhs}"
+                            )));
+                        }
                     }
-                },
+                }
                 (Number::Float(a), Number::Float(b)) => Value::from(a.powf(b)),
                 _ => unreachable!(),
             };
