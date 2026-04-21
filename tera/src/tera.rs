@@ -696,7 +696,10 @@ impl Tera {
     /// the new set of templates.
     fn add_file<P: AsRef<Path>>(&mut self, path: P, name: Option<&str>) -> TeraResult<()> {
         let path = path.as_ref();
-        let tpl_name = name.unwrap_or_else(|| path.to_str().unwrap());
+        let path_str = path.to_str().ok_or_else(|| {
+            Error::message(format!("Template path is not valid UTF-8: {:?}", path))
+        })?;
+        let tpl_name = name.unwrap_or(path_str);
 
         let mut f = File::open(path)
             .map_err(|e| Error::chain(format!("Couldn't open template '{:?}'", path), e))?;
@@ -708,7 +711,7 @@ impl Tera {
         let template = Template::new(
             tpl_name,
             &content,
-            Some(path.to_str().unwrap().to_string()),
+            Some(path_str.to_string()),
             self.delimiters,
         )?;
 
@@ -1262,6 +1265,19 @@ mod tests {
             tera.render_component("Button", &context! { label => "x", bad => "y" }, None)
                 .is_err()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn add_template_file_errors_on_non_utf8_path() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        use std::path::PathBuf;
+
+        let bad = PathBuf::from(OsStr::from_bytes(b"/tmp/\xff\xfe.html"));
+        let mut tera = Tera::default();
+        let err = tera.add_template_file(&bad, None).unwrap_err();
+        assert!(format!("{err}").contains("not valid UTF-8"));
     }
 
     #[test]
