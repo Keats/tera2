@@ -626,7 +626,7 @@ impl Tera {
 
         // 3rd loop: we actually set everything we've done on the templates objects
         for (name, tpl) in self.templates.iter_mut() {
-            tpl.raw_content_num_bytes += tpl_size_hint.remove(name.as_str()).unwrap();
+            tpl.raw_content_num_bytes = tpl_size_hint.remove(name.as_str()).unwrap();
             tpl.parents = tpl_parents.remove(name.as_str()).unwrap();
             tpl.block_lineage = tpl_blocks.remove(name.as_str()).unwrap();
         }
