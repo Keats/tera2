@@ -248,7 +248,9 @@ impl ForLoop {
             self.current_values = (key, value);
             if self.end_ip != 0 {
                 self.loop_data.advance();
-                self.context.clear();
+                if !self.context.is_empty() {
+                    self.context.clear();
+                }
             }
         }
     }

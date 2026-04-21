@@ -713,14 +713,23 @@ impl Value {
     }
 
     /// When doing hello.name, name is the attr
-    pub(crate) fn get_attr(&self, attr: &str) -> Value {
+    pub(crate) fn get_attr<'a>(&'a self, attr: &'a str) -> Option<&'a Value> {
+        // We do either a linear scan or a hashmap lookup depending on the size of the map.
+        // Linear scans can be _much_ faster for small maps
+        #[cfg(not(feature = "preserve_order"))]
+        const ATTR_SCAN_CUTOFF: usize = 6;
+        #[cfg(feature = "preserve_order")]
+        const ATTR_SCAN_CUTOFF: usize = 12;
+
         match &self.inner {
-            ValueInner::Map(m) => m.get(&Key::Str(attr)).cloned().unwrap_or(Value {
-                inner: ValueInner::Undefined,
-            }),
-            _ => Value {
-                inner: ValueInner::Undefined,
-            },
+            ValueInner::Map(m) if m.len() <= ATTR_SCAN_CUTOFF => {
+                m.iter().find_map(|(k, v)| match k.as_str() {
+                    Some(s) if s == attr => Some(v),
+                    _ => None,
+                })
+            }
+            ValueInner::Map(m) => m.get(&Key::Str(attr)),
+            _ => None,
         }
     }
 
