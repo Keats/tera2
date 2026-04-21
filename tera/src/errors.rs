@@ -81,6 +81,13 @@ pub enum ErrorKind {
         /// All the parents templates we found so far
         inheritance_chain: Vec<String>,
     },
+    /// A loop was found while following `{% include %}` calls between templates
+    CircularInclude {
+        /// Name of the template where the cycle was detected
+        tpl: String,
+        /// Ordered chain of templates from `tpl` back to `tpl`
+        include_chain: Vec<String>,
+    },
     /// A template is extending a template that wasn't found in the Tera instance
     MissingParent {
         /// The template we are currently looking at
@@ -137,6 +144,10 @@ impl fmt::Display for ErrorKind {
             } => write!(
                 f,
                 "Circular extend detected for template '{tpl}'. Inheritance chain: `{inheritance_chain:?}`",
+            ),
+            ErrorKind::CircularInclude { tpl, include_chain } => write!(
+                f,
+                "Circular include detected for template '{tpl}'. Include chain: `{include_chain:?}`",
             ),
             ErrorKind::MissingParent { current, parent } => write!(
                 f,
@@ -225,6 +236,16 @@ impl Error {
             kind: ErrorKind::CircularExtend {
                 tpl: tpl.to_string(),
                 inheritance_chain,
+            },
+            source: None,
+        }
+    }
+
+    pub(crate) fn circular_include(tpl: impl ToString, include_chain: Vec<String>) -> Self {
+        Self {
+            kind: ErrorKind::CircularInclude {
+                tpl: tpl.to_string(),
+                include_chain,
             },
             source: None,
         }

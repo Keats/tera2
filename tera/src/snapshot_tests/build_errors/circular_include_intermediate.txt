@@ -1,0 +1,6 @@
+$$ a
+{% include "b" %}
+$$ b
+{% include "c" %}
+$$ c
+{% include "b" %}
