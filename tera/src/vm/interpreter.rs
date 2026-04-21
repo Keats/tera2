@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::errors::{Error, ErrorKind, ReportError, TeraResult};
 use crate::parsing::{Chunk, Instruction};
 use crate::template::Template;
+use crate::utils::Span;
 use crate::value::{Key, Value, ValueInner};
 use crate::vm::for_loop::ForLoop;
 use crate::vm::stack::{SpanRange, combine_spans};
@@ -169,9 +170,8 @@ impl<'tera> VirtualMachine<'tera> {
                         if a.is_undefined() {
                             rendering_error!(format!("Field `{}` is not defined", attr), a_span);
                         }
-                        state
-                            .stack
-                            .push(a.get_attr(attr), Some(current_ip..=current_ip));
+                        let next = a.get_attr(attr).cloned().unwrap_or_else(Value::undefined);
+                        state.stack.push(next, Some(current_ip..=current_ip));
                     }
                 }
                 Instruction::BinarySubscript | Instruction::BinarySubscriptOpt => {
@@ -640,84 +640,71 @@ impl<'tera> VirtualMachine<'tera> {
                         state.get_value(&path[0])
                     };
                     let num_attrs = path.len() - 1;
-                    for (k, attr) in path[1..].iter().enumerate() {
+                    if num_attrs > 0 {
                         if val.is_undefined() {
-                            let available_vars = state.available_variables();
-                            let available_msg = if available_vars.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" Available variables: {}", available_vars.join(", "))
-                            };
-                            rendering_error!(
-                                format!(
-                                    "Variable `{}` is not defined.{available_msg}",
-                                    path[0],
-                                ),
-                                span: chunk.get_span_at(current_ip, k)
-                            );
+                            let span = chunk
+                                .get_span_at(current_ip, 0)
+                                .expect("to have a span for error");
+                            return Err(self.undefined_var_error(state, chunk, &path[0], span));
                         }
-                        let new_val = val.get_attr(attr);
-                        // Only error on intermediate undefined, not the final result
-                        if new_val.is_undefined() && k + 1 < num_attrs {
-                            let available_fields = val.available_fields();
-                            let available_msg = if available_fields.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" Available fields: {}", available_fields.join(", "))
-                            };
-                            rendering_error!(
-                                format!(
-                                    "Field `{attr}` is not defined.{available_msg}",
-                                ),
-                                span: chunk.get_span_at(current_ip, k + 1)
-                            );
+                        let mut cur: &Value = &val;
+                        let mut undefined_tail = false;
+                        for (k, attr) in path[1..].iter().enumerate() {
+                            match cur.get_attr(attr) {
+                                Some(next) => cur = next,
+                                None => {
+                                    if k + 1 < num_attrs {
+                                        let span = chunk
+                                            .get_span_at(current_ip, k + 1)
+                                            .expect("to have a span for error");
+                                        return Err(
+                                            self.undefined_field_error(cur, attr, span, chunk)
+                                        );
+                                    }
+                                    undefined_tail = true;
+                                    break;
+                                }
+                            }
                         }
-                        val = new_val;
+                        val = if undefined_tail {
+                            Value::undefined()
+                        } else {
+                            cur.clone()
+                        };
                     }
                     state.stack.push(val, Some(current_ip..=current_ip));
                 }
                 Instruction::WritePath(path) => {
-                    let mut val = if path.len() == 1 && path[0] == MAGICAL_DUMP_VAR {
+                    let chunk = state.chunk.expect("to have a chunk");
+                    let root = if path.len() == 1 && path[0] == MAGICAL_DUMP_VAR {
                         state.dump_context()
                     } else {
                         state.get_value(&path[0])
                     };
-                    if val.is_undefined() {
-                        let chunk = state.chunk.expect("to have a chunk");
-                        let available_vars = state.available_variables();
-                        let available_msg = if available_vars.is_empty() {
-                            String::new()
-                        } else {
-                            format!(" Available variables: {}", available_vars.join(", "))
-                        };
-                        rendering_error!(
-                            format!(
-                                "Variable `{}` is not defined.{available_msg}",
-                                path[0],
-                            ),
-                            span: chunk.get_span_at(current_ip, 0)
-                        );
+                    if root.is_undefined() {
+                        let span = chunk
+                            .get_span_at(current_ip, 0)
+                            .expect("to have a span for error");
+                        return Err(self.undefined_var_error(state, chunk, &path[0], span));
                     }
-                    for (k, attr) in path[1..].iter().enumerate() {
-                        let new_val = val.get_attr(attr);
-                        // Check if attribute access failed (returned undefined)
-                        if new_val.is_undefined() {
-                            let chunk = state.chunk.expect("to have a chunk");
-                            let available_fields = val.available_fields();
-                            let available_msg = if available_fields.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" Available fields: {}", available_fields.join(", "))
-                            };
-                            rendering_error!(
-                                format!(
-                                    "Field `{attr}` is not defined.{available_msg}",
-                                ),
-                                span: chunk.get_span_at(current_ip, k + 1)
-                            );
+                    let num_attrs = path.len() - 1;
+                    let val: &Value = if num_attrs > 0 {
+                        let mut cur: &Value = &root;
+                        for (k, attr) in path[1..].iter().enumerate() {
+                            match cur.get_attr(attr) {
+                                Some(next) => cur = next,
+                                None => {
+                                    let span = chunk
+                                        .get_span_at(current_ip, k + 1)
+                                        .expect("to have a span for error");
+                                    return Err(self.undefined_field_error(cur, attr, span, chunk));
+                                }
+                            }
                         }
-                        val = new_val;
-                    }
+                        cur
+                    } else {
+                        &root
+                    };
 
                     if !self.template.autoescape_enabled || val.is_safe() {
                         if let Some(captured) = state.capture_buffers.last_mut() {
@@ -741,6 +728,57 @@ impl<'tera> VirtualMachine<'tera> {
         }
 
         Ok(())
+    }
+
+    fn undefined_var_error(
+        &self,
+        state: &State<'tera>,
+        chunk: &Chunk,
+        name: &str,
+        span: &Span,
+    ) -> Error {
+        let available_vars = state.available_variables();
+        let available_msg = if available_vars.is_empty() {
+            String::new()
+        } else {
+            format!(" Available variables: {}", available_vars.join(", "))
+        };
+        self.rendering_error(
+            format!("Variable `{name}` is not defined.{available_msg}"),
+            chunk,
+            span,
+        )
+    }
+
+    fn undefined_field_error(
+        &self,
+        parent: &Value,
+        attr: &str,
+        span: &Span,
+        chunk: &Chunk,
+    ) -> Error {
+        let available_fields = parent.available_fields();
+        let available_msg = if available_fields.is_empty() {
+            String::new()
+        } else {
+            format!(" Available fields: {}", available_fields.join(", "))
+        };
+        self.rendering_error(
+            format!("Field `{attr}` is not defined.{available_msg}"),
+            chunk,
+            span,
+        )
+    }
+
+    fn rendering_error(&self, msg: String, chunk: &Chunk, span: &Span) -> Error {
+        let (name, source) = if self.template.name != chunk.name {
+            let tpl = &self.tera.templates[&chunk.name];
+            (&tpl.name, &tpl.source)
+        } else {
+            (&self.template.name, &self.template.source)
+        };
+        let err = ReportError::new(msg, name, source, span);
+        Error::new(ErrorKind::RenderingError(Box::new(err)))
     }
 
     fn render_component(&self, chunk: &Chunk, context: Context) -> TeraResult<String> {
