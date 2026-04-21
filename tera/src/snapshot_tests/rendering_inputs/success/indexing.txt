@@ -5,7 +5,11 @@
 {{ numbers[:2] }}
 {{ numbers[1:2] }}
 {{ numbers[0:2:2] }}
+{{ numbers[::2] }}
+{{ numbers[::-2] }}
+{{ numbers[10:20] }}
 {{ numbers[::-1] }}
+{{ product.name[::2] }}
 {{ product.name[-1] }}
 {{ product.name[::-1] }}
 {{ product.name[1:] }}
@@ -13,3 +17,8 @@
 {{ (numbers | reverse)[0] }}
 {{ range(end=5)[2] }}
 {{ (numbers | reverse)[:-1] | first }}
+{{ [1,2,3][10::-1] }}
+{{ [1,2,3][1000:] }}
+{{ [1,2,3][:1000] }}
+{{ [1,2,3][-100:] }}
+{{ [1,2,3][:-100:-1] }}
