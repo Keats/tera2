@@ -141,6 +141,30 @@ impl Template {
     }
 }
 
+/// Recursive fn that finds all the includes to detect if there are some cycles
+pub(crate) fn check_include_cycles(tera: &Tera, start: &Template) -> Result<(), Error> {
+    let mut stack: Vec<String> = vec![start.name.clone()];
+    fn walk(tera: &Tera, current: &Template, stack: &mut Vec<String>) -> Result<(), Error> {
+        let mut names: Vec<&String> = current.include_calls.keys().collect();
+        names.sort();
+        for include_name in names {
+            let Some(resolved) = tera.resolve_template_name(include_name) else {
+                continue;
+            };
+            if stack.iter().any(|s| s == resolved) {
+                let mut chain = stack.clone();
+                chain.push(resolved.to_string());
+                return Err(Error::circular_include(resolved, chain));
+            }
+            stack.push(resolved.to_string());
+            walk(tera, &tera.templates[resolved], stack)?;
+            stack.pop();
+        }
+        Ok(())
+    }
+    walk(tera, start, &mut stack)
+}
+
 /// Recursive fn that finds all the parents and put them in an ordered Vec from closest to first parent
 /// parent template
 pub(crate) fn find_parents(

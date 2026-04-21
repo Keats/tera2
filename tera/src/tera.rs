@@ -8,7 +8,7 @@ use crate::args::ArgFromValue;
 use crate::errors::{Error, ReportError, TeraResult};
 use crate::filters::{Filter, StoredFilter};
 use crate::functions::{Function, StoredFunction};
-use crate::template::{Template, find_parents};
+use crate::template::{Template, check_include_cycles, find_parents};
 use crate::tests::{StoredTest, Test, TestResult};
 use crate::value::FunctionResult;
 use crate::value::Value;
@@ -505,8 +505,13 @@ impl Tera {
         let mut component_sources: HashMap<&str, (&str, usize)> = HashMap::new();
 
         // 1st loop: find parents of each template and check for duplicate components
-        for (name, tpl) in &self.templates {
+        // Sort so error messages (circular include chains, etc.) are deterministic
+        let mut ordered_names: Vec<&String> = self.templates.keys().collect();
+        ordered_names.sort();
+        for name in ordered_names {
+            let tpl = &self.templates[name];
             let parents = find_parents(self, tpl, tpl, vec![])?;
+            check_include_cycles(self, tpl)?;
             for component_name in tpl.components.keys() {
                 let current_priority = self.get_template_priority(&tpl.name);
 

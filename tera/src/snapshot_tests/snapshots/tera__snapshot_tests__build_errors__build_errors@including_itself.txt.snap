@@ -1,0 +1,6 @@
+---
+source: tera/src/snapshot_tests/build_errors.rs
+expression: "&err"
+input_file: tera/src/snapshot_tests/build_errors/including_itself.txt
+---
+Circular include detected for template 'a'. Include chain: `["a", "a"]`
