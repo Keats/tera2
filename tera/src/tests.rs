@@ -141,7 +141,7 @@ pub(crate) fn is_divisible_by(val: Number, kwargs: Kwargs, _: &State) -> TeraRes
     match val {
         Number::Integer(u) => Ok(u % divisor == 0),
         Number::Float(u) => Err(Error::message(format!(
-            "Value `{u}` is a float; cannot determine if it's even"
+            "Value `{u}` is a float; cannot check divisibility"
         ))),
     }
 }

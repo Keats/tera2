@@ -68,10 +68,7 @@ impl Tera {
         for (path, name) in load_from_glob(glob)? {
             match self.add_file(&path, Some(&name)) {
                 Ok(_) => (),
-                Err(e) => errors.push(format!(
-                    "Failed to load {}: {e}",
-                    path.display(),
-                )),
+                Err(e) => errors.push(format!("Failed to load {}: {e}", path.display(),)),
             }
         }
 
@@ -1224,12 +1221,12 @@ mod tests {
         // Basic + defaults
         insta::assert_snapshot!(
             tera.render_component("Button", &context! { label => "Click" }, None).unwrap(),
-            @"<button class=\"primary\">Click</button>"
+            @r#"<button class="primary">Click</button>"#
         );
         // Override default
         insta::assert_snapshot!(
             tera.render_component("Button", &context! { label => "X", variant => "secondary" }, None).unwrap(),
-            @"<button class=\"secondary\">X</button>"
+            @r#"<button class="secondary">X</button>"#
         );
         // With body
         insta::assert_snapshot!(
@@ -1250,7 +1247,7 @@ mod tests {
         let mut buffer = Vec::new();
         tera.render_component_to("Button", &context! { label => "Y" }, None, &mut buffer)
             .unwrap();
-        insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @"<button class=\"primary\">Y</button>");
+        insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @r#"<button class="primary">Y</button>"#);
 
         // Errors
         assert!(
