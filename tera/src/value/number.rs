@@ -185,7 +185,14 @@ pub(crate) fn negate(val: &Value) -> TeraResult<Value> {
     if let Some(num) = val.as_number() {
         let val = match num {
             Number::Float(f) => Value::from(-f),
-            Number::Integer(f) => Value::from(-f),
+            Number::Integer(f) => match f.checked_neg() {
+                Some(n) => Value::from(n),
+                None => {
+                    return Err(Error::message(format!(
+                        "Cannot negate {f}: result would overflow i128"
+                    )));
+                }
+            },
         };
         Ok(val)
     } else {
@@ -193,5 +200,22 @@ pub(crate) fn negate(val: &Value) -> TeraResult<Value> {
             "Only numbers can be negated. This is a `{}`",
             val.name()
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_negate() {
+        let err = negate(&Value::from(i128::MIN)).unwrap_err();
+        assert!(err.to_string().contains("overflow"));
+        assert_eq!(negate(&Value::from(5i64)).unwrap(), Value::from(-5i64));
+        assert_eq!(negate(&Value::from(-5i64)).unwrap(), Value::from(5i64));
+        assert_eq!(
+            negate(&Value::from(i128::MAX)).unwrap(),
+            Value::from(-i128::MAX)
+        );
     }
 }
