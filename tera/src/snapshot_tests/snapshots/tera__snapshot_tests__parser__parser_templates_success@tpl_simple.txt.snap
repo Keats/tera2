@@ -47,15 +47,15 @@ input_file: tera/src/snapshot_tests/parser_inputs/success/tpl/tpl_simple.txt
         left: GetAttr {
             expr: Var {
                 name: "product",
-            } @ 9:11-9:18 (207..214),
+            } @ 9:11-9:18 (208..215),
             name: "price",
             optional: false,
-        } @ 9:19-9:24 (215..220),
-        right: 1.2 @ 9:27-9:31 (223..227),
-    } @ 9:11-9:31 (207..227),
+        } @ 9:19-9:24 (216..221),
+        right: 1.2 @ 9:27-9:31 (224..228),
+    } @ 9:11-9:31 (208..228),
     " (VAT inc.)</p>\n    <p>Look at reviews from your friends ",
     Var {
         name: "username",
-    } @ 10:44-10:52 (290..298),
+    } @ 10:44-10:52 (291..299),
     "</p>\n    <button>Buy!</button>\n  </body>\n</html>",
 ]
