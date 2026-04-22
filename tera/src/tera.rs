@@ -776,7 +776,8 @@ impl Tera {
         self.finalize_templates()
     }
 
-    /// Set fallback prefixes to try when a template is not found by exact name.
+    /// Set fallback prefixes to try when a template is not found by exact name. This needs to be
+    /// called before adding templates, it will error otherwise.
     ///
     /// When a template is requested (via render, extends, or include) and the exact name
     /// is not found, these prefixes are tried in order. The first prefix that produces
@@ -790,10 +791,16 @@ impl Tera {
     /// # use tera::Tera;
     /// let mut tera = Tera::default();
     /// // Templates in "themes/cool/" can be referenced without the prefix
-    /// tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
+    /// tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]).unwrap();
     /// ```
-    pub fn set_fallback_prefixes(&mut self, prefixes: Vec<String>) {
+    pub fn set_fallback_prefixes(&mut self, prefixes: Vec<String>) -> TeraResult<()> {
+        if !self.templates.is_empty() {
+            return Err(Error::message(
+                "set_fallback_prefixes must be called before adding templates",
+            ));
+        }
         self.fallback_prefixes = prefixes;
+        Ok(())
     }
 
     /// Returns the priority level for a template based on fallback_prefixes.
@@ -1312,7 +1319,8 @@ mod tests {
     #[test]
     fn fallback_prefixes_resolve_templates() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
+            .unwrap();
         tera.add_raw_templates(vec![
             (
                 "themes/cool/base.html",
@@ -1333,7 +1341,8 @@ mod tests {
     #[test]
     fn fallback_prefix_exact_match_takes_priority() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
+            .unwrap();
         tera.add_raw_templates(vec![
             ("base.html", "exact"),
             ("themes/cool/base.html", "fallback"),
@@ -1350,7 +1359,8 @@ mod tests {
         tera.set_fallback_prefixes(vec![
             "themes/child/".to_string(),
             "themes/parent/".to_string(),
-        ]);
+        ])
+        .unwrap();
 
         assert_eq!(tera.get_template_priority("index.html"), 0);
         assert_eq!(tera.get_template_priority("themes/child/base.html"), 1);
@@ -1360,7 +1370,8 @@ mod tests {
     #[test]
     fn test_component_duplicate_error_same_priority() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/".to_string()]);
+        tera.set_fallback_prefixes(vec!["themes/".to_string()])
+            .unwrap();
 
         tera.add_raw_template("a.html", "{% component Foo() %}A{% endcomponent Foo %}")
             .unwrap();
@@ -1379,7 +1390,8 @@ mod tests {
     #[test]
     fn test_component_override_chain() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["child/".to_string(), "parent/".to_string()]);
+        tera.set_fallback_prefixes(vec!["child/".to_string(), "parent/".to_string()])
+            .unwrap();
 
         tera.add_raw_template(
             "parent/c.html",
@@ -1402,7 +1414,8 @@ mod tests {
     #[test]
     fn test_fallback_template_resolution() {
         let mut tera = Tera::default();
-        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()]);
+        tera.set_fallback_prefixes(vec!["themes/cool/".to_string()])
+            .unwrap();
 
         tera.add_raw_template("themes/cool/base.html", "theme base")
             .unwrap();
