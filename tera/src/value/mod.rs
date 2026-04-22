@@ -366,11 +366,23 @@ impl Value {
     pub fn is_u128(&self) -> bool {
         matches!(self.kind(), ValueKind::U128)
     }
+    pub fn is_i64(&self) -> bool {
+        matches!(self.kind(), ValueKind::I64)
+    }
+    pub fn is_u64(&self) -> bool {
+        matches!(self.kind(), ValueKind::U64)
+    }
+    pub fn is_f64(&self) -> bool {
+        matches!(self.kind(), ValueKind::F64)
+    }
     pub fn is_array(&self) -> bool {
         matches!(self.kind(), ValueKind::Array)
     }
     pub fn is_map(&self) -> bool {
         matches!(self.kind(), ValueKind::Map)
+    }
+    pub fn is_bytes(&self) -> bool {
+        matches!(self.kind(), ValueKind::Bytes)
     }
 
     pub(crate) fn format(&self, f: &mut impl std::io::Write) -> std::io::Result<()> {
