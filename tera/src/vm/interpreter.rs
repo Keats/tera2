@@ -16,11 +16,34 @@ use crate::{Context, Tera};
 pub(crate) struct VirtualMachine<'tera> {
     tera: &'tera Tera,
     template: &'tera Template,
+    /// Only used when rendering a single component, to decide whether to auto-escape it or not
+    autoescape_override: Option<bool>,
 }
 
 impl<'tera> VirtualMachine<'tera> {
     pub fn new(tera: &'tera Tera, template: &'tera Template) -> Self {
-        Self { tera, template }
+        Self {
+            tera,
+            template,
+            autoescape_override: None,
+        }
+    }
+
+    pub fn new_with_autoescape(
+        tera: &'tera Tera,
+        template: &'tera Template,
+        autoescape: bool,
+    ) -> Self {
+        Self {
+            tera,
+            template,
+            autoescape_override: Some(autoescape),
+        }
+    }
+
+    fn autoescape_enabled(&self) -> bool {
+        self.autoescape_override
+            .unwrap_or(self.template.autoescape_enabled)
     }
 
     pub(crate) fn interpret(
@@ -253,7 +276,7 @@ impl<'tera> VirtualMachine<'tera> {
                         );
                     }
 
-                    if !self.template.autoescape_enabled || top.is_safe() {
+                    if !self.autoescape_enabled() || top.is_safe() {
                         if let Some(captured) = state.capture_buffers.last_mut() {
                             top.format(captured)?;
                         } else {
@@ -706,7 +729,7 @@ impl<'tera> VirtualMachine<'tera> {
                         &root
                     };
 
-                    if !self.template.autoescape_enabled || val.is_safe() {
+                    if !self.autoescape_enabled() || val.is_safe() {
                         if let Some(captured) = state.capture_buffers.last_mut() {
                             val.format(captured)?;
                         } else {
@@ -785,6 +808,7 @@ impl<'tera> VirtualMachine<'tera> {
         let vm = Self {
             tera: self.tera,
             template: self.template,
+            autoescape_override: self.autoescape_override,
         };
 
         let mut state = State::new_with_chunk(&context, chunk);
@@ -805,6 +829,7 @@ impl<'tera> VirtualMachine<'tera> {
         let vm = Self {
             tera: self.tera,
             template: tpl,
+            autoescape_override: self.autoescape_override,
         };
 
         // We create a dummy state for variables to be written to, but we don't keep it around

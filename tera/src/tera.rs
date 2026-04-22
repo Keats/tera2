@@ -661,10 +661,7 @@ impl Tera {
     /// tera.add_raw_template("new.html", "Blabla").unwrap();
     /// ```
     pub fn add_raw_template(&mut self, name: &str, content: &str) -> TeraResult<()> {
-        let template = Template::new(name, content, None, self.delimiters)?;
-        self.templates.insert(name.to_string(), template);
-        self.finalize_templates()?;
-        Ok(())
+        self.add_raw_templates(std::iter::once((name, content)))
     }
 
     /// Add all the templates given to the Tera instance
@@ -686,20 +683,42 @@ impl Tera {
         N: AsRef<str>,
         C: AsRef<str>,
     {
-        for (name, content) in templates {
-            let template = Template::new(name.as_ref(), content.as_ref(), None, self.delimiters)?;
-            self.templates.insert(name.as_ref().to_string(), template);
+        let mut inserted: Vec<(String, Option<Template>)> = Vec::new();
+        let result = (|| -> TeraResult<()> {
+            for (name, content) in templates {
+                let template =
+                    Template::new(name.as_ref(), content.as_ref(), None, self.delimiters)?;
+                let key = name.as_ref().to_string();
+                let previous = self.templates.insert(key.clone(), template);
+                inserted.push((key, previous));
+            }
+            self.finalize_templates()
+        })();
+
+        if result.is_err() {
+            // Undo in reverse so duplicate names within the batch restore correctly.
+            for (key, previous) in inserted.into_iter().rev() {
+                match previous {
+                    Some(old) => {
+                        self.templates.insert(key, old);
+                    }
+                    None => {
+                        self.templates.remove(&key);
+                    }
+                }
+            }
         }
-
-        self.finalize_templates()?;
-
-        Ok(())
+        result
     }
 
     /// Add a template from a path: reads the file and parses it.
     /// This will return an error if the template is invalid and doesn't check the validity of
     /// the new set of templates.
-    fn add_file<P: AsRef<Path>>(&mut self, path: P, name: Option<&str>) -> TeraResult<()> {
+    fn add_file<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        name: Option<&str>,
+    ) -> TeraResult<(String, Option<Template>)> {
         let path = path.as_ref();
         let path_str = path.to_str().ok_or_else(|| {
             Error::message(format!("Template path is not valid UTF-8: {:?}", path))
@@ -720,8 +739,9 @@ impl Tera {
             self.delimiters,
         )?;
 
-        self.templates.insert(tpl_name.to_string(), template);
-        Ok(())
+        let key = tpl_name.to_string();
+        let previous = self.templates.insert(key.clone(), template);
+        Ok((key, previous))
     }
 
     /// Add a single template from a path to the Tera instance. The default name for the template is
@@ -744,8 +764,7 @@ impl Tera {
         path: P,
         name: Option<&str>,
     ) -> TeraResult<()> {
-        self.add_file(path, name)?;
-        self.finalize_templates()
+        self.add_template_files(std::iter::once((path, name)))
     }
 
     /// Add several templates from paths to the Tera instance.
@@ -770,10 +789,28 @@ impl Tera {
         P: AsRef<Path>,
         N: AsRef<str>,
     {
-        for (path, name) in files {
-            self.add_file(path, name.as_ref().map(AsRef::as_ref))?;
+        let mut inserted: Vec<(String, Option<Template>)> = Vec::new();
+        let result = (|| -> TeraResult<()> {
+            for (path, name) in files {
+                let (key, previous) = self.add_file(path, name.as_ref().map(AsRef::as_ref))?;
+                inserted.push((key, previous));
+            }
+            self.finalize_templates()
+        })();
+
+        if result.is_err() {
+            for (key, previous) in inserted.into_iter().rev() {
+                match previous {
+                    Some(old) => {
+                        self.templates.insert(key, old);
+                    }
+                    None => {
+                        self.templates.remove(&key);
+                    }
+                }
+            }
         }
-        self.finalize_templates()
+        result
     }
 
     /// Set fallback prefixes to try when a template is not found by exact name. This needs to be
@@ -1030,8 +1067,6 @@ impl Tera {
     /// Renders a component by name with the given context and optional body content.
     ///
     /// The context should contain the component's arguments as key-value pairs.
-    /// Autoescape is determined by the source template's filename (e.g., components defined
-    /// in `.html` files will have autoescape enabled) with the default Tera settings.
     ///
     /// # Examples
     ///
@@ -1049,6 +1084,7 @@ impl Tera {
     ///     "Button",
     ///     &context! { label => "Click me" },
     ///     None,
+    ///     true,
     /// ).unwrap();
     /// assert_eq!(html, "<button>Click me</button>");
     ///
@@ -1057,6 +1093,7 @@ impl Tera {
     ///     "Card",
     ///     &context! { title => "My Card" },
     ///     Some("<p>Card content here</p>"),
+    ///     true,
     /// ).unwrap();
     /// assert_eq!(html, "<div><h1>My Card</h1><p>Card content here</p></div>");
     /// ```
@@ -1065,9 +1102,10 @@ impl Tera {
         component_name: &str,
         context: &Context,
         body: Option<&str>,
+        autoescape: bool,
     ) -> TeraResult<String> {
         let mut output = Vec::new();
-        self.render_component_to(component_name, context, body, &mut output)?;
+        self.render_component_to(component_name, context, body, autoescape, &mut output)?;
         Ok(String::from_utf8(output)?)
     }
 
@@ -1091,6 +1129,7 @@ impl Tera {
     ///     "Button",
     ///     &context! { label => "Click me" },
     ///     None,
+    ///     true,
     ///     &mut buffer,
     /// ).unwrap();
     /// assert_eq!(buffer, b"<button>Click me</button>");
@@ -1100,6 +1139,7 @@ impl Tera {
         component_name: &str,
         context: &Context,
         body: Option<&str>,
+        autoescape: bool,
         mut write: impl Write,
     ) -> TeraResult<()> {
         let (component_def, chunk) = self
@@ -1123,7 +1163,7 @@ impl Tera {
             )
             .map_err(Error::message)?;
 
-        let vm = VirtualMachine::new(self, template);
+        let vm = VirtualMachine::new_with_autoescape(self, template, autoescape);
         let mut state = State::new_with_chunk(&component_context, chunk);
         state.filters = Some(&self.filters);
         vm.interpret(&mut state, &mut write)?;
@@ -1218,6 +1258,20 @@ mod tests {
     }
 
     #[test]
+    fn add_raw_template_failure_preserves_existing() {
+        let mut tera = Tera::default();
+        tera.add_raw_template("good.html", "Hello {{ name }}")
+            .unwrap();
+
+        // Parses fine but finalize rejects (unknown filter).
+        let err = tera.add_raw_template("bad.html", "{{ name | no_such_filter }}");
+        assert!(err.is_err());
+
+        assert!(tera.get_template("good.html").is_some());
+        assert!(tera.get_template("bad.html").is_none());
+    }
+
+    #[test]
     fn test_render_component() {
         let mut tera = Tera::default();
         tera.add_raw_template(
@@ -1235,46 +1289,52 @@ mod tests {
 
         // Basic + defaults
         insta::assert_snapshot!(
-            tera.render_component("Button", &context! { label => "Click" }, None).unwrap(),
+            tera.render_component("Button", &context! { label => "Click" }, None, true).unwrap(),
             @r#"<button class="primary">Click</button>"#
         );
         // Override default
         insta::assert_snapshot!(
-            tera.render_component("Button", &context! { label => "X", variant => "secondary" }, None).unwrap(),
+            tera.render_component("Button", &context! { label => "X", variant => "secondary" }, None, true).unwrap(),
             @r#"<button class="secondary">X</button>"#
         );
         // With body
         insta::assert_snapshot!(
-            tera.render_component("Card", &context! { title => "T" }, Some("<p>body</p>")).unwrap(),
+            tera.render_component("Card", &context! { title => "T" }, Some("<p>body</p>"), true).unwrap(),
             @"<div><h1>T</h1><p>body</p></div>"
         );
-        // Autoescape (.html)
+        // Autoescape on
         insta::assert_snapshot!(
-            tera.render_component("Display", &context! { content => "<script>" }, None).unwrap(),
+            tera.render_component("Display", &context! { content => "<script>" }, None, true).unwrap(),
             @"&lt;script&gt;"
         );
-        // No autoescape (.txt)
+        // Autoescape off
         insta::assert_snapshot!(
-            tera.render_component("Raw", &context! { content => "<script>" }, None).unwrap(),
+            tera.render_component("Raw", &context! { content => "<script>" }, None, false).unwrap(),
             @"<script>"
         );
         // render_component_to variant
         let mut buffer = Vec::new();
-        tera.render_component_to("Button", &context! { label => "Y" }, None, &mut buffer)
-            .unwrap();
+        tera.render_component_to(
+            "Button",
+            &context! { label => "Y" },
+            None,
+            true,
+            &mut buffer,
+        )
+        .unwrap();
         insta::assert_snapshot!(String::from_utf8(buffer).unwrap(), @r#"<button class="primary">Y</button>"#);
 
         // Errors
         assert!(
-            tera.render_component("Nope", &Context::new(), None)
+            tera.render_component("Nope", &Context::new(), None, true)
                 .is_err()
         );
         assert!(
-            tera.render_component("Button", &Context::new(), None)
+            tera.render_component("Button", &Context::new(), None, true)
                 .is_err()
         );
         assert!(
-            tera.render_component("Button", &context! { label => "x", bad => "y" }, None)
+            tera.render_component("Button", &context! { label => "x", bad => "y" }, None, true)
                 .is_err()
         );
     }
