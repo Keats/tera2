@@ -183,7 +183,7 @@ impl Kwargs {
         T::deserialize(&Value {
             inner: ValueInner::Map(self.values.clone()),
         })
-        .map_err(|_| Error::message("Failed to deserialize"))
+        .map_err(Error::message)
     }
 
     /// Try to get the given key value and convert it to the given type
