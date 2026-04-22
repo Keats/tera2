@@ -597,7 +597,7 @@ pub(crate) fn get(val: Map, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
         Ok(d)
     } else {
         Err(Error::message(format!(
-            "Map does not a key {key} and no default values were defined"
+            "Map does not have a key {key} and no default values were defined"
         )))
     }
 }
@@ -614,7 +614,7 @@ pub(crate) fn filter(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult<V
         match v.get_from_path(attribute) {
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
-                    "Value {v} does not an attribute after following path: {attribute}"
+                    "Value {v} does not have an attribute after following path: {attribute}"
                 )));
             }
             x => {
@@ -639,7 +639,7 @@ pub(crate) fn group_by(val: Vec<Value>, kwargs: Kwargs, _: &State) -> TeraResult
         match v.get_from_path(attribute) {
             x if x.is_undefined() => {
                 return Err(Error::message(format!(
-                    "Value {v} does not an attribute after following path; {attribute}"
+                    "Value {v} does not have an attribute after following path; {attribute}"
                 )));
             }
             x if x.is_none() => (),
