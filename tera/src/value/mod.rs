@@ -219,6 +219,7 @@ impl PartialEq for Value {
             (ValueInner::String(v), ValueInner::String(v2)) => v.as_str() == v2.as_str(),
             (ValueInner::Map(v), ValueInner::Map(v2)) => v == v2,
             // Then the numbers
+            (ValueInner::F64(a), ValueInner::F64(b)) => (a.is_nan() && b.is_nan()) || a == b,
             // First if there's a float we need to convert to float
             (ValueInner::F64(v), _) => Some(*v) == other.as_f64(),
             (_, ValueInner::F64(v)) => Some(*v) == self.as_f64(),
@@ -250,6 +251,7 @@ impl PartialOrd for Value {
             (ValueInner::Bytes(v), ValueInner::Bytes(v2)) => v.partial_cmp(v2),
             (ValueInner::String(v), ValueInner::String(v2)) => v.as_str().partial_cmp(v2.as_str()),
             // Then the numbers
+            (ValueInner::F64(a), ValueInner::F64(b)) => Some(a.total_cmp(b)),
             // First if there's a float we need to convert to float
             (ValueInner::F64(v), _) => v.partial_cmp(&other.as_f64()?),
             (_, ValueInner::F64(v)) => v.partial_cmp(&self.as_f64()?),
