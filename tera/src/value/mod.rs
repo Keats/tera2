@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Formatter;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::sync::Arc;
 
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
@@ -293,27 +293,6 @@ impl Ord for Value {
             }
         }
         type_order(&self.inner).cmp(&type_order(&other.inner))
-    }
-}
-
-impl Hash for Value {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match &self.inner {
-            ValueInner::Undefined | ValueInner::None => 0.hash(state),
-            ValueInner::Bool(v) => v.hash(state),
-            ValueInner::U64(_)
-            | ValueInner::I64(_)
-            | ValueInner::U128(_)
-            | ValueInner::I128(_)
-            | ValueInner::F64(_) => self.as_number().hash(state),
-            ValueInner::Bytes(v) => v.hash(state),
-            ValueInner::String(v) => v.as_str().hash(state),
-            ValueInner::Array(v) => v.hash(state),
-            ValueInner::Map(v) => v.iter().for_each(|(k, v)| {
-                k.hash(state);
-                v.hash(state);
-            }),
-        }
     }
 }
 
