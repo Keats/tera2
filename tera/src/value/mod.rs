@@ -637,7 +637,16 @@ impl Value {
             ValueInner::Map(v) => Some(v.len()),
             ValueInner::Array(v) => Some(v.len()),
             ValueInner::Bytes(v) => Some(v.len()),
-            ValueInner::String(v) => Some(v.as_str().chars().count()),
+            ValueInner::String(v) => {
+                #[cfg(feature = "unicode")]
+                {
+                    Some(v.as_str().graphemes(true).count())
+                }
+                #[cfg(not(feature = "unicode"))]
+                {
+                    Some(v.as_str().chars().count())
+                }
+            }
             _ => None,
         }
     }
@@ -650,7 +659,13 @@ impl Value {
                 Ok(Self::from(rev))
             }
             ValueInner::Bytes(v) => Ok(Self::from(v.iter().rev().copied().collect::<Vec<_>>())),
-            ValueInner::String(v) => Ok(Self::from(String::from_iter(v.as_str().chars().rev()))),
+            ValueInner::String(v) => {
+                #[cfg(feature = "unicode")]
+                let reversed: String = v.as_str().graphemes(true).rev().collect();
+                #[cfg(not(feature = "unicode"))]
+                let reversed: String = v.as_str().chars().rev().collect();
+                Ok(Self::from(reversed))
+            }
             _ => Err(Error::message(format!(
                 "Value of type {} cannot be reversed",
                 self.name()
@@ -1124,5 +1139,27 @@ impl<I: Into<Value>> FunctionResult for TeraResult<I> {
 impl<I: Into<Value>> FunctionResult for I {
     fn into_result(self) -> TeraResult<Value> {
         Ok(self.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // "école" with é = 'e' + U+0301
+    #[cfg(not(feature = "unicode"))]
+    #[test]
+    fn len_and_reverse_use_chars() {
+        let v = Value::from("e\u{0301}cole");
+        assert_eq!(v.len(), Some(6));
+        assert_eq!(v.reverse().unwrap().as_str(), Some("eloc\u{0301}e"));
+    }
+
+    #[cfg(feature = "unicode")]
+    #[test]
+    fn len_and_reverse_use_graphemes() {
+        let v = Value::from("e\u{0301}cole");
+        assert_eq!(v.len(), Some(5));
+        assert_eq!(v.reverse().unwrap().as_str(), Some("eloce\u{0301}"));
     }
 }
