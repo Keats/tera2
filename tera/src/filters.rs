@@ -331,10 +331,7 @@ pub(crate) fn int(val: Value, kwargs: Kwargs, _: &State) -> TeraResult<Value> {
             let v = val.as_i128().unwrap();
             Ok(v.into())
         }
-        ValueKind::U128 => {
-            let v = val.as_i128().unwrap() as u128;
-            Ok(v.into())
-        }
+        ValueKind::U128 => Ok(val),
         ValueKind::F64 => {
             let v = val.as_f64().unwrap();
             handle_f64(v)
