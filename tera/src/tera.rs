@@ -138,12 +138,12 @@ impl Tera {
     ///
     /// let mut tera = Tera::new();
     /// tera.set_delimiters(Delimiters {
-    ///     block_start: "<%",
-    ///     block_end: "%>",
-    ///     variable_start: "<<",
-    ///     variable_end: ">>",
-    ///     comment_start: "<#",
-    ///     comment_end: "#>",
+    ///     block_start: "<%".into(),
+    ///     block_end: "%>".into(),
+    ///     variable_start: "<<".into(),
+    ///     variable_end: ">>".into(),
+    ///     comment_start: "<#".into(),
+    ///     comment_end: "#>".into(),
     /// }).unwrap();
     /// tera.add_raw_template("example", "<< name >>").unwrap();
     /// ```
@@ -683,8 +683,12 @@ impl Tera {
         let mut inserted: Vec<(String, Option<Template>)> = Vec::new();
         let result = (|| -> TeraResult<()> {
             for (name, content) in templates {
-                let template =
-                    Template::new(name.as_ref(), content.as_ref(), None, self.delimiters)?;
+                let template = Template::new(
+                    name.as_ref(),
+                    content.as_ref(),
+                    None,
+                    self.delimiters.clone(),
+                )?;
                 let key = name.as_ref().to_string();
                 let previous = self.templates.insert(key.clone(), template);
                 inserted.push((key, previous));
@@ -733,7 +737,7 @@ impl Tera {
             tpl_name,
             &content,
             Some(path_str.to_string()),
-            self.delimiters,
+            self.delimiters.clone(),
         )?;
 
         let key = tpl_name.to_string();
@@ -1040,7 +1044,8 @@ impl Tera {
         autoescape: bool,
         write: impl Write,
     ) -> TeraResult<()> {
-        let mut template = Template::new(ONE_OFF_TEMPLATE_NAME, input, None, self.delimiters)?;
+        let mut template =
+            Template::new(ONE_OFF_TEMPLATE_NAME, input, None, self.delimiters.clone())?;
 
         if !template.parents.is_empty() {
             return Err(Error::message(
@@ -1375,12 +1380,12 @@ mod tests {
     fn custom_delimiters() {
         let mut tera = Tera::new();
         tera.set_delimiters(Delimiters {
-            block_start: "<%",
-            block_end: "%>",
-            variable_start: "<<",
-            variable_end: ">>",
-            comment_start: "<#",
-            comment_end: "#>",
+            block_start: "<%".into(),
+            block_end: "%>".into(),
+            variable_start: "<<".into(),
+            variable_end: ">>".into(),
+            comment_start: "<#".into(),
+            comment_end: "#>".into(),
         })
         .unwrap();
 
