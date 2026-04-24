@@ -67,6 +67,7 @@ impl ReportError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ErrorKind {
     /// Generic error
     Msg(String),
@@ -193,7 +194,7 @@ impl fmt::Display for ErrorKind {
 
 #[derive(Debug)]
 pub struct Error {
-    pub kind: ErrorKind,
+    pub(crate) kind: ErrorKind,
     // If the error comes from some third party libs, TODO we need that?
     pub(crate) source: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
@@ -207,6 +208,10 @@ impl fmt::Display for Error {
 impl Error {
     pub fn new(kind: ErrorKind) -> Self {
         Self { kind, source: None }
+    }
+
+    pub fn kind(&self) -> &ErrorKind {
+        &self.kind
     }
 
     /// Creates generic error with a source

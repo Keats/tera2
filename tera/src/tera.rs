@@ -32,15 +32,12 @@ pub type EscapeFn = fn(&[u8], &mut dyn Write) -> std::io::Result<()>;
 pub struct Tera {
     /// The glob used to load templates if there was one.
     /// Only used if the `glob_fs` feature is turned on
-    #[doc(hidden)]
     #[allow(dead_code)]
-    glob: Option<String>,
-    #[doc(hidden)]
-    pub templates: HashMap<String, Template>,
+    pub(crate) glob: Option<String>,
+    pub(crate) templates: HashMap<String, Template>,
     /// Which extensions does Tera automatically autoescape on.
     /// Defaults to [".html", ".htm", ".xml"]
-    #[doc(hidden)]
-    autoescape_suffixes: Vec<&'static str>,
+    pub(crate) autoescape_suffixes: Vec<&'static str>,
     #[doc(hidden)]
     pub(crate) escape_fn: EscapeFn,
     global_context: Context,
@@ -868,9 +865,31 @@ impl Tera {
 
     /// Get a template by name, resolving fallback prefixes if needed.
     #[inline]
+    #[doc(hidden)]
     pub fn get_template(&self, template_name: &str) -> Option<&Template> {
         self.resolve_template_name(template_name)
             .map(|resolved| &self.templates[resolved])
+    }
+
+    /// Returns an iterator over the names of all registered templates in an
+    /// unspecified order.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tera::Tera;
+    ///
+    /// let mut tera = Tera::default();
+    /// tera.add_raw_template("foo", "{{ hello }}");
+    /// tera.add_raw_template("another-one.html", "contents go here");
+    ///
+    /// let names: Vec<_> = tera.get_template_names().collect();
+    /// assert_eq!(names.len(), 2);
+    /// assert!(names.contains(&"foo"));
+    /// assert!(names.contains(&"another-one.html"));
+    /// ```
+    pub fn get_template_names(&self) -> impl Iterator<Item = &str> {
+        self.templates.keys().map(|s| s.as_str())
     }
 
     /// Get a template by name, returning an error if not found. Used internally.

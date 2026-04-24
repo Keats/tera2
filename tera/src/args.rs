@@ -7,7 +7,39 @@ use crate::errors::{Error, TeraResult};
 use crate::value::number::Number;
 use crate::value::{Key, Map, ValueInner};
 
-pub trait ArgFromValue<'k> {
+mod private {
+    use super::{Map, Number, Value};
+    use std::borrow::Cow;
+
+    pub trait Sealed {}
+
+    impl Sealed for bool {}
+    impl Sealed for f32 {}
+    impl Sealed for f64 {}
+    impl Sealed for u8 {}
+    impl Sealed for u16 {}
+    impl Sealed for u32 {}
+    impl Sealed for u64 {}
+    impl Sealed for u128 {}
+    impl Sealed for usize {}
+    impl Sealed for i8 {}
+    impl Sealed for i16 {}
+    impl Sealed for i32 {}
+    impl Sealed for i64 {}
+    impl Sealed for i128 {}
+    impl Sealed for isize {}
+    impl Sealed for String {}
+    impl Sealed for &str {}
+    impl<'a> Sealed for Cow<'a, str> {}
+    impl Sealed for Value {}
+    impl Sealed for &Value {}
+    impl Sealed for Number {}
+    impl Sealed for Map {}
+    impl<T: Sealed> Sealed for Vec<T> {}
+}
+
+#[doc(hidden)]
+pub trait ArgFromValue<'k>: private::Sealed {
     type Output;
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output>;

@@ -56,7 +56,7 @@ pub(crate) fn format_map(map: &Map, f: &mut impl std::io::Write) -> std::io::Res
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum StringKind {
+pub(crate) enum StringKind {
     Normal,
     Safe,
 }
