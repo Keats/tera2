@@ -298,6 +298,24 @@ impl Ord for Value {
     }
 }
 
+/// Resolves an integer-typed `item` into a valid `0..len` index.
+/// None if the index doesn't fit into a usize and errors for non-integer values
+fn resolve_index(item: &Value, len: usize, kind: &str) -> TeraResult<Option<usize>> {
+    if let Some(idx) = item.as_i128() {
+        let normalized = if idx < 0 { idx + len as i128 } else { idx };
+        Ok((0..len as i128)
+            .contains(&normalized)
+            .then_some(normalized as usize))
+    } else if item.is_u128() {
+        Ok(None)
+    } else {
+        Err(Error::message(format!(
+            "{kind} index must be an integer, got `{}`.",
+            item.name(),
+        )))
+    }
+}
+
 impl Value {
     pub fn none() -> Self {
         Value {
@@ -457,9 +475,18 @@ impl Value {
         match &self.inner {
             ValueInner::U64(v) => Some(*v as i128),
             ValueInner::I64(v) => Some(*v as i128),
-            // TODO: in theory this cannot necessarily fit in i128
-            ValueInner::U128(v) => Some(**v as i128),
+            ValueInner::U128(v) => i128::try_from(**v).ok(),
             ValueInner::I128(v) => Some(**v),
+            _ => None,
+        }
+    }
+
+    pub fn as_u128(&self) -> Option<u128> {
+        match &self.inner {
+            ValueInner::U64(v) => Some(*v as u128),
+            ValueInner::I64(v) => u128::try_from(*v).ok(),
+            ValueInner::U128(v) => Some(**v),
+            ValueInner::I128(v) => u128::try_from(**v).ok(),
             _ => None,
         }
     }
@@ -753,22 +780,30 @@ impl Value {
                     item.name()
                 ))),
             },
-            ValueInner::Array(arr) => match item.as_i128() {
-                Some(idx) => {
-                    let correct_idx = if idx < 0 {
-                        arr.len() as i128 + idx
-                    } else {
-                        idx
-                    } as usize;
-                    Ok(arr.get(correct_idx).cloned().unwrap_or(Value {
-                        inner: ValueInner::Undefined,
-                    }))
-                }
-                None => Err(Error::message(format!(
-                    "Array index must be an integer, got `{}`.",
-                    item.name(),
-                ))),
-            },
+            ValueInner::Array(arr) => Ok(match resolve_index(&item, arr.len(), "Array")? {
+                Some(i) => arr[i].clone(),
+                None => Value::undefined(),
+            }),
+            ValueInner::String(s) => {
+                let kind = s.kind();
+                #[cfg(feature = "unicode")]
+                let chars: Vec<&str> = s.as_str().graphemes(true).collect();
+                #[cfg(not(feature = "unicode"))]
+                let chars: Vec<char> = s.as_str().chars().collect();
+                Ok(match resolve_index(&item, chars.len(), "String")? {
+                    Some(i) => {
+                        let c = &chars[i];
+                        #[cfg(feature = "unicode")]
+                        let out = (*c).to_string();
+                        #[cfg(not(feature = "unicode"))]
+                        let out = c.to_string();
+                        Value {
+                            inner: ValueInner::String(SmartString::new(&out, kind)),
+                        }
+                    }
+                    None => Value::undefined(),
+                })
+            }
             _ => Ok(Value {
                 inner: ValueInner::Undefined,
             }),
