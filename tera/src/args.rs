@@ -167,9 +167,15 @@ impl<'k> ArgFromValue<'k> for Number {
     type Output = Number;
 
     fn from_value(value: &'k Value) -> TeraResult<Self::Output> {
-        value
-            .as_number()
-            .ok_or_else(|| Error::invalid_arg_type("Number", value.name()))
+        if let Some(n) = value.as_number() {
+            Ok(n)
+        } else if value.is_number() {
+            Err(Error::message(format!(
+                "Number `{value}` is out of range for i128"
+            )))
+        } else {
+            Err(Error::invalid_arg_type("Number", value.name()))
+        }
     }
 }
 
