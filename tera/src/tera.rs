@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fmt;
 use std::fs::File;
@@ -41,9 +42,9 @@ pub struct Tera {
     #[doc(hidden)]
     pub(crate) escape_fn: EscapeFn,
     global_context: Context,
-    pub(crate) filters: HashMap<&'static str, StoredFilter>,
-    pub(crate) tests: HashMap<&'static str, StoredTest>,
-    pub(crate) functions: HashMap<&'static str, StoredFunction>,
+    pub(crate) filters: HashMap<Cow<'static, str>, StoredFilter>,
+    pub(crate) tests: HashMap<Cow<'static, str>, StoredTest>,
+    pub(crate) functions: HashMap<Cow<'static, str>, StoredFunction>,
     pub(crate) components: HashMap<String, (ComponentDefinition, Chunk)>,
     /// Custom delimiters for template syntax
     delimiters: Delimiters,
@@ -220,13 +221,16 @@ impl Tera {
     /// let mut tera = Tera::default();
     /// tera.register_filter("double", |x: i64, _: Kwargs, _: &State| x * 2);
     /// ```
-    pub fn register_filter<Func, Arg, Res>(&mut self, name: &'static str, filter: Func)
-    where
+    pub fn register_filter<Func, Arg, Res>(
+        &mut self,
+        name: impl Into<Cow<'static, str>>,
+        filter: Func,
+    ) where
         Func: Filter<Arg, Res> + for<'a> Filter<<Arg as ArgFromValue<'a>>::Output, Res>,
         Arg: for<'a> ArgFromValue<'a>,
         Res: FunctionResult,
     {
-        self.filters.insert(name, StoredFilter::new(filter));
+        self.filters.insert(name.into(), StoredFilter::new(filter));
     }
 
     /// Register a test with Tera.
@@ -238,24 +242,25 @@ impl Tera {
     /// let mut tera = Tera::default();
     /// tera.register_test("odd", |x: i64, _: Kwargs, _: &State| x % 2 != 0);
     /// ```
-    pub fn register_test<Func, Arg, Res>(&mut self, name: &'static str, test: Func)
+    pub fn register_test<Func, Arg, Res>(&mut self, name: impl Into<Cow<'static, str>>, test: Func)
     where
         Func: Test<Arg, Res> + for<'a> Test<<Arg as ArgFromValue<'a>>::Output, Res>,
         Arg: for<'a> ArgFromValue<'a>,
         Res: TestResult,
     {
-        self.tests.insert(name, StoredTest::new(test));
+        self.tests.insert(name.into(), StoredTest::new(test));
     }
 
     /// Register a function with Tera.
     ///
     /// If a function with that name already exists, it will be overwritten
-    pub fn register_function<Func, Res>(&mut self, name: &'static str, func: Func)
+    pub fn register_function<Func, Res>(&mut self, name: impl Into<Cow<'static, str>>, func: Func)
     where
         Func: Function<Res>,
         Res: FunctionResult,
     {
-        self.functions.insert(name, StoredFunction::new(func));
+        self.functions
+            .insert(name.into(), StoredFunction::new(func));
     }
 
     /// Register filters, tests, and functions from another [`Tera`] instance.
@@ -265,19 +270,19 @@ impl Tera {
     pub fn register_from(&mut self, other: &Tera) {
         for (name, filter) in &other.filters {
             if !self.filters.contains_key(name) {
-                self.filters.insert(name, filter.clone());
+                self.filters.insert(name.clone(), filter.clone());
             }
         }
 
         for (name, test) in &other.tests {
             if !self.tests.contains_key(name) {
-                self.tests.insert(name, test.clone());
+                self.tests.insert(name.clone(), test.clone());
             }
         }
 
         for (name, function) in &other.functions {
             if !self.functions.contains_key(name) {
-                self.functions.insert(name, function.clone());
+                self.functions.insert(name.clone(), function.clone());
             }
         }
     }
