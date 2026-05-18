@@ -254,6 +254,9 @@ impl Compiler {
                 self.compile_expr(ternary.false_expr);
                 self.end_branch(self.chunk.len());
             }
+            Expression::ListComprehension(e) => {
+                todo!("{e:?}")
+            }
             Expression::ComponentCall(e) => {
                 let (component_call, span) = e.into_parts();
 
